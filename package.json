@@ -1,4 +1,8 @@
 {
+  "name": "sicte-sas-capacidades-backend-node",
+  "version": "1.0.0",
+  "main": "app.js",
+
   "dependencies": {
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
@@ -8,7 +12,8 @@
   },
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "test-db": "node test-db-connection.js"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"

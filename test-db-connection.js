@@ -1,23 +1,20 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
-async function testConnection() {
+(async () => {
   try {
     const connection = await mysql.createConnection({
       host: process.env.DB1_HOST,
-      port: parseInt(process.env.DB1_PORT, 10),
+      port: process.env.DB1_PORT,
       user: process.env.DB1_USER,
       password: process.env.DB1_PASSWORD,
       database: process.env.DB1_DATABASE,
     });
 
-    console.log('✅ Conexión exitosa');
-    const [rows] = await connection.execute('SHOW TABLES;');
-    console.log('📋 Tablas:', rows);
+    console.log('✅ ¡Conexión a la base de datos exitosa!');
     await connection.end();
-  } catch (err) {
-    console.error('❌ Error de conexión:', err.message);
+  } catch (error) {
+    console.error('❌ Error al conectar a la base de datos:');
+    console.error(error);
   }
-}
-
-testConnection();
+})();
