@@ -568,23 +568,32 @@ router.post('/leerPDF', async (req, res) => {
     const nombrePDF = req.body.rutaPdf;
     const filePath = path.join(__dirname, '..', 'temp', nombrePDF);
 
-    if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'El archivo no existe en el backend' });
-    }
-
-    const form = new FormData();
-    form.append('file', fs.createReadStream(filePath), nombrePDF);
-
     try {
+        // 1. Verifica si el archivo ya existe localmente
+        if (!fs.existsSync(filePath)) {
+            const pdfData = await getFileByName(nombrePDF); // Descárgalo desde Google Drive
+
+            if (!pdfData) {
+                return res.status(404).json({ error: 'No se encontró el PDF en Google Drive' });
+            }
+
+            fs.writeFileSync(filePath, pdfData);
+        }
+
+        // 2. Prepara el archivo para enviarlo al microservicio
+        const form = new FormData();
+        form.append('file', fs.createReadStream(filePath), nombrePDF);
+
         const response = await axios.post(
-            'https://tu-microservicio-python.up.railway.app/leer-pdf',
+            'https://sicte-sas-leer-pdfs-production.up.railway.app/leer-pdf',
             form,
             { headers: form.getHeaders() }
         );
 
         res.send(response.data);
+
     } catch (err) {
-        console.error('Error al llamar al microservicio:', err.message);
+        console.error('Error al procesar el PDF:', err.message);
         res.status(500).json({ error: 'Error al procesar el PDF', detalle: err.message });
     }
 });
