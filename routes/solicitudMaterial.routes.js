@@ -595,7 +595,7 @@ router.post('/leerPDF', async (req, res) => {
         );
 
         // 4. Devuelve la respuesta del microservicio
-        res.send(response.data);
+        res.json(response.data);
 
     } catch (err) {
         console.error('Error al procesar el PDF:', err.message);
