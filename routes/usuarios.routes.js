@@ -298,5 +298,15 @@ router.post('/enviarToken', async (req, res) => {
     }
 });
 
+router.get('/relacionPersonal', async (req, res) => {
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM relacion_personal');
+
+        return res.status(200).json(rows);
+
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
 
 module.exports = router;
