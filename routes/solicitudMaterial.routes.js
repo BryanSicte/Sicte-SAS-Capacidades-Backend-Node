@@ -571,7 +571,7 @@ router.post('/leerPDF', async (req, res) => {
     try {
         // 1. Verifica si el archivo ya existe localmente
         if (!fs.existsSync(filePath)) {
-            const pdfData = await getFileByName(nombrePDF); // Descárgalo desde Google Drive
+            const pdfData = await getFileByName(nombrePDF, folderId); // Descárgalo desde Google Drive
 
             if (!pdfData) {
                 return res.status(404).json({ error: 'No se encontró el PDF en Google Drive' });
