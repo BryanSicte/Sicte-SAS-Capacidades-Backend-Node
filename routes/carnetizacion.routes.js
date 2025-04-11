@@ -67,6 +67,23 @@ router.post('/crearRegistro', async (req, res) => {
     }
 });
 
+router.post('/actualizarDatos', async (req, res) => {
+    const { id, estado } = req.body;
+
+    try {
+        const query = `
+            UPDATE registros_carnetizacion SET estado = ? WHERE id = ?
+        `;
+
+        await dbRailway.query(query, [estado, id]);
+
+        res.status(200).json({ message: 'Datos actualizados correctamente' });
+    } catch (error) {
+        console.error('❌ Error al actualizar:', error);
+        res.status(500).json({ message: 'Error al actualizar el estado' });
+    }
+});
+
 const uploadDir = path.join(__dirname, '..', 'temp');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
