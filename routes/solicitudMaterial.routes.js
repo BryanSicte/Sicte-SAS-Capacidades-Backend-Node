@@ -565,49 +565,16 @@ router.get('/obtenerPDF', async (req, res) => {
 });
 
 router.post('/leerPDF', async (req, res) => {
-    const nombrePDF = req.body.rutaPdf;
-    const pythonScriptPath = '../scripts/Leer_PDF.py';
-    const tempFolder = path.join(__dirname, '..', 'temp');
-    const rutaPdf = path.join(tempFolder, nombrePDF);
+    const { rutaPdf } = req.body;
 
     try {
-        if (!fs.existsSync(tempFolder)) {
-            fs.mkdirSync(tempFolder, { recursive: true });
-        }
-
-        const pdfData = await getFileByName(nombrePDF, folderId);
-        if (!pdfData) {
-            return res.status(404).json({ error: 'No se encontró el PDF en Google Drive' });
-        }
-
-        fs.writeFileSync(rutaPdf, pdfData);
-
-        const process = spawn('python', [pythonScriptPath, rutaPdf]);
-
-        let output = '';
-        let errorOutput = '';
-
-        process.stdout.on('data', (data) => {
-            output += data.toString();
+        const response = await axios.post('https://sicte-sas-leer-pdfs-production.up.railway.app/leer-pdf', {
+            rutaPdf
         });
 
-        process.stderr.on('data', (data) => {
-            errorOutput += data.toString();
-        });
-
-        process.on('close', (code) => {
-            if (code !== 0) {
-                return res.status(500).json({
-                    error: 'Error en el script de Python',
-                    detalle: errorOutput
-                });
-            }
-
-            res.send(output);
-        });
-
+        res.send(response.data);
     } catch (err) {
-        console.error(err);
+        console.error('Error al llamar al microservicio:', err.message);
         res.status(500).json({
             error: 'Error al procesar el PDF',
             detalle: err.message
