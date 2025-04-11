@@ -582,7 +582,7 @@ router.post('/leerPDF', async (req, res) => {
 
         fs.writeFileSync(rutaPdf, pdfData);
 
-        const process = spawn('python3', [pythonScriptPath, rutaPdf]);
+        const process = spawn('python', [pythonScriptPath, rutaPdf]);
 
         let output = '';
         let errorOutput = '';
