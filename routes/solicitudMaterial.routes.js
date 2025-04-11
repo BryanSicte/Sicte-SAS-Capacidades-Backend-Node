@@ -521,7 +521,7 @@ router.get('/obtenerKmz', async (req, res) => {
     }
 });
 
-router.get('/obtenerDiseño', async (req, res) => {
+router.get('/obtenerDiseno', async (req, res) => {
     const { fileName } = req.query;
 
     try {
