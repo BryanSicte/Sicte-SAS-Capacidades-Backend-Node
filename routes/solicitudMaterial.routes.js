@@ -5,9 +5,10 @@ const multer = require('multer');
 const path = require('path');
 const { uploadFile } = require('../services/googleDriveService');
 const { getFileByName } = require('../services/googleDriveService');
+const { spawn } = require('child_process');
 const fs = require('fs');
 
-const folderId = '1jMD6UqxKbVqY003qb9xo9kND5gjkcmU5';
+const folderId = "13wCWGhH7UkPJeFA_uciQg_-s_WjBeAnb";
 
 router.get('/registros', async (req, res) => {
     try {
@@ -192,6 +193,140 @@ router.get('/kgprod', async (req, res) => {
 });
 
 
+router.post('/actualizarEstadoAnalista', async (req, res) => {
+    try {
+        const { ids, estado, observacionesTemporal, fechaRegistro } = req.body;
+
+        if (!Array.isArray(ids)) {
+            return res.status(400).json({ error: 'El campo "ids" debe ser una lista.' });
+        }
+
+        for (const id of ids) {
+            await db.query(
+                `UPDATE registros_solicitud_materiales SET 
+                aprobacionAnalista = ?, 
+                observacionesAnalista = ?, 
+                fechaAnalista = ? 
+                WHERE id = ?`
+                [estado, observacionesTemporal, fechaRegistro, id]
+            );
+
+            if (estado === "Rechazado") {
+                await db.query(
+                    `UPDATE registros_solicitud_materiales SET 
+                    aprobacionDirector = ?, 
+                    observacionesDirector = ?, 
+                    fechaDirector = ? 
+                    WHERE id = ?`
+                    [estado, null, fechaRegistro, id]
+                );
+
+                await db.query(
+                    `UPDATE registros_solicitud_materiales SET 
+                    aprobacionDireccionOperacion = ?, 
+                    observacionesDireccionOperacion = ?, 
+                    fechaDireccionOperacion = ? 
+                    WHERE id = ?`
+                    [estado, null, fechaRegistro, id]
+                );
+            }
+        }
+
+        res.status(200).json({ message: "Estado y observaciones actualizados correctamente" });
+    } catch (error) {
+        console.error("Error al actualizar el estado:", error);
+        res.status(500).json({ error: "Error al actualizar el estado" });
+    }
+});
+
+router.post('/actualizarEstadoDirector', async (req, res) => {
+    try {
+        const { ids, estado, observacionesTemporal, fechaRegistro } = req.body;
+
+        if (!Array.isArray(ids)) {
+            return res.status(400).json({ error: 'El campo "ids" debe ser una lista.' });
+        }
+
+        for (const id of ids) {
+            await db.query(
+                `UPDATE registros_solicitud_materiales SET 
+                aprobacionDirector = ?, 
+                observacionesDirector = ?, 
+                fechaDirector = ? 
+                WHERE id = ?`
+                [estado, observacionesTemporal, fechaRegistro, id]
+            );
+
+            if (estado === "Rechazado") {
+                await db.query(
+                    `UPDATE registros_solicitud_materiales SET 
+                    aprobacionDireccionOperacion = ?, 
+                    observacionesDireccionOperacion = ?, 
+                    fechaDireccionOperacion = ? 
+                    WHERE id = ?`
+                    [estado, null, fechaRegistro, id]
+                );
+            }
+        }
+
+        res.status(200).json({ message: "Estado y observaciones actualizados correctamente" });
+    } catch (error) {
+        console.error("Error al actualizar el estado:", error);
+        res.status(500).json({ error: "Error al actualizar el estado" });
+    }
+});
+
+router.post('/actualizarEstadoDireccionOperacion', async (req, res) => {
+    try {
+        const { ids, estado, observacionesTemporal, fechaRegistro } = req.body;
+
+        if (!Array.isArray(ids)) {
+            return res.status(400).json({ error: 'El campo "ids" debe ser una lista.' });
+        }
+
+        for (const id of ids) {
+            await db.query(
+                `UPDATE registros_solicitud_materiales SET 
+                aprobacionDireccionOperacion = ?, 
+                observacionesDireccionOperacion = ?, 
+                fechaDireccionOperacion = ? 
+                WHERE id = ?`
+                [estado, observacionesTemporal, fechaRegistro, id]
+            );
+        }
+
+        res.status(200).json({ message: "Estado y observaciones actualizados correctamente" });
+    } catch (error) {
+        console.error("Error al actualizar el estado:", error);
+        res.status(500).json({ error: "Error al actualizar el estado" });
+    }
+});
+
+router.post('/actualizarEstadoEntregaBodega', async (req, res) => {
+    try {
+        const { ids, estado, observacionesTemporal } = req.body;
+
+        if (!Array.isArray(ids)) {
+            return res.status(400).json({ error: 'El campo "ids" debe ser una lista.' });
+        }
+
+        for (const id of ids) {
+            await db.query(
+                `UPDATE registros_solicitud_materiales SET 
+                entregaBodega = ?, 
+                observacionesEntregaBodega = ?
+                WHERE id = ?`
+                [estado, observacionesTemporal, id]
+            );
+        }
+
+        res.status(200).json({ message: "Estado y observaciones actualizados correctamente" });
+    } catch (error) {
+        console.error("Error al actualizar el estado:", error);
+        res.status(500).json({ error: "Error al actualizar el estado" });
+    }
+});
+
 router.post('/actualizarEstadoCantidadDisponibleMaterial', async (req, res) => {
     const { ids, cantidades } = req.body;
 
@@ -221,23 +356,85 @@ router.post('/actualizarEstadoCantidadDisponibleMaterial', async (req, res) => {
     }
 });
 
-
-
-
-router.post('/actualizarDatos', async (req, res) => {
-    const { id, estado } = req.body;
+router.post('/actualizarEstadoCantidadRestantePorDespacho', async (req, res) => {
+    const { ids, cantidades } = req.body;
 
     try {
-        const query = `
-            UPDATE registros_carnetizacion SET estado = ? WHERE id = ?
-        `;
+        if (!Array.isArray(ids) || !Array.isArray(cantidades)) {
+            return res.status(400).json({ error: 'Los datos deben ser arrays' });
+        }
 
-        await dbRailway.query(query, [estado, id]);
+        if (ids.length !== cantidades.length) {
+            return res.status(400).json({ error: 'La cantidad de IDs no coincide con la cantidad de cantidades' });
+        }
 
-        res.status(200).json({ message: 'Datos actualizados correctamente' });
+        for (let i = 0; i < ids.length; i++) {
+            const id = ids[i];
+            const cantidad = cantidades[i];
+
+            await db.query(
+                'UPDATE registros_solicitud_materiales SET cantidadRestantePorDespacho = ? WHERE id = ?',
+                [cantidad, id]
+            );
+        }
+
+        res.status(200).json({ message: 'Estado y cantidades actualizados correctamente' });
     } catch (error) {
-        console.error('❌ Error al actualizar:', error);
-        res.status(500).json({ message: 'Error al actualizar el estado' });
+        console.error('Error al actualizar:', error);
+        res.status(500).json({ error: 'Error al actualizar el estado' });
+    }
+});
+
+router.post('/actualizarEstadoEntregaBodegaPDFs', async (req, res) => {
+    const { ids, namePdfs } = req.body;
+
+    try {
+        if (!Array.isArray(ids) || !Array.isArray(namePdfs)) {
+            return res.status(400).json({ error: 'Los datos deben ser arrays' });
+        }
+
+        if (ids.length !== namePdfs.length) {
+            return res.status(400).json({ error: 'La cantidad de IDs no coincide con la cantidad de nombres' });
+        }
+
+        for (let i = 0; i < ids.length; i++) {
+            const id = ids[i];
+            const namePdf = namePdfs[i];
+
+            await db.query(
+                'UPDATE registros_solicitud_materiales SET pdfs = ? WHERE id = ?',
+                [namePdf, id]
+            );
+        }
+
+        res.status(200).json({ message: 'Estado y cantidades actualizados correctamente' });
+    } catch (error) {
+        console.error('Error al actualizar:', error);
+        res.status(500).json({ error: 'Error al actualizar el estado' });
+    }
+});
+
+router.post('/actualizarEstadoCierreProyecto', async (req, res) => {
+    const { ids, estadoProyecto } = req.body;
+
+    try {
+        if (!Array.isArray(ids)) {
+            return res.status(400).json({ error: 'Los datos deben ser arrays' });
+        }
+
+        for (let i = 0; i < ids.length; i++) {
+            const id = ids[i];
+
+            await db.query(
+                'UPDATE registros_solicitud_materiales SET estadoProyecto = ? WHERE id = ?',
+                [estadoProyecto, id]
+            );
+        }
+
+        res.status(200).json({ message: 'Estado y cantidades actualizados correctamente' });
+    } catch (error) {
+        console.error('Error al actualizar:', error);
+        res.status(500).json({ error: 'Error al actualizar el estado' });
     }
 });
 
@@ -257,49 +454,164 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-router.post('/cargarImagen', upload.single('file'), async (req, res) => {
-    const file = req.file;
-    const { filename } = req.body;
-
-    if (!file) {
-        return res.status(400).json({ error: 'No se ha seleccionado ningún archivo' });
-    }
+router.post('/cargarKmz', upload.single('file'), async (req, res) => {
+    if (!req.file) return res.status(400).send("No se ha seleccionado ningún archivo");
 
     try {
-        const fileId = await uploadFile(file.path, filename, folderId);
-        res.status(200).json({ message: 'Archivo subido con éxito', fileId });
+        const { filename } = req.body;
+        const newFileName = filename.endsWith('.kmz') ? filename : `${filename}.kmz`;
+
+        const fileId = await uploadFile(req.file.path, newFileName, folderId);
+        res.send(`Archivo subido con éxito. ID: ${fileId}`);
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: 'Error al subir el archivo' });
+        res.status(500).send("Error al subir el archivo");
     }
 });
 
-function getContentType(fileName) {
-    if (fileName.endsWith('.png')) return 'image/png';
-    if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) return 'image/jpeg';
-    return 'application/octet-stream';
-}
-
-router.get('/obtenerImagen', async (req, res) => {
-    const { imageName } = req.query;
-
-    if (!imageName) {
-        return res.status(400).json({ error: 'Debe proporcionar imageName' });
-    }
+router.post('/cargarDiseño', upload.single('file'), async (req, res) => {
+    if (!req.file) return res.status(400).send("No se ha seleccionado ningún archivo");
 
     try {
-        const imageData = await getFileByName(imageName, folderId);
+        const { filename } = req.body;
+        const ext = path.extname(filename);
+        const isCompressed = ['.zip', '.rar', '.7z'].includes(ext);
+        const newFileName = isCompressed ? filename : `${filename}.zip`;
+
+        const fileId = await uploadFile(req.file.path, newFileName, folderId);
+        res.send(`Archivo subido con éxito. ID: ${fileId}`);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Error al subir el archivo");
+    }
+});
+
+router.post('/cargarPDF', upload.single('file'), async (req, res) => {
+    if (!req.file) return res.status(400).send("No se ha seleccionado ningún archivo");
+
+    try {
+        const { filename } = req.body;
+        const newFileName = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
+
+        const fileId = await uploadFile(req.file.path, newFileName, folderId);
+        res.send(`Archivo subido con éxito. ID: ${fileId}`);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Error al subir el archivo");
+    }
+});
+
+router.get('/obtenerKmz', async (req, res) => {
+    const { fileName } = req.query;
+
+    try {
+        const imageData = await getFileByName(fileName, folderId);
 
         if (!imageData) {
-            return res.status(404).send('Imagen no encontrada');
+            return res.status(404).send("Archivo no encontrado");
         }
 
-        const contentType = getContentType(imageName);
-        res.set('Content-Type', contentType);
+        const contentType = fileName.endsWith('.kmz') ? 'mapa/kmz' : 'application/octet-stream';
+
+        res.setHeader('Content-Type', contentType);
         res.send(imageData);
     } catch (err) {
         console.error(err);
-        res.status(500).send('Error al obtener la imagen');
+        res.status(500).send("Error al obtener el archivo");
+    }
+});
+
+router.get('/obtenerDiseño', async (req, res) => {
+    const { fileName } = req.query;
+
+    try {
+        const imageData = await getFileByName(fileName, folderId);
+
+        if (!imageData) {
+            return res.status(404).send("Archivo no encontrado");
+        }
+
+        let contentType = 'application/octet-stream';
+        if (fileName.endsWith('.zip')) contentType = 'disenos/zip';
+        else if (fileName.endsWith('.rar')) contentType = 'disenos/rar';
+        else if (fileName.endsWith('.7z')) contentType = 'disenos/7z';
+
+        res.setHeader('Content-Type', contentType);
+        res.send(imageData);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Error al obtener el archivo");
+    }
+});
+
+router.get('/obtenerPDF', async (req, res) => {
+    const { fileName } = req.query;
+
+    try {
+        const imageData = await getFileByName(fileName, folderId);
+
+        if (!imageData) {
+            return res.status(404).send("Archivo no encontrado");
+        }
+
+        const contentType = fileName.endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream';
+
+        res.setHeader('Content-Type', contentType);
+        res.send(imageData);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Error al obtener el archivo");
+    }
+});
+
+router.post('/leerPDF', async (req, res) => {
+    const nombrePDF = req.body.rutaPdf;
+    const pythonScriptPath = '../scripts/Leer_PDF.py';
+    const tempFolder = path.join(__dirname, '..', 'temp');
+    const rutaPdf = path.join(tempFolder, nombrePDF);
+
+    try {
+        if (!fs.existsSync(tempFolder)) {
+            fs.mkdirSync(tempFolder, { recursive: true });
+        }
+
+        const pdfData = await getFileByName(nombrePDF, folderId);
+        if (!pdfData) {
+            return res.status(404).json({ error: 'No se encontró el PDF en Google Drive' });
+        }
+
+        fs.writeFileSync(rutaPdf, pdfData);
+
+        const process = spawn('python3', [pythonScriptPath, rutaPdf]);
+
+        let output = '';
+        let errorOutput = '';
+
+        process.stdout.on('data', (data) => {
+            output += data.toString();
+        });
+
+        process.stderr.on('data', (data) => {
+            errorOutput += data.toString();
+        });
+
+        process.on('close', (code) => {
+            if (code !== 0) {
+                return res.status(500).json({
+                    error: 'Error en el script de Python',
+                    detalle: errorOutput
+                });
+            }
+
+            res.send(output);
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({
+            error: 'Error al procesar el PDF',
+            detalle: err.message
+        });
     }
 });
 
