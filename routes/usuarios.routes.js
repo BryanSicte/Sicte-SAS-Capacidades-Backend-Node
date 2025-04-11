@@ -252,7 +252,7 @@ router.put('/pagesUser/:id', async (req, res) => {
 
     try {
         const [existingRows] = await dbRailway.query(
-            'SELECT * FROM pages_user WHERE id = ?',
+            'SELECT * FROM pages_per_user WHERE id = ?',
             [id]
         );
 
