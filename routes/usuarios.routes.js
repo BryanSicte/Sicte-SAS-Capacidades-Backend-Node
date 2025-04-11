@@ -261,7 +261,7 @@ router.put('/pagesUser/:id', async (req, res) => {
         }
 
         await dbRailway.query(
-            'UPDATE pages_user SET \
+            'UPDATE pages_per_user SET \
             cedula = ?, \
             reportesCapacidades = ?, \
             reportesSupervision = ?, \
@@ -377,7 +377,7 @@ router.put('/pagesUser/:id', async (req, res) => {
         );
 
         const [updatedRows] = await dbRailway.query(
-            'SELECT * FROM pages_user WHERE id = ?',
+            'SELECT * FROM pages_per_user WHERE id = ?',
             [id]
         );
 
