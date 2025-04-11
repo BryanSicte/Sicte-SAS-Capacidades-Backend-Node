@@ -316,8 +316,8 @@ router.put('/pagesUser/:id', async (req, res) => {
             direccionCompras = ?, \
             parqueAutomotorMoviles = ?, \
             gestionHumanaChatbot = ?, \
-            gestionHumanaCarnetizacion = ?, \
-            WHERE id = ? ',
+            gestionHumanaCarnetizacion = ? \
+            WHERE id = ?',
             [cedula,
                 reportesCapacidades,
                 reportesSupervision,
