@@ -565,20 +565,27 @@ router.get('/obtenerPDF', async (req, res) => {
 });
 
 router.post('/leerPDF', async (req, res) => {
-    const { rutaPdf } = req.body;
+    const nombrePDF = req.body.rutaPdf;
+    const filePath = path.join(__dirname, '..', 'temp', nombrePDF);
+
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'El archivo no existe en el backend' });
+    }
+
+    const form = new FormData();
+    form.append('file', fs.createReadStream(filePath), nombrePDF);
 
     try {
-        const response = await axios.post('https://sicte-sas-leer-pdfs-production.up.railway.app/leer-pdf', {
-            rutaPdf
-        });
+        const response = await axios.post(
+            'https://tu-microservicio-python.up.railway.app/leer-pdf',
+            form,
+            { headers: form.getHeaders() }
+        );
 
         res.send(response.data);
     } catch (err) {
         console.error('Error al llamar al microservicio:', err.message);
-        res.status(500).json({
-            error: 'Error al procesar el PDF',
-            detalle: err.message
-        });
+        res.status(500).json({ error: 'Error al procesar el PDF', detalle: err.message });
     }
 });
 
