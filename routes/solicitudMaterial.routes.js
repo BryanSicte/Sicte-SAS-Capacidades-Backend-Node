@@ -7,6 +7,7 @@ const { uploadFile } = require('../services/googleDriveService');
 const { getFileByName } = require('../services/googleDriveService');
 const axios = require('axios');
 const fs = require('fs');
+const FormData = require('form-data');
 
 const folderId = "13wCWGhH7UkPJeFA_uciQg_-s_WjBeAnb";
 
@@ -571,12 +572,14 @@ router.post('/leerPDF', async (req, res) => {
     try {
         // 1. Verifica si el archivo ya existe localmente
         if (!fs.existsSync(filePath)) {
-            const pdfData = await getFileByName(nombrePDF, folderId); // Descárgalo desde Google Drive
+            // Si no existe, descárgalo desde Google Drive
+            const pdfData = await getFileByName(nombrePDF, folderId);  // Función para obtener el archivo desde Google Drive
 
             if (!pdfData) {
                 return res.status(404).json({ error: 'No se encontró el PDF en Google Drive' });
             }
 
+            // Guarda el archivo en la carpeta temporal
             fs.writeFileSync(filePath, pdfData);
         }
 
@@ -584,12 +587,14 @@ router.post('/leerPDF', async (req, res) => {
         const form = new FormData();
         form.append('file', fs.createReadStream(filePath), nombrePDF);
 
+        // 3. Envía el archivo al microservicio de Python
         const response = await axios.post(
             'https://sicte-sas-leer-pdfs-production.up.railway.app/leer-pdf',
             form,
             { headers: form.getHeaders() }
         );
 
+        // 4. Devuelve la respuesta del microservicio
         res.send(response.data);
 
     } catch (err) {
