@@ -1,7 +1,7 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
-const dbAplicativoCapacidades = mysql.createPool({
+const railway = mysql.createPool({
   host: process.env.DB1_HOST,
   port: process.env.DB1_PORT,
   user: process.env.DB1_USER,
@@ -9,4 +9,4 @@ const dbAplicativoCapacidades = mysql.createPool({
   database: process.env.DB1_DATABASE
 });
 
-module.exports = dbAplicativoCapacidades;
+module.exports = railway;

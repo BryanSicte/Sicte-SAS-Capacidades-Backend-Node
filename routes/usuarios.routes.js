@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const dbAplicativoCapacidades = require('../db/db_aplicativo_capacidades');
+const dbRailway = require('../db/db_railway');
 const sendEmail = require('../utils/mailer');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 
 router.get('/users', async (req, res) => {
     try {
-        const [rows] = await dbAplicativoCapacidades.query('SELECT * FROM user');
+        const [rows] = await dbRailway.query('SELECT * FROM user');
 
         return res.status(200).json(rows);
 
@@ -20,7 +20,7 @@ router.get('/users/id/:id', async (req, res) => {
     const { id } = req.params;
 
     try {
-        const [rows] = await dbAplicativoCapacidades.query('SELECT * FROM user WHERE id = ?', [id]);
+        const [rows] = await dbRailway.query('SELECT * FROM user WHERE id = ?', [id]);
 
         if (rows.length === 0) {
             return res.status(404).json({ message: 'Usuario no encontrado' });
@@ -43,7 +43,7 @@ router.post('/users', async (req, res) => {
     const id = uuidv4();
 
     try {
-        const [result] = await dbAplicativoCapacidades.query(
+        const [result] = await dbRailway.query(
             'INSERT INTO user (id, nombre, correo, cedula, rol, telefono, contrasena) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [id, nombre, correo, cedula, rol, telefono, contrasena]
         );
@@ -73,7 +73,7 @@ router.post('/login', async (req, res) => {
     }
 
     try {
-        const [rows] = await dbAplicativoCapacidades.query(
+        const [rows] = await dbRailway.query(
             'SELECT * FROM user WHERE correo = ?',
             [correo]
         );
@@ -100,7 +100,7 @@ router.put('/users/:id', async (req, res) => {
     const { nombre, correo, cedula, rol, telefono, contrasena } = req.body;
 
     try {
-        const [existingUserRows] = await dbAplicativoCapacidades.query(
+        const [existingUserRows] = await dbRailway.query(
             'SELECT * FROM user WHERE id = ?',
             [id]
         );
@@ -109,12 +109,12 @@ router.put('/users/:id', async (req, res) => {
             return res.status(404).json({ message: 'Usuario no encontrado' });
         }
 
-        await dbAplicativoCapacidades.query(
+        await dbRailway.query(
             'UPDATE user SET nombre = ?, correo = ?, contrasena = ?, cedula = ?, rol = ?, telefono = ? WHERE id = ?',
             [nombre, correo, contrasena, cedula, rol, telefono, id]
         );
 
-        const [updatedUserRows] = await dbAplicativoCapacidades.query(
+        const [updatedUserRows] = await dbRailway.query(
             'SELECT * FROM user WHERE id = ?',
             [id]
         );
@@ -130,7 +130,7 @@ router.delete('/users/:id', async (req, res) => {
     const { id } = req.params;
 
     try {
-        const [existingUserRows] = await dbAplicativoCapacidades.query(
+        const [existingUserRows] = await dbRailway.query(
             'SELECT * FROM user WHERE id = ?',
             [id]
         );
@@ -139,7 +139,7 @@ router.delete('/users/:id', async (req, res) => {
             return res.status(404).json({ message: 'Usuario no encontrado' });
         }
 
-        await dbAplicativoCapacidades.query(
+        await dbRailway.query(
             'DELETE FROM user WHERE id = ?',
             [id]
         );
@@ -159,7 +159,7 @@ router.post('/actualizarContrasena', async (req, res) => {
     }
 
     try {
-        const [rows] = await dbAplicativoCapacidades.query(
+        const [rows] = await dbRailway.query(
             'SELECT * FROM user WHERE correo = ?',
             [correo]
         );
@@ -169,7 +169,7 @@ router.post('/actualizarContrasena', async (req, res) => {
         }
 
         // Actualizamos la contraseña
-        await dbAplicativoCapacidades.query(
+        await dbRailway.query(
             'UPDATE user SET contrasena = ? WHERE correo = ?',
             [contrasena, correo]
         );
@@ -184,7 +184,7 @@ router.post('/actualizarContrasena', async (req, res) => {
 
 router.get('/pagesUser', async (req, res) => {
     try {
-        const [rows] = await dbAplicativoCapacidades.query('SELECT * FROM pages_per_user');
+        const [rows] = await dbRailway.query('SELECT * FROM pages_per_user');
         res.status(200).json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -196,7 +196,7 @@ router.put('/pagesUser/:id', async (req, res) => {
     const { nombre, descripcion, ruta } = req.body;
 
     try {
-        const [existingRows] = await dbAplicativoCapacidades.query(
+        const [existingRows] = await dbRailway.query(
             'SELECT * FROM pages_user WHERE id = ?',
             [id]
         );
@@ -205,12 +205,12 @@ router.put('/pagesUser/:id', async (req, res) => {
             return res.status(404).json({ message: 'Registro no encontrado' });
         }
 
-        await dbAplicativoCapacidades.query(
+        await dbRailway.query(
             'UPDATE pages_user SET nombre = ?, descripcion = ?, ruta = ? WHERE id = ?',
             [nombre, descripcion, ruta, id]
         );
 
-        const [updatedRows] = await dbAplicativoCapacidades.query(
+        const [updatedRows] = await dbRailway.query(
             'SELECT * FROM pages_user WHERE id = ?',
             [id]
         );
@@ -224,7 +224,7 @@ router.put('/pagesUser/:id', async (req, res) => {
 
 router.get('/tokens', async (req, res) => {
     try {
-        const [rows] = await dbAplicativoCapacidades.query('SELECT * FROM tokens');
+        const [rows] = await dbRailway.query('SELECT * FROM tokens');
         res.status(200).json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -239,7 +239,7 @@ router.get('/validarToken', async (req, res) => {
     }
 
     try {
-        const [rows] = await dbAplicativoCapacidades.query(
+        const [rows] = await dbRailway.query(
             'SELECT * FROM tokens WHERE token = ?',
             [token]
         );
@@ -281,7 +281,7 @@ router.post('/enviarToken', async (req, res) => {
     const expiryDate = calculateExpiryDate(30);
 
     try {
-        await dbAplicativoCapacidades.query(
+        await dbRailway.query(
             'INSERT INTO tokens (token, email, expiryDate) VALUES (?, ?, ?)',
             [token, email, expiryDate]
         );
