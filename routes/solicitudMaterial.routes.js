@@ -64,7 +64,7 @@ router.post('/cargarDatos', async (req, res) => {
 
     try {
         const [result] = await dbRailway.query(`
-            INSERT INTO registros_carnetizacion (
+            INSERT INTO registros_solicitud_materiales (
                 fecha,
                 cedula,
                 nombre,
@@ -151,7 +151,7 @@ router.post('/cargarDatosEntregados', async (req, res) => {
 
     try {
         const [result] = await dbRailway.query(`
-            INSERT INTO registros_carnetizacion (
+            INSERT INTO registros_solicitud_materiales (
                 fechaEntrega,
                 ciudad,
                 documento,
