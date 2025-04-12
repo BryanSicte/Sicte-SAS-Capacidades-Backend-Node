@@ -203,7 +203,7 @@ router.post('/actualizarEstadoAnalista', async (req, res) => {
         }
 
         for (const id of ids) {
-            await db.query(
+            await dbRailway.query(
                 `UPDATE registros_solicitud_materiales SET 
                 aprobacionAnalista = ?, 
                 observacionesAnalista = ?, 
@@ -213,7 +213,7 @@ router.post('/actualizarEstadoAnalista', async (req, res) => {
             );
 
             if (estado === "Rechazado") {
-                await db.query(
+                await dbRailway.query(
                     `UPDATE registros_solicitud_materiales SET 
                     aprobacionDirector = ?, 
                     observacionesDirector = ?, 
@@ -222,7 +222,7 @@ router.post('/actualizarEstadoAnalista', async (req, res) => {
                     [estado, null, fechaRegistro, id]
                 );
 
-                await db.query(
+                await dbRailway.query(
                     `UPDATE registros_solicitud_materiales SET 
                     aprobacionDireccionOperacion = ?, 
                     observacionesDireccionOperacion = ?, 
@@ -249,7 +249,7 @@ router.post('/actualizarEstadoDirector', async (req, res) => {
         }
 
         for (const id of ids) {
-            await db.query(
+            await dbRailway.query(
                 `UPDATE registros_solicitud_materiales SET 
                 aprobacionDirector = ?, 
                 observacionesDirector = ?, 
@@ -259,7 +259,7 @@ router.post('/actualizarEstadoDirector', async (req, res) => {
             );
 
             if (estado === "Rechazado") {
-                await db.query(
+                await dbRailway.query(
                     `UPDATE registros_solicitud_materiales SET 
                     aprobacionDireccionOperacion = ?, 
                     observacionesDireccionOperacion = ?, 
@@ -286,7 +286,7 @@ router.post('/actualizarEstadoDireccionOperacion', async (req, res) => {
         }
 
         for (const id of ids) {
-            await db.query(
+            await dbRailway.query(
                 `UPDATE registros_solicitud_materiales SET 
                 aprobacionDireccionOperacion = ?, 
                 observacionesDireccionOperacion = ?, 
@@ -312,7 +312,7 @@ router.post('/actualizarEstadoEntregaBodega', async (req, res) => {
         }
 
         for (const id of ids) {
-            await db.query(
+            await dbRailway.query(
                 `UPDATE registros_solicitud_materiales SET 
                 entregaBodega = ?, 
                 observacionesEntregaBodega = ?
@@ -344,7 +344,7 @@ router.post('/actualizarEstadoCantidadDisponibleMaterial', async (req, res) => {
             const id = ids[i];
             const cantidad = cantidades[i];
 
-            await db.query(
+            await dbRailway.query(
                 'UPDATE registros_solicitud_materiales SET cantidadDisponibleMaterial = ? WHERE id = ?',
                 [cantidad, id]
             );
@@ -373,7 +373,7 @@ router.post('/actualizarEstadoCantidadRestantePorDespacho', async (req, res) => 
             const id = ids[i];
             const cantidad = cantidades[i];
 
-            await db.query(
+            await dbRailway.query(
                 'UPDATE registros_solicitud_materiales SET cantidadRestantePorDespacho = ? WHERE id = ?',
                 [cantidad, id]
             );
@@ -402,7 +402,7 @@ router.post('/actualizarEstadoEntregaBodegaPDFs', async (req, res) => {
             const id = ids[i];
             const namePdf = namePdfs[i];
 
-            await db.query(
+            await dbRailway.query(
                 'UPDATE registros_solicitud_materiales SET pdfs = ? WHERE id = ?',
                 [namePdf, id]
             );
@@ -426,7 +426,7 @@ router.post('/actualizarEstadoCierreProyecto', async (req, res) => {
         for (let i = 0; i < ids.length; i++) {
             const id = ids[i];
 
-            await db.query(
+            await dbRailway.query(
                 'UPDATE registros_solicitud_materiales SET estadoProyecto = ? WHERE id = ?',
                 [estadoProyecto, id]
             );
