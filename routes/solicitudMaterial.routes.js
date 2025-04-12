@@ -390,7 +390,7 @@ router.post('/actualizarEstadoEntregaBodegaPDFs', async (req, res) => {
     const { ids, namePdfs } = req.body;
 
     try {
-        if (!Array.isArray(ids) || typeof namePdfs !== 'string') {
+        if (!Array.isArray(ids)) {
             return res.status(400).json({ error: 'Formato incorrecto de datos' });
         }
 
