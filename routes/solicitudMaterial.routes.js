@@ -470,7 +470,7 @@ router.post('/cargarKmz', upload.single('file'), async (req, res) => {
     }
 });
 
-router.post('/cargarDiseño', upload.single('file'), async (req, res) => {
+router.post('/cargarDiseno', upload.single('file'), async (req, res) => {
     if (!req.file) return res.status(400).send("No se ha seleccionado ningún archivo");
 
     try {
