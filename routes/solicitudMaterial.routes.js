@@ -208,7 +208,7 @@ router.post('/actualizarEstadoAnalista', async (req, res) => {
                 aprobacionAnalista = ?, 
                 observacionesAnalista = ?, 
                 fechaAnalista = ? 
-                WHERE id = ?`
+                WHERE id = ?`,
                 [estado, observacionesTemporal, fechaRegistro, id]
             );
 
@@ -218,7 +218,7 @@ router.post('/actualizarEstadoAnalista', async (req, res) => {
                     aprobacionDirector = ?, 
                     observacionesDirector = ?, 
                     fechaDirector = ? 
-                    WHERE id = ?`
+                    WHERE id = ?`,
                     [estado, null, fechaRegistro, id]
                 );
 
@@ -227,7 +227,7 @@ router.post('/actualizarEstadoAnalista', async (req, res) => {
                     aprobacionDireccionOperacion = ?, 
                     observacionesDireccionOperacion = ?, 
                     fechaDireccionOperacion = ? 
-                    WHERE id = ?`
+                    WHERE id = ?`,
                     [estado, null, fechaRegistro, id]
                 );
             }
@@ -254,7 +254,7 @@ router.post('/actualizarEstadoDirector', async (req, res) => {
                 aprobacionDirector = ?, 
                 observacionesDirector = ?, 
                 fechaDirector = ? 
-                WHERE id = ?`
+                WHERE id = ?`,
                 [estado, observacionesTemporal, fechaRegistro, id]
             );
 
@@ -264,7 +264,7 @@ router.post('/actualizarEstadoDirector', async (req, res) => {
                     aprobacionDireccionOperacion = ?, 
                     observacionesDireccionOperacion = ?, 
                     fechaDireccionOperacion = ? 
-                    WHERE id = ?`
+                    WHERE id = ?`,
                     [estado, null, fechaRegistro, id]
                 );
             }
@@ -291,7 +291,7 @@ router.post('/actualizarEstadoDireccionOperacion', async (req, res) => {
                 aprobacionDireccionOperacion = ?, 
                 observacionesDireccionOperacion = ?, 
                 fechaDireccionOperacion = ? 
-                WHERE id = ?`
+                WHERE id = ?`,
                 [estado, observacionesTemporal, fechaRegistro, id]
             );
         }
@@ -316,7 +316,7 @@ router.post('/actualizarEstadoEntregaBodega', async (req, res) => {
                 `UPDATE registros_solicitud_materiales SET 
                 entregaBodega = ?, 
                 observacionesEntregaBodega = ?
-                WHERE id = ?`
+                WHERE id = ?`,
                 [estado, observacionesTemporal, id]
             );
         }
