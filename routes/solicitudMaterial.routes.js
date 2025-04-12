@@ -151,7 +151,7 @@ router.post('/cargarDatosEntregados', async (req, res) => {
 
     try {
         const [result] = await dbRailway.query(`
-            INSERT INTO registros_solicitud_materiales (
+            INSERT INTO registros_solicitud_materiales_entregado (
                 fechaEntrega,
                 ciudad,
                 documento,
@@ -390,21 +390,16 @@ router.post('/actualizarEstadoEntregaBodegaPDFs', async (req, res) => {
     const { ids, namePdfs } = req.body;
 
     try {
-        if (!Array.isArray(ids) || !Array.isArray(namePdfs)) {
-            return res.status(400).json({ error: 'Los datos deben ser arrays' });
-        }
-
-        if (ids.length !== namePdfs.length) {
-            return res.status(400).json({ error: 'La cantidad de IDs no coincide con la cantidad de nombres' });
+        if (!Array.isArray(ids) || typeof namePdfs !== 'string') {
+            return res.status(400).json({ error: 'Formato incorrecto de datos' });
         }
 
         for (let i = 0; i < ids.length; i++) {
             const id = ids[i];
-            const namePdf = namePdfs[i];
 
             await dbRailway.query(
                 'UPDATE registros_solicitud_materiales SET pdfs = ? WHERE id = ?',
-                [namePdf, id]
+                [namePdfs, id]
             );
         }
 
