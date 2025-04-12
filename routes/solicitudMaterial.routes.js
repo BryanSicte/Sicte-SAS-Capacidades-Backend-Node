@@ -387,7 +387,7 @@ router.post('/actualizarEstadoCantidadRestantePorDespacho', async (req, res) => 
 });
 
 router.post('/actualizarEstadoEntregaBodegaPDFs', async (req, res) => {
-    const { ids, namePdfs } = req.body;
+    const { ids, pdfNombre } = req.body;
 
     try {
         if (!Array.isArray(ids)) {
@@ -399,7 +399,7 @@ router.post('/actualizarEstadoEntregaBodegaPDFs', async (req, res) => {
 
             await dbRailway.query(
                 'UPDATE registros_solicitud_materiales SET pdfs = ? WHERE id = ?',
-                [namePdfs, id]
+                [pdfNombre, id]
             );
         }
 
