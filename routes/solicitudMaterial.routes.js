@@ -193,7 +193,6 @@ router.get('/kgprod', async (req, res) => {
     }
 });
 
-
 router.post('/actualizarEstadoAnalista', async (req, res) => {
     try {
         const { ids, estado, observacionesTemporal, fechaRegistro } = req.body;

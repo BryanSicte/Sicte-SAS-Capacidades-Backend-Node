@@ -141,4 +141,22 @@ router.get('/obtenerImagen', async (req, res) => {
     }
 });
 
+router.get('/kgprod', async (req, res) => {
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM bodega_kgprod');
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/lconsum', async (req, res) => {
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM bodega_lconsum');
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
