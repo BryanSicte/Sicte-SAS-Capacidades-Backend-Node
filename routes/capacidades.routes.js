@@ -4,7 +4,7 @@ const dbRailway = require('../db/db_railway');
 
 router.get('/todoBackup', async (req, res) => {
     try {
-        const [rows] = await dbRailway.query('SELECT * FROM capacidades_backup');
+        const [rows] = await dbRailway.query('SELECT * FROM capacidades_backup ORDER BY FECHA_REPORTE DESC');
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -14,8 +14,19 @@ router.get('/todoBackup', async (req, res) => {
 router.post('/todo', async (req, res) => {
     try {
         const { role } = req.body;
-        const [rows] = await dbRailway.query('SELECT * FROM capacidades WHERE role = ?', [role]);
-        res.status(200).json(rows);
+
+        // Obtener todos los registros ordenados por fecha_reporte DESC
+        const [capacidades] = await dbRailway.query('SELECT * FROM capacidades ORDER BY FECHA_REPORTE DESC');
+
+        let resultadoFiltrado;
+
+        if (role.toLowerCase() === 'admin') {
+            resultadoFiltrado = capacidades;
+        } else {
+            resultadoFiltrado = capacidades.filter(capacidad => capacidad.DIRECTOR === role);
+        }
+
+        res.status(200).json(resultadoFiltrado);
     } catch (error) {
         console.error('Error obteniendo capacidades:', error);
         res.status(500).json({ message: 'Error interno del servidor' });
