@@ -90,7 +90,7 @@ router.post('/ContinuaEnPlantaSinCapacidad', async (req, res) => {
         const [capacidades] = await dbRailway.query('SELECT * FROM capacidades');
 
         // Crear lista de cédulas existentes
-        const cedulasExistentes = capacidades.map(capacidad => capacidad.cedula);
+        const cedulasExistentes = capacidades.map(capacidad => capacidad.CEDULA);
 
         // Filtrar las plantas sin capacidad
         let plantasSinCapacidad = plantas.filter(planta => !cedulasExistentes.includes(planta.nit));
@@ -177,7 +177,7 @@ router.post('/agregarPersonal', async (req, res) => {
             placa: personal.placa,
             fechaReporte: fechaReporteStr,
             mes: fechaReporte.getMonth() + 1,
-            año: fechaReporte.getFullYear(),
+            anio: fechaReporte.getFullYear(),
             turnos: movil.turnos,
             personas: movil.personas,
             carpeta: personal.carpeta
@@ -204,7 +204,7 @@ router.post('/agregarPersonal', async (req, res) => {
             placa: response.placa && response.placa.trim() !== '' ? response.placa : 'null',
             fecha_reporte: response.fechaReporte,
             mes: response.mes.toString(),
-            anio: response.año.toString(),
+            anio: response.anio.toString(),
             turnos: response.turnos,
             personas: response.personas,
             carpeta: response.carpeta && response.carpeta.trim() !== '' ? response.carpeta : 'null'
