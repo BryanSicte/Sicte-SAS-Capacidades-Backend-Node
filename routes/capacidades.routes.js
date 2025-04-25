@@ -233,29 +233,12 @@ router.post('/agregarPersonal', async (req, res) => {
 
 router.get('/noContinuaEnPlanta', async (req, res) => {
     try {
-        // Obtener todos los registros de planta
-        const [plantas] = await dbRailway.query('SELECT nit FROM planta');
-        const nitsPlanta = new Set(plantas.map(p => p.nit));
-
-        // Obtener todos los registros de capacidad_backup ordenados por fecha_reporte desc
-        const [capacidades] = await dbRailway.query('SELECT * FROM capacidades_backup ORDER BY FECHA_REPORTE DESC');
-
-        const capacidadesNoCoincidentes = [];
-        const cedulasAgregadas = new Set();
-
-        for (const capacidad of capacidades) {
-            const cedula = capacidad.cedula;
-            if (!nitsPlanta.has(cedula) && !cedulasAgregadas.has(cedula)) {
-                capacidadesNoCoincidentes.push(capacidad);
-                cedulasAgregadas.add(cedula);
-            }
-        }
-
-        // Barajar los resultados (como Collections.shuffle)
-        capacidadesNoCoincidentes.sort(() => Math.random() - 0.5);
-
-        res.status(200).json(capacidadesNoCoincidentes);
+        const [rows] = await dbRailway.query(`
+            SELECT * FROM plantaenlinea WHERE perfil = 'RETIRADO'
+        `);
+        res.json(rows);
     } catch (err) {
+        console.error('Error obteniendo planta retirados:', err);
         res.status(500).json({ error: err.message });
     }
 });
