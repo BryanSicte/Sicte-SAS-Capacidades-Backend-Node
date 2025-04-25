@@ -204,7 +204,7 @@ router.post('/agregarPersonal', async (req, res) => {
             placa: response.placa && response.placa.trim() !== '' ? response.placa : 'null',
             fecha_reporte: response.fechaReporte,
             mes: response.mes.toString(),
-            año: response.año.toString(),
+            anio: response.año.toString(),
             turnos: response.turnos,
             personas: response.personas,
             carpeta: response.carpeta && response.carpeta.trim() !== '' ? response.carpeta : 'null'
