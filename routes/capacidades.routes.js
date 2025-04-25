@@ -112,7 +112,6 @@ router.post('/ContinuaEnPlantaSinCapacidad', async (req, res) => {
 });
 
 router.post('/agregarPersonal', async (req, res) => {
-    const agregarPersonal = req.body;
 
     try {
         // Dentro del endpoint, justo al empezar:
@@ -211,9 +210,8 @@ router.post('/agregarPersonal', async (req, res) => {
             carpeta: response.carpeta && response.carpeta.trim() !== '' ? response.carpeta : 'null'
         };
 
-
-        const fields = Object.keys(capacidad).join(', ');
-        const values = Object.values(capacidad);
+        const fields = Object.keys(nuevaCapacidad).join(', ');
+        const values = Object.values(nuevaCapacidad);
         const placeholders = values.map(() => '?').join(', ');
 
         const [result] = await dbRailway.query(
