@@ -119,25 +119,25 @@ router.post('/agregarPersonal', async (req, res) => {
         const personal = req.body;
 
         // Obtener planta por NIT (cedula)
-        const [[planta]] = await db.query(
+        const [[planta]] = await dbRailway.query(
             'SELECT * FROM planta WHERE nit = ?',
             [personal.cedula]
         );
 
         // Obtener ciudad por nombre
-        const [[ciudad]] = await db.query(
+        const [[ciudad]] = await dbRailway.query(
             'SELECT * FROM ciudad WHERE ciudad = ?',
             [planta.ciudad]
         );
 
         // Obtener coordinador
-        const [[coordinador]] = await db.query(
+        const [[coordinador]] = await dbRailway.query(
             'SELECT * FROM coordinador WHERE coordinador = ?',
             [personal.coordinador]
         );
 
         // Obtener móvil
-        const [[movil]] = await db.query(
+        const [[movil]] = await dbRailway.query(
             'SELECT * FROM movil WHERE tipo_movil = ?',
             [personal.tipoMovil]
         );
@@ -216,7 +216,7 @@ router.post('/agregarPersonal', async (req, res) => {
         const values = Object.values(capacidad);
         const placeholders = values.map(() => '?').join(', ');
 
-        const [result] = await db.query(
+        const [result] = await dbRailway.query(
             `INSERT INTO capacidades (${fields}) VALUES (${placeholders})`,
             values
         );
@@ -231,14 +231,14 @@ router.post('/agregarPersonal', async (req, res) => {
     }
 });
 
-router.get('/NoContinuaEnPlanta', async (req, res) => {
+router.get('/noContinuaEnPlanta', async (req, res) => {
     try {
         // Obtener todos los registros de planta
-        const [plantas] = await db.query('SELECT nit FROM planta');
+        const [plantas] = await dbRailway.query('SELECT nit FROM planta');
         const nitsPlanta = new Set(plantas.map(p => p.nit));
 
         // Obtener todos los registros de capacidad_backup ordenados por fecha_reporte desc
-        const [capacidades] = await db.query('SELECT * FROM capacidades_backup ORDER BY FECHA_REPORTE DESC');
+        const [capacidades] = await dbRailway.query('SELECT * FROM capacidades_backup ORDER BY FECHA_REPORTE DESC');
 
         const capacidadesNoCoincidentes = [];
         const cedulasAgregadas = new Set();
@@ -265,10 +265,10 @@ router.post('/agregarPersonalValidarPersonal', async (req, res) => {
 
     try {
         // Buscar info relacionada al personal
-        const [[planta]] = await db.query('SELECT * FROM planta WHERE nit = ?', [personal.cedula]);
-        const [[ciudad]] = await db.query('SELECT * FROM ciudad WHERE ciudad = ?', [planta.ciudad]);
-        const [[coordinador]] = await db.query('SELECT * FROM coordinador WHERE coordinador = ?', [personal.coordinador]);
-        const [[movil]] = await db.query('SELECT * FROM movil WHERE tipo_movil = ?', [personal.tipoMovil]);
+        const [[planta]] = await dbRailway.query('SELECT * FROM planta WHERE nit = ?', [personal.cedula]);
+        const [[ciudad]] = await dbRailway.query('SELECT * FROM ciudad WHERE ciudad = ?', [planta.ciudad]);
+        const [[coordinador]] = await dbRailway.query('SELECT * FROM coordinador WHERE coordinador = ?', [personal.coordinador]);
+        const [[movil]] = await dbRailway.query('SELECT * FROM movil WHERE tipo_movil = ?', [personal.tipoMovil]);
 
         // Fecha de reporte
         const fecha = new Date();
@@ -316,7 +316,7 @@ router.post('/agregarPersonalValidarPersonal', async (req, res) => {
         const values = Object.values(nuevaCapacidad);
         const placeholders = values.map(() => '?').join(', ');
 
-        const [result] = await db.query(
+        const [result] = await dbRailway.query(
             `INSERT INTO capacidades (${fields}) VALUES (${placeholders})`,
             values
         );
