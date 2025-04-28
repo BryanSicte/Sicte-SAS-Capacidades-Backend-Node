@@ -244,8 +244,8 @@ router.post('/continuaEnPlanta', async (req, res) => {
         const [capacidades] = await dbRailway.query('SELECT * FROM capacidades');
         const [capacidadBackups] = await dbRailway.query('SELECT * FROM capacidades_backup ORDER BY fecha_reporte DESC');
 
-        console.log(capacidadBackups.map(cap => cap.fecha_reporte));
-        const fechas = capacidadBackups.map(r => new Date(r.fecha_reporte));
+        console.log(capacidadBackups.map(cap => cap.FECHA_REPORTE));
+        const fechas = capacidadBackups.map(r => new Date(r.FECHA_REPORTE));
         console.log(fechas)
         const ultimaFecha = fechas.length > 0 ? new Date(Math.max(...fechas)) : null;
 
