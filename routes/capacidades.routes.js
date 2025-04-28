@@ -257,17 +257,27 @@ router.post('/continuaEnPlanta', async (req, res) => {
         const primerDiaUltimoMes = new Date(ultimoAnio, ultimoMes, 1);
         const primerDiaSiguienteMes = new Date(ultimoAnio, ultimoMes + 1, 1);
 
+        console.log(primerDiaUltimoMes)
+        console.log(primerDiaSiguienteMes)
+        console.log(capacidadBackups)
+
         const capacidadesUltimoMes = capacidadBackups.filter(capacidad => {
             const fecha = new Date(capacidad.fecha_reporte);
             return fecha >= primerDiaUltimoMes && fecha < primerDiaSiguienteMes;
         });
+
+        console.log(capacidadesUltimoMes)
 
         const capacidadPorCedula = new Map();
         capacidadesUltimoMes.forEach(capacidad => {
             capacidadPorCedula.set(capacidad.cedula, capacidad);
         });
 
+        console.log(capacidadPorCedula)
+
         const cedulasExistentes = capacidades.map(cap => cap.cedula);
+
+        console.log(cedulasExistentes)
 
         let registrosCoincidentes = [];
 
@@ -277,6 +287,8 @@ router.post('/continuaEnPlanta', async (req, res) => {
                 registrosCoincidentes.push(capacidad);
             }
         });
+
+        console.log(registrosCoincidentes)
 
         if (role.toLowerCase() !== 'admin') {
             registrosCoincidentes = registrosCoincidentes.filter(capacidad => capacidad.director === role);
