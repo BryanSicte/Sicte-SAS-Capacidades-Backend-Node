@@ -245,39 +245,40 @@ router.post('/continuaEnPlanta', async (req, res) => {
         const [capacidadBackups] = await dbRailway.query('SELECT * FROM capacidades_backup ORDER BY fecha_reporte DESC');
 
         const fechas = capacidadBackups.map(r => new Date(r.fecha_reporte));
+        console.log(fechas)
         const ultimaFecha = fechas.length > 0 ? new Date(Math.max(...fechas)) : null;
+
+        console.log(ultimaFecha)
 
         if (!ultimaFecha) {
             return res.status(200).json([]);
         }
 
+        console.log(ultimaFecha)
+
         const ultimoMes = ultimaFecha.getMonth();
         const ultimoAnio = ultimaFecha.getFullYear();
+
+        console.log(ultimoMes)
+        console.log(ultimoAnio)
 
         const primerDiaUltimoMes = new Date(ultimoAnio, ultimoMes, 1);
         const primerDiaSiguienteMes = new Date(ultimoAnio, ultimoMes + 1, 1);
 
         console.log(primerDiaUltimoMes)
         console.log(primerDiaSiguienteMes)
-        console.log(capacidadBackups)
 
         const capacidadesUltimoMes = capacidadBackups.filter(capacidad => {
             const fecha = new Date(capacidad.fecha_reporte);
             return fecha >= primerDiaUltimoMes && fecha < primerDiaSiguienteMes;
         });
 
-        console.log(capacidadesUltimoMes)
-
         const capacidadPorCedula = new Map();
         capacidadesUltimoMes.forEach(capacidad => {
             capacidadPorCedula.set(capacidad.cedula, capacidad);
         });
 
-        console.log(capacidadPorCedula)
-
         const cedulasExistentes = capacidades.map(cap => cap.cedula);
-
-        console.log(cedulasExistentes)
 
         let registrosCoincidentes = [];
 
@@ -287,8 +288,6 @@ router.post('/continuaEnPlanta', async (req, res) => {
                 registrosCoincidentes.push(capacidad);
             }
         });
-
-        console.log(registrosCoincidentes)
 
         if (role.toLowerCase() !== 'admin') {
             registrosCoincidentes = registrosCoincidentes.filter(capacidad => capacidad.director === role);
