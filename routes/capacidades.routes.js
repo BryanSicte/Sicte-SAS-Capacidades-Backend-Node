@@ -244,54 +244,42 @@ router.post('/continuaEnPlanta', async (req, res) => {
         const [capacidades] = await dbRailway.query('SELECT * FROM capacidades');
         const [capacidadBackups] = await dbRailway.query('SELECT * FROM capacidades_backup ORDER BY fecha_reporte DESC');
 
-        console.log(capacidadBackups.map(cap => cap.FECHA_REPORTE));
         const fechas = capacidadBackups.map(r => new Date(r.FECHA_REPORTE));
-        console.log(fechas)
         const ultimaFecha = fechas.length > 0 ? new Date(Math.max(...fechas)) : null;
-
-        console.log(ultimaFecha)
 
         if (!ultimaFecha) {
             return res.status(200).json([]);
         }
 
-        console.log(ultimaFecha)
-
         const ultimoMes = ultimaFecha.getMonth();
         const ultimoAnio = ultimaFecha.getFullYear();
-
-        console.log(ultimoMes)
-        console.log(ultimoAnio)
 
         const primerDiaUltimoMes = new Date(ultimoAnio, ultimoMes, 1);
         const primerDiaSiguienteMes = new Date(ultimoAnio, ultimoMes + 1, 1);
 
-        console.log(primerDiaUltimoMes)
-        console.log(primerDiaSiguienteMes)
-
         const capacidadesUltimoMes = capacidadBackups.filter(capacidad => {
-            const fecha = new Date(capacidad.fecha_reporte);
+            const fecha = new Date(capacidad.FECHA_REPORTE);
             return fecha >= primerDiaUltimoMes && fecha < primerDiaSiguienteMes;
         });
 
         const capacidadPorCedula = new Map();
         capacidadesUltimoMes.forEach(capacidad => {
-            capacidadPorCedula.set(capacidad.cedula, capacidad);
+            capacidadPorCedula.set(capacidad.CEDULA, capacidad);
         });
 
-        const cedulasExistentes = capacidades.map(cap => cap.cedula);
+        const cedulasExistentes = capacidades.map(cap => cap.CEDULA);
 
         let registrosCoincidentes = [];
 
         plantas.forEach(planta => {
             const capacidad = capacidadPorCedula.get(planta.nit);
-            if (capacidad && !cedulasExistentes.includes(capacidad.cedula)) {
+            if (capacidad && !cedulasExistentes.includes(capacidad.CEDULA)) {
                 registrosCoincidentes.push(capacidad);
             }
         });
 
         if (role.toLowerCase() !== 'admin') {
-            registrosCoincidentes = registrosCoincidentes.filter(capacidad => capacidad.director === role);
+            registrosCoincidentes = registrosCoincidentes.filter(capacidad => capacidad.DIRECTOR === role);
         }
 
         shuffleArray(registrosCoincidentes);
