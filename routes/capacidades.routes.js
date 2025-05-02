@@ -349,7 +349,7 @@ router.post('/agregarPersonalValidarPersonal', async (req, res) => {
             placa: personal.placa && personal.placa !== '' ? personal.placa : 'null',
             fecha_reporte: fechaReporteStr,
             mes: fecha.getMonth() + 1,
-            año: fecha.getFullYear(),
+            anio: fecha.getFullYear(),
             turnos: movil.turnos,
             personas: movil.personas,
             carpeta: personal.carpeta && personal.carpeta !== '' ? personal.carpeta : 'null'
