@@ -219,6 +219,7 @@ router.put('/pagesUser/:id', async (req, res) => {
         sstaSsta,
         sstaCursoDeAlturas,
         sstaEntregasPendientesDotacion,
+        sstaUbicacionDeActividades,
         puntuacionProyectos,
         puntuacionCorporativo,
         puntuacionMantenimiento,
@@ -288,6 +289,7 @@ router.put('/pagesUser/:id', async (req, res) => {
             sstaSsta = ?, \
             sstaCursoDeAlturas = ?, \
             sstaEntregasPendientesDotacion = ?, \
+            sstaUbicacionDeActividades = ?, \
             puntuacionProyectos = ?, \
             puntuacionCorporativo = ?, \
             puntuacionMantenimiento = ?, \
@@ -344,6 +346,7 @@ router.put('/pagesUser/:id', async (req, res) => {
                 sstaSsta,
                 sstaCursoDeAlturas,
                 sstaEntregasPendientesDotacion,
+                sstaUbicacionDeActividades,
                 puntuacionProyectos,
                 puntuacionCorporativo,
                 puntuacionMantenimiento,
