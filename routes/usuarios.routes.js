@@ -242,10 +242,12 @@ router.put('/pagesUser/:id', async (req, res) => {
         logisticaReporteMaterialFerretero,
         logisticaInventarioMaterial,
         logisticaEstadoProyectosR4,
+        logisticaActivos,
         direccionPenalizaciones,
         direccionCentroDeCostos,
         direccionComposicionMoviles,
         direccionCompras,
+        direccionCapacidades,
         parqueAutomotorMoviles,
         gestionHumanaChatbot,
         gestionHumanaCarnetizacion,
@@ -312,10 +314,12 @@ router.put('/pagesUser/:id', async (req, res) => {
             logisticaReporteMaterialFerretero = ?, \
             logisticaInventarioMaterial = ?, \
             logisticaEstadoProyectosR4 = ?, \
+            logisticaActivos = ?, \
             direccionPenalizaciones = ?, \
             direccionCentroDeCostos = ?, \
             direccionComposicionMoviles = ?, \
             direccionCompras = ?, \
+            direccionCapacidades = ?, \
             parqueAutomotorMoviles = ?, \
             gestionHumanaChatbot = ?, \
             gestionHumanaCarnetizacion = ? \
@@ -369,10 +373,12 @@ router.put('/pagesUser/:id', async (req, res) => {
                 logisticaReporteMaterialFerretero,
                 logisticaInventarioMaterial,
                 logisticaEstadoProyectosR4,
+                logisticaActivos,
                 direccionPenalizaciones,
                 direccionCentroDeCostos,
                 direccionComposicionMoviles,
                 direccionCompras,
+                direccionCapacidades,
                 parqueAutomotorMoviles,
                 gestionHumanaChatbot,
                 gestionHumanaCarnetizacion,
