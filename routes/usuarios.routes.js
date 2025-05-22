@@ -234,8 +234,7 @@ router.put('/pagesUser/:id', async (req, res) => {
         operacionSeguimientoSmu,
         operacionTecnicoSmu,
         operacionTorreDeControl,
-        logisticaEquiposEnMovilesR2,
-        logisticaEquiposEnMovilesR4,
+        logisticaEquiposEnMoviles,
         logisticaConsumosOperaciones,
         logisticaDesmonteMantenimiento,
         logisticaSolicitudDeMaterial,
@@ -306,8 +305,7 @@ router.put('/pagesUser/:id', async (req, res) => {
             operacionSeguimientoSmu = ?, \
             operacionTecnicoSmu = ?, \
             operacionTorreDeControl = ?, \
-            logisticaEquiposEnMovilesR2 = ?, \
-            logisticaEquiposEnMovilesR4 = ?, \
+            logisticaEquiposEnMoviles = ?, \
             logisticaConsumosOperaciones = ?, \
             logisticaDesmonteMantenimiento = ?, \
             logisticaSolicitudDeMaterial = ?, \
@@ -365,8 +363,7 @@ router.put('/pagesUser/:id', async (req, res) => {
                 operacionSeguimientoSmu,
                 operacionTecnicoSmu,
                 operacionTorreDeControl,
-                logisticaEquiposEnMovilesR2,
-                logisticaEquiposEnMovilesR4,
+                logisticaEquiposEnMoviles,
                 logisticaConsumosOperaciones,
                 logisticaDesmonteMantenimiento,
                 logisticaSolicitudDeMaterial,
