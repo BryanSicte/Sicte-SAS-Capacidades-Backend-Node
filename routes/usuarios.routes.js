@@ -234,6 +234,7 @@ router.put('/pagesUser/:id', async (req, res) => {
         operacionSeguimientoSmu,
         operacionTecnicoSmu,
         operacionTorreDeControl,
+        operacionEnelCronograma,
         logisticaEquiposEnMoviles,
         logisticaConsumosOperaciones,
         logisticaDesmonteMantenimiento,
@@ -242,6 +243,7 @@ router.put('/pagesUser/:id', async (req, res) => {
         logisticaInventarioMaterial,
         logisticaEstadoProyectosR4,
         logisticaActivos,
+        logisticaReporteSicte,
         direccionPenalizaciones,
         direccionCentroDeCostos,
         direccionComposicionMoviles,
@@ -305,6 +307,7 @@ router.put('/pagesUser/:id', async (req, res) => {
             operacionSeguimientoSmu = ?, \
             operacionTecnicoSmu = ?, \
             operacionTorreDeControl = ?, \
+            operacionEnelCronograma = ?, \
             logisticaEquiposEnMoviles = ?, \
             logisticaConsumosOperaciones = ?, \
             logisticaDesmonteMantenimiento = ?, \
@@ -313,6 +316,7 @@ router.put('/pagesUser/:id', async (req, res) => {
             logisticaInventarioMaterial = ?, \
             logisticaEstadoProyectosR4 = ?, \
             logisticaActivos = ?, \
+            logisticaReporteSicte = ?, \
             direccionPenalizaciones = ?, \
             direccionCentroDeCostos = ?, \
             direccionComposicionMoviles = ?, \
@@ -363,6 +367,7 @@ router.put('/pagesUser/:id', async (req, res) => {
                 operacionSeguimientoSmu,
                 operacionTecnicoSmu,
                 operacionTorreDeControl,
+                operacionEnelCronograma,
                 logisticaEquiposEnMoviles,
                 logisticaConsumosOperaciones,
                 logisticaDesmonteMantenimiento,
@@ -371,6 +376,7 @@ router.put('/pagesUser/:id', async (req, res) => {
                 logisticaInventarioMaterial,
                 logisticaEstadoProyectosR4,
                 logisticaActivos,
+                logisticaReporteSicte,
                 direccionPenalizaciones,
                 direccionCentroDeCostos,
                 direccionComposicionMoviles,
