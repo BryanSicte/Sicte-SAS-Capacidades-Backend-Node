@@ -338,7 +338,7 @@ router.post('/agregarPersonalValidarPersonal', async (req, res) => {
             ciudad_trabajo: planta.ciudad,
             red: coordinador.red,
             cliente: coordinador.cliente,
-            area: coordinador.area,
+            area: personal.segmento,
             sub_area: coordinador.subarea && coordinador.subarea !== '' ? coordinador.subarea : 'null',
             tipo_de_movil: personal.tipoMovil,
             tipo_facturacion: personal.tipoFacturacion,
