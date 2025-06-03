@@ -166,7 +166,7 @@ router.post('/agregarPersonal', async (req, res) => {
             ciudad: planta.ciudad,
             red: coordinador.red,
             cliente: coordinador.cliente,
-            area: coordinador.area,
+            area: personal.segmento,
             subarea: coordinador.subarea,
             tipoMovil: personal.tipoMovil,
             tipoFacturacion: personal.tipoFacturacion,
