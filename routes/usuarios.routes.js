@@ -193,66 +193,7 @@ router.get('/pagesUser', async (req, res) => {
 
 router.put('/pagesUser/:id', async (req, res) => {
     const { id } = req.params;
-    const { cedula,
-        reportesCapacidades,
-        reportesSupervision,
-        facturacionConsolidadoNacional,
-        facturacionProyectos,
-        facturacionCorporativo,
-        facturacionMantenimiento,
-        facturacionOperaciones,
-        facturacionMintic,
-        facturacionSmu,
-        facturacionImplementacionMovil,
-        facturacionMedicionesMovil,
-        facturacionObraCivilMovil,
-        producionNacional,
-        producionProyectos,
-        producionCorporativo,
-        producionMantenimiento,
-        producionReingenierias,
-        producionOperaciones,
-        indicadoresHistoricoKpi,
-        indicadoresG1Mantenimiento,
-        indicadoresNps,
-        indicadoresG2G8MasivoCentro,
-        sstaSsta,
-        sstaCursoDeAlturas,
-        sstaEntregasPendientesDotacion,
-        sstaUbicacionDeActividades,
-        puntuacionProyectos,
-        puntuacionCorporativo,
-        puntuacionMantenimiento,
-        puntuacionReingenierias,
-        operacionCumplimientoSlaFo,
-        operacionCumplimientoSlaHfc,
-        operacionCorrectivoPreventivo,
-        operacionRecursoOperaciones,
-        operacionSeguimientoMttoCentro,
-        operacionSeguimientoOperacionesCentro,
-        operacionSeguimientoOperacionesNorte,
-        operacionSeguimientoSmu,
-        operacionTecnicoSmu,
-        operacionTorreDeControl,
-        operacionEnelCronograma,
-        logisticaEquiposEnMoviles,
-        logisticaConsumosOperaciones,
-        logisticaDesmonteMantenimiento,
-        logisticaSolicitudDeMaterial,
-        logisticaReporteMaterialFerretero,
-        logisticaInventarioMaterial,
-        logisticaEstadoProyectosR4,
-        logisticaActivos,
-        logisticaReporteSicte,
-        direccionPenalizaciones,
-        direccionCentroDeCostos,
-        direccionComposicionMoviles,
-        direccionCompras,
-        direccionCapacidades,
-        parqueAutomotorMoviles,
-        gestionHumanaChatbot,
-        gestionHumanaCarnetizacion,
-    } = req.body;
+    const fields = req.body;
 
     try {
         const [existingRows] = await dbRailway.query(
@@ -264,129 +205,16 @@ router.put('/pagesUser/:id', async (req, res) => {
             return res.status(404).json({ message: 'Registro no encontrado' });
         }
 
-        await dbRailway.query(
-            'UPDATE pages_per_user SET \
-            cedula = ?, \
-            reportesCapacidades = ?, \
-            reportesSupervision = ?, \
-            facturacionConsolidadoNacional = ?, \
-            facturacionProyectos = ?, \
-            facturacionCorporativo = ?, \
-            facturacionMantenimiento = ?, \
-            facturacionOperaciones = ?, \
-            facturacionMintic = ?, \
-            facturacionSmu = ?, \
-            facturacionImplementacionMovil = ?, \
-            facturacionMedicionesMovil = ?, \
-            facturacionObraCivilMovil = ?, \
-            producionNacional = ?, \
-            producionProyectos = ?, \
-            producionCorporativo = ?, \
-            producionMantenimiento = ?, \
-            producionReingenierias = ?, \
-            producionOperaciones = ?, \
-            indicadoresHistoricoKpi = ?, \
-            indicadoresG1Mantenimiento = ?, \
-            indicadoresNps = ?, \
-            indicadoresG2G8MasivoCentro = ?, \
-            sstaSsta = ?, \
-            sstaCursoDeAlturas = ?, \
-            sstaEntregasPendientesDotacion = ?, \
-            sstaUbicacionDeActividades = ?, \
-            puntuacionProyectos = ?, \
-            puntuacionCorporativo = ?, \
-            puntuacionMantenimiento = ?, \
-            puntuacionReingenierias = ?, \
-            operacionCumplimientoSlaFo = ?, \
-            operacionCumplimientoSlaHfc = ?, \
-            operacionCorrectivoPreventivo = ?, \
-            operacionRecursoOperaciones = ?, \
-            operacionSeguimientoMttoCentro = ?, \
-            operacionSeguimientoOperacionesCentro = ?, \
-            operacionSeguimientoOperacionesNorte = ?, \
-            operacionSeguimientoSmu = ?, \
-            operacionTecnicoSmu = ?, \
-            operacionTorreDeControl = ?, \
-            operacionEnelCronograma = ?, \
-            logisticaEquiposEnMoviles = ?, \
-            logisticaConsumosOperaciones = ?, \
-            logisticaDesmonteMantenimiento = ?, \
-            logisticaSolicitudDeMaterial = ?, \
-            logisticaReporteMaterialFerretero = ?, \
-            logisticaInventarioMaterial = ?, \
-            logisticaEstadoProyectosR4 = ?, \
-            logisticaActivos = ?, \
-            logisticaReporteSicte = ?, \
-            direccionPenalizaciones = ?, \
-            direccionCentroDeCostos = ?, \
-            direccionComposicionMoviles = ?, \
-            direccionCompras = ?, \
-            direccionCapacidades = ?, \
-            parqueAutomotorMoviles = ?, \
-            gestionHumanaChatbot = ?, \
-            gestionHumanaCarnetizacion = ? \
-            WHERE id = ?',
-            [cedula,
-                reportesCapacidades,
-                reportesSupervision,
-                facturacionConsolidadoNacional,
-                facturacionProyectos,
-                facturacionCorporativo,
-                facturacionMantenimiento,
-                facturacionOperaciones,
-                facturacionMintic,
-                facturacionSmu,
-                facturacionImplementacionMovil,
-                facturacionMedicionesMovil,
-                facturacionObraCivilMovil,
-                producionNacional,
-                producionProyectos,
-                producionCorporativo,
-                producionMantenimiento,
-                producionReingenierias,
-                producionOperaciones,
-                indicadoresHistoricoKpi,
-                indicadoresG1Mantenimiento,
-                indicadoresNps,
-                indicadoresG2G8MasivoCentro,
-                sstaSsta,
-                sstaCursoDeAlturas,
-                sstaEntregasPendientesDotacion,
-                sstaUbicacionDeActividades,
-                puntuacionProyectos,
-                puntuacionCorporativo,
-                puntuacionMantenimiento,
-                puntuacionReingenierias,
-                operacionCumplimientoSlaFo,
-                operacionCumplimientoSlaHfc,
-                operacionCorrectivoPreventivo,
-                operacionRecursoOperaciones,
-                operacionSeguimientoMttoCentro,
-                operacionSeguimientoOperacionesCentro,
-                operacionSeguimientoOperacionesNorte,
-                operacionSeguimientoSmu,
-                operacionTecnicoSmu,
-                operacionTorreDeControl,
-                operacionEnelCronograma,
-                logisticaEquiposEnMoviles,
-                logisticaConsumosOperaciones,
-                logisticaDesmonteMantenimiento,
-                logisticaSolicitudDeMaterial,
-                logisticaReporteMaterialFerretero,
-                logisticaInventarioMaterial,
-                logisticaEstadoProyectosR4,
-                logisticaActivos,
-                logisticaReporteSicte,
-                direccionPenalizaciones,
-                direccionCentroDeCostos,
-                direccionComposicionMoviles,
-                direccionCompras,
-                direccionCapacidades,
-                parqueAutomotorMoviles,
-                gestionHumanaChatbot,
-                gestionHumanaCarnetizacion,
-                id]
-        );
+        const columns = Object.keys(fields);
+        const values = Object.values(fields);
+
+        const setClause = columns.map(col => `${col} = ?`).join(', ');
+
+        values.push(id);
+
+        const sql = `UPDATE pages_per_user SET ${setClause} WHERE id = ?`;
+
+        await dbRailway.query(sql, values);
 
         const [updatedRows] = await dbRailway.query(
             'SELECT * FROM pages_per_user WHERE id = ?',
