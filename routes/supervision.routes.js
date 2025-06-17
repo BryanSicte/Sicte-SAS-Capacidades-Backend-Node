@@ -226,4 +226,13 @@ router.get('/plantaEnLineaCedulaNombre', async (req, res) => {
     }
 });
 
+router.get('/ciudades', async (req, res) => {
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM ciudad');
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
