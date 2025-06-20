@@ -28,106 +28,22 @@ router.get('/registrosFechaPlaca', async (req, res) => {
 });
 
 router.post('/crearRegistro', async (req, res) => {
-    const {
-        alturas, 
-        alturas_comentario, 
-        ats, 
-        ats_comentario, 
-        cedula_cuadrilla, 
-        cortadora, 
-        empalmadora, 
-        empalmes, 
-        empalmes_comentario, 
-        epp, 
-        epp_comentario, 
-        fecha, 
-        foto_nombre, 
-        latitud, 
-        longitud,
-        medidor_conductancia, 
-        medidor_fugas, 
-        nombre,
-        nombre_cuadrilla, 
-        observacion, 
-        onexpert, 
-        opm, 
-        ot, 
-        otdr, 
-        pinza, 
-        placa, 
-        preoperacional, 
-        preoperacional_comentario, 
-        vehiculo, 
-        vehiculo_comentario
-    } = req.body;
-
 
     try {
-        const [result] = await dbRailway.query(`
-            INSERT INTO registros_supervision (
-                alturas, 
-                alturas_comentario, 
-                ats, 
-                ats_comentario, 
-                cedula_cuadrilla, 
-                cortadora, 
-                empalmadora, 
-                empalmes, 
-                empalmes_comentario, 
-                epp, 
-                epp_comentario, 
-                fecha, 
-                foto_nombre, 
-                latitud, 
-                longitud,
-                medidor_conductancia, 
-                medidor_fugas, 
-                nombre,
-                nombre_cuadrilla, 
-                observacion, 
-                onexpert, 
-                opm, 
-                ot, 
-                otdr, 
-                pinza, 
-                placa, 
-                preoperacional, 
-                preoperacional_comentario, 
-                vehiculo, 
-                vehiculo_comentario
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-            alturas, 
-            alturas_comentario, 
-            ats, 
-            ats_comentario, 
-            cedula_cuadrilla, 
-            cortadora, 
-            empalmadora, 
-            empalmes, 
-            empalmes_comentario, 
-            epp, 
-            epp_comentario, 
-            fecha, 
-            foto_nombre, 
-            latitud, 
-            longitud,
-            medidor_conductancia, 
-            medidor_fugas, 
-            nombre,
-            nombre_cuadrilla, 
-            observacion, 
-            onexpert, 
-            opm, 
-            ot, 
-            otdr, 
-            pinza, 
-            placa, 
-            preoperacional, 
-            preoperacional_comentario, 
-            vehiculo, 
-            vehiculo_comentario
-        ]);
+        const data = req.body;
+
+        const keys = Object.keys(data);
+        const values = Object.values(data);
+
+        const placeholders = keys.map(() => '?').join(', ');
+        const campos = keys.join(', ');
+
+        const query = `
+            INSERT INTO registros_supervision (${campos})
+            VALUES (${placeholders})
+        `;
+
+        const [result] = await dbRailway.query(query, values);
 
         const [registroGuardado] = await dbRailway.query('SELECT * FROM registros_supervision WHERE id = ?', [result.insertId]);
         res.status(201).json(registroGuardado[0]);
@@ -230,6 +146,41 @@ router.get('/ciudades', async (req, res) => {
     try {
         const [rows] = await dbRailway.query('SELECT * FROM ciudad');
         res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/registrosEnelInspeccionIntegralHse', async (req, res) => {
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM registros_enel_inspeccion_integral_hse');
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/crearRegistroEnelInspeccionIntegralHse', async (req, res) => {
+
+    try {
+        const data = req.body;
+
+        const keys = Object.keys(data);
+        const values = Object.values(data);
+
+        const placeholders = keys.map(() => '?').join(', ');
+        const campos = keys.join(', ');
+
+        const query = `
+            INSERT INTO registros_enel_inspeccion_integral_hse (${campos})
+            VALUES (${placeholders})
+        `;
+
+        const [result] = await dbRailway.query(query, values);
+
+        const [registroGuardado] = await dbRailway.query('SELECT * FROM registros_enel_inspeccion_integral_hse WHERE id = ?', [result.insertId]);
+        res.status(201).json(registroGuardado[0]);
+
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
