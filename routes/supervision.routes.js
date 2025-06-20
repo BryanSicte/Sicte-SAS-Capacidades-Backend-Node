@@ -3,8 +3,7 @@ const router = express.Router();
 const dbRailway = require('../db/db_railway');
 const multer = require('multer');
 const path = require('path');
-const { uploadFile } = require('../services/googleDriveService');
-const { getFileByName } = require('../services/googleDriveService');
+const { uploadFile, getFileByName, compartirArchivosConUsuario } = require('../services/googleDriveService');
 const fs = require('fs');
 
 const folderId = '1514Cz3GVufGhvpKo7pWiPXCPAzmJCC9p';
