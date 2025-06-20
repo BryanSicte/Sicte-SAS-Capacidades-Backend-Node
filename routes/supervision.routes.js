@@ -186,4 +186,15 @@ router.post('/crearRegistroEnelInspeccionIntegralHse', async (req, res) => {
     }
 });
 
+router.get('/compartirArchivosConUsuario', async (req, res) => {
+
+    try {
+        const registroGuardado = await compartirArchivosConUsuario('1514Cz3GVufGhvpKo7pWiPXCPAzmJCC9p', 'almacenamiento-402@almacenamiento-452623.iam.gserviceaccount.com');
+        res.status(200).json(registroGuardado);
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
