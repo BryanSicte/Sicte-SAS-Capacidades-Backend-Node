@@ -137,8 +137,8 @@ router.post('/agregarPersonal', async (req, res) => {
 
         // Obtener móvil
         const [[movil]] = await dbRailway.query(
-            'SELECT * FROM movil WHERE tipo_movil = ?',
-            [personal.tipoMovil]
+            'SELECT * FROM movil WHERE tipo_movil = ? and segmento = ?',
+            [personal.tipoMovil, personal.segmento]
         );
 
         // Fecha actual como la del método obtenerFechaReporteAgregar()
@@ -182,6 +182,8 @@ router.post('/agregarPersonal', async (req, res) => {
             personas: movil.personas,
             carpeta: personal.carpeta,
             segmento: personal.segmento,
+            operacion: movil.operacion,
+            grupo: movil.grupo,
         };
 
         const nuevaCapacidad = {
@@ -210,6 +212,8 @@ router.post('/agregarPersonal', async (req, res) => {
             personas: response.personas,
             carpeta: response.carpeta && response.carpeta.trim() !== '' ? response.carpeta : 'null',
             segmento: response.segmento,
+            operacion: response.operacion,
+            grupo: response.grupo,
         };
 
         const fields = Object.keys(nuevaCapacidad).join(', ');
@@ -314,7 +318,7 @@ router.post('/agregarPersonalValidarPersonal', async (req, res) => {
         const [[planta]] = await dbRailway.query('SELECT * FROM planta WHERE nit = ?', [personal.cedula]);
         const [[ciudad]] = await dbRailway.query('SELECT * FROM ciudad WHERE ciudad = ?', [planta.ciudad]);
         const [[coordinador]] = await dbRailway.query('SELECT * FROM coordinador WHERE coordinador = ?', [personal.coordinador]);
-        const [[movil]] = await dbRailway.query('SELECT * FROM movil WHERE tipo_movil = ?', [personal.tipoMovil]);
+        const [[movil]] = await dbRailway.query('SELECT * FROM movil WHERE tipo_movil = ? and segmento = ?', [personal.tipoMovil, personal.segmento]);
 
         // Fecha de reporte
         const fecha = new Date();
@@ -340,7 +344,7 @@ router.post('/agregarPersonalValidarPersonal', async (req, res) => {
             ciudad_trabajo: planta.ciudad,
             red: coordinador.red,
             cliente: coordinador.cliente,
-            area: personal.segmento,
+            area: personal.area,
             sub_area: coordinador.subarea && coordinador.subarea !== '' ? coordinador.subarea : 'null',
             tipo_de_movil: personal.tipoMovil,
             tipo_facturacion: personal.tipoFacturacion,
@@ -354,7 +358,10 @@ router.post('/agregarPersonalValidarPersonal', async (req, res) => {
             anio: fecha.getFullYear(),
             turnos: movil.turnos,
             personas: movil.personas,
-            carpeta: personal.carpeta && personal.carpeta !== '' ? personal.carpeta : 'null'
+            carpeta: personal.carpeta && personal.carpeta !== '' ? personal.carpeta : 'null',
+            segmento: personal.segmento,
+            operacion: movil.operacion,
+            grupo: movil.grupo,
         };
 
         // Guardar en la base de datos
