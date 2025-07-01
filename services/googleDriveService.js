@@ -51,35 +51,6 @@ async function getFileByName(filename, folderId) {
     return Buffer.from(response.data);
 }
 
-async function compartirArchivosConUsuario(folderId, emailDestino) {
-    const res = await driveService.files.list({
-        q: `'${folderId}' in parents and trashed = false`,
-        fields: 'files(id, name)',
-        spaces: 'drive'
-    });
-
-    const archivos = res.data.files;
-    const resultados = [];
-
-    for (const file of archivos) {
-        try {
-            await driveService.permissions.create({
-                fileId: file.id,
-                requestBody: {
-                    type: 'user',
-                    role: 'reader',
-                    emailAddress: emailDestino
-                }
-            });
-            resultados.push({ nombre: file.name, id: file.id, status: 'compartido' });
-        } catch (err) {
-            resultados.push({ nombre: file.name, id: file.id, status: 'error', error: err.message });
-        }
-    }
-
-    return resultados;
-}
-
 module.exports = {
     uploadFile,
     getFileByName,

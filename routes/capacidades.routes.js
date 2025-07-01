@@ -166,7 +166,7 @@ router.post('/agregarPersonal', async (req, res) => {
             ciudad: planta.ciudad,
             red: coordinador.red,
             cliente: coordinador.cliente,
-            area: personal.segmento,
+            area: personal.area,
             subarea: coordinador.subarea,
             tipoMovil: personal.tipoMovil,
             tipoFacturacion: personal.tipoFacturacion,
@@ -180,7 +180,8 @@ router.post('/agregarPersonal', async (req, res) => {
             anio: fechaReporte.getFullYear(),
             turnos: movil.turnos,
             personas: movil.personas,
-            carpeta: personal.carpeta
+            carpeta: personal.carpeta,
+            segmento: personal.segmento,
         };
 
         const nuevaCapacidad = {
@@ -207,7 +208,8 @@ router.post('/agregarPersonal', async (req, res) => {
             anio: response.anio.toString(),
             turnos: response.turnos,
             personas: response.personas,
-            carpeta: response.carpeta && response.carpeta.trim() !== '' ? response.carpeta : 'null'
+            carpeta: response.carpeta && response.carpeta.trim() !== '' ? response.carpeta : 'null',
+            segmento: response.segmento,
         };
 
         const fields = Object.keys(nuevaCapacidad).join(', ');

@@ -3,7 +3,7 @@ const router = express.Router();
 const dbRailway = require('../db/db_railway');
 const multer = require('multer');
 const path = require('path');
-const { uploadFile, getFileByName, compartirArchivosConUsuario } = require('../services/googleDriveService');
+const { uploadFile, getFileByName } = require('../services/googleDriveService');
 const fs = require('fs');
 
 const folderId = '1514Cz3GVufGhvpKo7pWiPXCPAzmJCC9p';
@@ -179,17 +179,6 @@ router.post('/crearRegistroEnelInspeccionIntegralHse', async (req, res) => {
 
         const [registroGuardado] = await dbRailway.query('SELECT * FROM registros_enel_inspeccion_integral_hse WHERE id = ?', [result.insertId]);
         res.status(201).json(registroGuardado[0]);
-
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-router.get('/compartirArchivosConUsuario', async (req, res) => {
-
-    try {
-        const registroGuardado = await compartirArchivosConUsuario('1514Cz3GVufGhvpKo7pWiPXCPAzmJCC9p', 'almacenamiento-402@almacenamiento-452623.iam.gserviceaccount.com');
-        res.status(200).json(registroGuardado);
 
     } catch (err) {
         res.status(500).json({ error: err.message });
