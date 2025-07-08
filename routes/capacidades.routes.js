@@ -135,10 +135,16 @@ router.post('/agregarPersonal', async (req, res) => {
             [personal.coordinador]
         );
 
+        let segmento;
+        if (personal.tipoFacturacion === "ADMON") {
+            segmento = 'NA'
+        } else {
+            segmento = personal.segmento
+        }
         // Obtener móvil
         const [[movil]] = await dbRailway.query(
             'SELECT * FROM movil WHERE tipo_movil = ? and segmento = ?',
-            [personal.tipoMovil, personal.segmento]
+            [personal.tipoMovil, segmento]
         );
 
         // Fecha actual como la del método obtenerFechaReporteAgregar()
@@ -318,7 +324,13 @@ router.post('/agregarPersonalValidarPersonal', async (req, res) => {
         const [[planta]] = await dbRailway.query('SELECT * FROM planta WHERE nit = ?', [personal.cedula]);
         const [[ciudad]] = await dbRailway.query('SELECT * FROM ciudad WHERE ciudad = ?', [planta.ciudad]);
         const [[coordinador]] = await dbRailway.query('SELECT * FROM coordinador WHERE coordinador = ?', [personal.coordinador]);
-        const [[movil]] = await dbRailway.query('SELECT * FROM movil WHERE tipo_movil = ? and segmento = ?', [personal.tipoMovil, personal.segmento]);
+        let segmento;
+        if (personal.tipoFacturacion === "ADMON") {
+            segmento = 'NA'
+        } else {
+            segmento = personal.segmento
+        }
+        const [[movil]] = await dbRailway.query('SELECT * FROM movil WHERE tipo_movil = ? and segmento = ?', [personal.tipoMovil, segmento]);
 
         // Fecha de reporte
         const fecha = new Date();
