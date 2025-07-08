@@ -8,6 +8,7 @@ const solicitudMaterialRoutes = require('./solicitudMaterial.routes');
 const reporteFerreteroRoutes = require('./reporteFerretero.routes');
 const supervisionRoutes = require('./supervision.routes');
 const capacidadesRoutes = require('./capacidades.routes');
+const alumbradoPublicoRoutes = require('./alumbradoPublico.routes');
 
 router.use('/usuarios', usuariosRoutes);
 router.use('/chatbot', chatbotRoutes);
@@ -16,5 +17,6 @@ router.use('/solicitudMaterial', solicitudMaterialRoutes);
 router.use('/reporteFerretero', reporteFerreteroRoutes);
 router.use('/supervision', supervisionRoutes);
 router.use('/capacidades', capacidadesRoutes);
+router.use('/alumbradoPublico', alumbradoPublicoRoutes);
 
 module.exports = router;
