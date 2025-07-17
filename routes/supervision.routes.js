@@ -185,4 +185,39 @@ router.post('/crearRegistroEnelInspeccionIntegralHse', async (req, res) => {
     }
 });
 
+router.get('/registrosEnelInspeccionAmbiental', async (req, res) => {
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM registros_enel_inspeccion_ambiental');
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/crearRegistrosEnelInspeccionAmbiental', async (req, res) => {
+
+    try {
+        const data = req.body;
+
+        const keys = Object.keys(data);
+        const values = Object.values(data);
+
+        const placeholders = keys.map(() => '?').join(', ');
+        const campos = keys.join(', ');
+
+        const query = `
+            INSERT INTO registros_enel_inspeccion_ambiental (${campos})
+            VALUES (${placeholders})
+        `;
+
+        const [result] = await dbRailway.query(query, values);
+
+        const [registroGuardado] = await dbRailway.query('SELECT * FROM registros_enel_inspeccion_ambiental WHERE id = ?', [result.insertId]);
+        res.status(201).json(registroGuardado[0]);
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
