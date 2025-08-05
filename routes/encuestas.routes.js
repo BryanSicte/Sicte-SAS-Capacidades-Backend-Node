@@ -16,6 +16,19 @@ router.post('/crearRegistroCometas', async (req, res) => {
     try {
         const data = req.body;
 
+        const { nombre, correo } = data;
+
+        const [existentes] = await dbRailway.query(
+            'SELECT * FROM registros_encuesta_cometas WHERE nombreCompleto = ? OR correo = ?',
+            [nombre, correo]
+        );
+
+        if (existentes.length > 0) {
+            return res.status(400).json({
+                error: 'Ya existe un registro con el mismo nombre o correo.'
+            });
+        }
+
         const keys = Object.keys(data);
         const values = Object.values(data);
 
