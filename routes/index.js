@@ -10,6 +10,7 @@ const supervisionRoutes = require('./supervision.routes');
 const capacidadesRoutes = require('./capacidades.routes');
 const alumbradoPublicoRoutes = require('./alumbradoPublico.routes');
 const imagenesRoutes = require('./imagenes.routes');
+const encuestasRoutes = require('./encuestas.routes')
 
 router.use('/usuarios', usuariosRoutes);
 router.use('/chatbot', chatbotRoutes);
@@ -20,5 +21,6 @@ router.use('/supervision', supervisionRoutes);
 router.use('/capacidades', capacidadesRoutes);
 router.use('/alumbradoPublico', alumbradoPublicoRoutes);
 router.use('/imagenes', imagenesRoutes);
+router.use('/encuestas', encuestasRoutes);
 
 module.exports = router;
