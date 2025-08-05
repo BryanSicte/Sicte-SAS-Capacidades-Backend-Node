@@ -28,11 +28,11 @@ router.post('/crearRegistroCometas', async (req, res) => {
             })
         );
 
-        const { nombre, correo } = data;
+        const { nombreCompleto, correo } = data;
 
         const [existentes] = await dbRailway.query(
             'SELECT * FROM registros_encuesta_cometas WHERE nombreCompleto = ? OR correo = ?',
-            [nombre, correo]
+            [nombreCompleto, correo]
         );
 
         if (existentes.length > 0) {
