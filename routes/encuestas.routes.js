@@ -14,7 +14,19 @@ router.get('/RegistroCometas', async (req, res) => {
 router.post('/crearRegistroCometas', async (req, res) => {
 
     try {
-        const data = req.body;
+        const data = Object.fromEntries(
+            Object.entries(req.body).map(([key, value]) => {
+                if (typeof value !== 'string') return [key, value];
+
+                const valorLimpio = value.trim();
+
+                if (key === 'nombreCompleto' || key === 'correo') {
+                    return [key, valorLimpio.toLowerCase()];
+                }
+
+                return [key, valorLimpio];
+            })
+        );
 
         const { nombre, correo } = data;
 
