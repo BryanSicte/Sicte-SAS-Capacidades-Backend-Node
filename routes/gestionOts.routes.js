@@ -39,9 +39,9 @@ router.post('/asignarOT', async (req, res) => {
             }
         }
 
-        const existeCuadrilla = rows[0].cuadrilla && rows[0].cuadrilla.trim() !== '';
+        const existeHistorico = historico.length > 0;
 
-        if (existeCuadrilla) {
+        if (existeHistorico) {
             if (!observaciones) {
                 return res.status(400).json({ error: 'Falta la observacion' });
             }
