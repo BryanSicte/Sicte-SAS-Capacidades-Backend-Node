@@ -189,15 +189,11 @@ router.post('/solucionRegistroEnelInspeccionIntegralHse', async (req, res) => {
     try {
         const { id, solucion } = req.body;
 
-        const solucionStr = typeof solucion === 'object'
-            ? JSON.stringify(solucion)
-            : solucion;
-
         const query = `
             UPDATE registros_enel_inspeccion_integral_hse SET solucion = ? WHERE id = ?
         `;
 
-        const [result] = await dbRailway.query(query, [solucionStr, id]);
+        const [result] = await dbRailway.query(query, [solucion, id]);
 
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Registro no encontrado' });
