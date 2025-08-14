@@ -14,7 +14,7 @@ router.get('/registros', async (req, res) => {
 router.post('/asignarOT', async (req, res) => {
     const { id, tipoMovil, cuadrilla, observaciones } = req.body;
 
-    if (!id || !tipoMovil || !cuadrilla) {
+    if (!id || (!tipoMovil && cuadrilla !== 'Disponible') || !cuadrilla) {
         return res.status(400).json({ error: 'Faltan datos requeridos' });
     }
 
@@ -46,11 +46,21 @@ router.post('/asignarOT', async (req, res) => {
                 return res.status(400).json({ error: 'Falta la observacion' });
             }
 
-            historico.push({
-                fecha: new Date().toISOString(),
-                detalle: `Se reasigna actividad a la cuadrilla ${cuadrilla} con tipo de movil ${tipoMovil}`,
-                observacion: observaciones
-            });
+            if (cuadrilla === 'Disponible') {
+                historico.push({
+                    fecha: new Date().toISOString(),
+                    detalle: `La actividad queda disponible`,
+                    observacion: observaciones
+                });
+                cuadrilla = null;
+                tipoMovil = null;
+            } else {
+                historico.push({
+                    fecha: new Date().toISOString(),
+                    detalle: `Se reasigna actividad a la cuadrilla ${cuadrilla} con tipo de movil ${tipoMovil}`,
+                    observacion: observaciones
+                });
+            }
         } else {
             historico.push({
                 fecha: new Date().toISOString(),
