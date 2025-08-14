@@ -127,7 +127,7 @@ router.post('/nuevasOrdenes', async (req, res) => {
     }
 
     try {
-        const nroOrdenes = data.map(o => o["Nro Orden"]);
+        const nroOrdenes = data.map(item => item["Nro Orden"]);
 
         const [existentes] = await dbRailway.query(
             `SELECT nro_orden FROM registros_enel_gestion_ots WHERE nro_orden IN (?)`,
@@ -136,45 +136,48 @@ router.post('/nuevasOrdenes', async (req, res) => {
 
         const encontrados = existentes.map(row => row.nro_orden);
 
-        const noEncontrados = data.filter(o => !encontrados.includes(o["Nro Orden"]));
+        const noEncontrados = data.filter(item => !encontrados.includes(item["Nro Orden"]));
 
-        if (noEncontrados.length > 0) {
-            const columnasMap = {
-                "Nro Orden": "nro_orden",
-                "Fecha Ingreso": "fecha_ingreso",
-                "Dirección": "direccion",
-                "Localidad_Descrip": "localidad_giap",
-                "Número_Localidad": "localidad",
-                "Referencia (Barrio)": "referencia_barrio",
-                "Nombre": "nombre",
-                "Tipo de Falla": "tipo_falla",
-                "Cod": "cod",
-                "NoRotulo": "no_rotulo",
-                "Teléfono": "telefono",
-                "ASIGNADO": "asignado",
-                "Nro Transformador": "nro_transformador",
-                "LBT": "lbt",
-                "X": "x",
-                "Y": "y",
-                "Tipo": "tipo",
-                "CODIGO_CTO": "codigo_cto",
-                "USO": "uso",
-                "CD_PREVENTIVO": "cd_preventivo",
-                "Zona": "zona"
-            };
+        console.log(nroOrdenes)
+        console.log(existentes.length)
 
-            const columnasDB = Object.values(columnasMap);
-            const placeholders = columnasDB.map(() => '?').join(',');
+        // if (noEncontrados.length > 0) {
+        //     const columnasMap = {
+        //         "Nro Orden": "nro_orden",
+        //         "Fecha Ingreso": "fecha_ingreso",
+        //         "Dirección": "direccion",
+        //         "Localidad_Descrip": "localidad_giap",
+        //         "Número_Localidad": "localidad",
+        //         "Referencia (Barrio)": "referencia_barrio",
+        //         "Nombre": "nombre",
+        //         "Tipo de Falla": "tipo_falla",
+        //         "Cod": "cod",
+        //         "NoRotulo": "no_rotulo",
+        //         "Teléfono": "telefono",
+        //         "ASIGNADO": "asignado",
+        //         "Nro Transformador": "nro_transformador",
+        //         "LBT": "lbt",
+        //         "X": "x",
+        //         "Y": "y",
+        //         "Tipo": "tipo",
+        //         "CODIGO_CTO": "codigo_cto",
+        //         "USO": "uso",
+        //         "CD_PREVENTIVO": "cd_preventivo",
+        //         "Zona": "zona"
+        //     };
 
-            const values = noEncontrados.map(obj =>
-                Object.keys(columnasMap).map(colArchivo => obj[colArchivo])
-            );
+        //     const columnasDB = Object.values(columnasMap);
+        //     const placeholders = columnasDB.map(() => '?').join(',');
 
-            await dbRailway.query(
-                `INSERT INTO registros_enel_gestion_ots (${columnasDB.join(',')}) VALUES ${values.map(() => `(${placeholders})`).join(',')}`,
-                values.flat()
-            );
-        }
+        //     const values = noEncontrados.map(obj =>
+        //         Object.keys(columnasMap).map(colArchivo => obj[colArchivo])
+        //     );
+
+        //     await dbRailway.query(
+        //         `INSERT INTO registros_enel_gestion_ots (${columnasDB.join(',')}) VALUES ${values.map(() => `(${placeholders})`).join(',')}`,
+        //         values.flat()
+        //     );
+        // }
 
         res.json({
             message: 'Validación e inserción completada',
