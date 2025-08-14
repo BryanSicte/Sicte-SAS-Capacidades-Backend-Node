@@ -141,50 +141,47 @@ router.post('/nuevasOrdenes', async (req, res) => {
 
         const noEncontrados = data.filter(item => !encontradosSet.has(norm(item["Nro Orden"])));
 
-        console.log(encontradosSet)
-        console.log(noEncontrados)
+        if (noEncontrados.length > 0) {
+            const columnasMap = {
+                "Nro Orden": "nro_orden",
+                "Fecha Ingreso": "fecha_ingreso",
+                "Dirección": "direccion",
+                "Localidad_Descrip": "localidad_giap",
+                "Número_Localidad": "localidad",
+                "Referencia (Barrio)": "referencia_barrio",
+                "Nombre": "nombre",
+                "Tipo de Falla": "tipo_falla",
+                "Cod": "cod",
+                "NoRotulo": "no_rotulo",
+                "Teléfono": "telefono",
+                "ASIGNADO": "asignado",
+                "Nro Transformador": "nro_transformador",
+                "LBT": "lbt",
+                "X": "x",
+                "Y": "y",
+                "Tipo": "tipo",
+                "CODIGO_CTO": "codigo_cto",
+                "USO": "uso",
+                "CD_PREVENTIVO": "cd_preventivo",
+                "Zona": "zona"
+            };
 
-        // if (noEncontrados.length > 0) {
-        //     const columnasMap = {
-        //         "Nro Orden": "nro_orden",
-        //         "Fecha Ingreso": "fecha_ingreso",
-        //         "Dirección": "direccion",
-        //         "Localidad_Descrip": "localidad_giap",
-        //         "Número_Localidad": "localidad",
-        //         "Referencia (Barrio)": "referencia_barrio",
-        //         "Nombre": "nombre",
-        //         "Tipo de Falla": "tipo_falla",
-        //         "Cod": "cod",
-        //         "NoRotulo": "no_rotulo",
-        //         "Teléfono": "telefono",
-        //         "ASIGNADO": "asignado",
-        //         "Nro Transformador": "nro_transformador",
-        //         "LBT": "lbt",
-        //         "X": "x",
-        //         "Y": "y",
-        //         "Tipo": "tipo",
-        //         "CODIGO_CTO": "codigo_cto",
-        //         "USO": "uso",
-        //         "CD_PREVENTIVO": "cd_preventivo",
-        //         "Zona": "zona"
-        //     };
+            const columnasDB = Object.values(columnasMap);
+            const placeholders = columnasDB.map(() => '?').join(',');
 
-        //     const columnasDB = Object.values(columnasMap);
-        //     const placeholders = columnasDB.map(() => '?').join(',');
+            const values = noEncontrados.map(obj =>
+                Object.keys(columnasMap).map(colArchivo => obj[colArchivo])
+            );
 
-        //     const values = noEncontrados.map(obj =>
-        //         Object.keys(columnasMap).map(colArchivo => obj[colArchivo])
-        //     );
-
-        //     await dbRailway.query(
-        //         `INSERT INTO registros_enel_gestion_ots (${columnasDB.join(',')}) VALUES ${values.map(() => `(${placeholders})`).join(',')}`,
-        //         values.flat()
-        //     );
-        // }
+            await dbRailway.query(
+                `INSERT INTO registros_enel_gestion_ots (${columnasDB.join(',')}) VALUES ${values.map(() => `(${placeholders})`).join(',')}`,
+                values.flat()
+            );
+        }
 
         res.json({
             message: 'Validación e inserción completada',
-            totalEncontrados: encontradosSet.length,
+            totalEncontrados: encontrados.length,
             totalInsertados: noEncontrados.length
         });
 
