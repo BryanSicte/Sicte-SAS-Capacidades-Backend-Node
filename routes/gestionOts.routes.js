@@ -134,11 +134,14 @@ router.post('/nuevasOrdenes', async (req, res) => {
             [nroOrdenes]
         );
 
+        const norm = v => String(v ?? '').trim();
+
         const encontrados = existentes.map(row => row.nro_orden);
+        const encontradosSet = new Set(encontrados.map(norm));
 
-        const noEncontrados = data.filter(item => !encontrados.includes(item["Nro Orden"]));
+        const noEncontrados = data.filter(item => !encontradosSet.has(norm(item["Nro Orden"])));
 
-        console.log(encontrados)
+        console.log(encontradosSet)
         console.log(noEncontrados)
 
         // if (noEncontrados.length > 0) {
@@ -181,7 +184,7 @@ router.post('/nuevasOrdenes', async (req, res) => {
 
         res.json({
             message: 'Validación e inserción completada',
-            totalEncontrados: encontrados.length,
+            totalEncontrados: encontradosSet.length,
             totalInsertados: noEncontrados.length
         });
 
