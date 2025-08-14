@@ -18,6 +18,9 @@ router.post('/asignarOT', async (req, res) => {
         return res.status(400).json({ error: 'Faltan datos requeridos' });
     }
 
+    let tipoMovilTemp = tipoMovil;
+    let cuadrillaTemp = cuadrilla;
+
     try {
         const [rows] = await dbRailway.query(
             `SELECT historico FROM registros_enel_gestion_ots WHERE id = ?`,
@@ -46,31 +49,31 @@ router.post('/asignarOT', async (req, res) => {
                 return res.status(400).json({ error: 'Falta la observacion' });
             }
 
-            if (cuadrilla === 'Disponible') {
+            if (cuadrillaTemp === 'Disponible') {
                 historico.push({
                     fecha: new Date().toISOString(),
                     detalle: `La actividad queda disponible`,
                     observacion: observaciones
                 });
-                cuadrilla = null;
-                tipoMovil = null;
+                cuadrillaTemp = null;
+                tipoMovilTemp = null;
             } else {
                 historico.push({
                     fecha: new Date().toISOString(),
-                    detalle: `Se reasigna actividad a la cuadrilla ${cuadrilla} con tipo de movil ${tipoMovil}`,
+                    detalle: `Se reasigna actividad a la cuadrilla ${cuadrillaTemp} con tipo de movil ${tipoMovilTemp}`,
                     observacion: observaciones
                 });
             }
         } else {
             historico.push({
                 fecha: new Date().toISOString(),
-                detalle: `Se asigna actividad a la movil ${cuadrilla} con tipo de movil ${tipoMovil}`
+                detalle: `Se asigna actividad a la movil ${cuadrillaTemp} con tipo de movil ${tipoMovilTemp}`
             });
         }
 
         const [result] = await dbRailway.query(
             `UPDATE registros_enel_gestion_ots SET tipoMovil = ?, cuadrilla = ?, historico = ? WHERE id = ?`,
-            [tipoMovil, cuadrilla, JSON.stringify(historico), id]
+            [tipoMovilTemp, cuadrillaTemp, JSON.stringify(historico), id]
         );
 
         if (result.affectedRows === 0) {
