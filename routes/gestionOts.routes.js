@@ -4,7 +4,7 @@ const dbRailway = require('../db/db_railway');
 
 router.get('/registros', async (req, res) => {
     try {
-        const [rows] = await dbRailway.query('SELECT * FROM registros_enel_gestion_ots');
+        const [rows] = await dbRailway.query('SELECT * FROM registros_enel_gestion_ots where atendida != "OK"');
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
