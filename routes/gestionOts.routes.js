@@ -138,8 +138,8 @@ router.post('/nuevasOrdenes', async (req, res) => {
 
         const noEncontrados = data.filter(item => !encontrados.includes(item["Nro Orden"]));
 
-        console.log(nroOrdenes)
-        console.log(existentes.length)
+        console.log(encontrados)
+        console.log(noEncontrados)
 
         // if (noEncontrados.length > 0) {
         //     const columnasMap = {
