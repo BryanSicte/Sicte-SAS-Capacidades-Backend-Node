@@ -122,7 +122,7 @@ router.post('/marcarAtendidas', async (req, res) => {
 router.post('/nuevasOrdenes', async (req, res) => {
     const { data } = req.body;
 
-    if (!Array.isArray(data) || ordenes.length === 0) {
+    if (!Array.isArray(data) || data.length === 0) {
         return res.status(400).json({ error: 'Debes enviar un archivo con informacion' });
     }
 
