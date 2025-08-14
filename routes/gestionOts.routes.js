@@ -84,4 +84,40 @@ router.post('/asignarOT', async (req, res) => {
     }
 });
 
+router.post('/marcarAtendidas', async (req, res) => {
+    const { ordenes } = req.body;
+
+    if (!Array.isArray(ordenes) || ordenes.length === 0) {
+        return res.status(400).json({ error: 'Debe enviar un arreglo de órdenes' });
+    }
+
+    try {
+        const [existentes] = await dbRailway.query(
+            `SELECT nro_orden FROM registros_enel_gestion_ots WHERE nro_orden IN (?)`,
+            [ordenes]
+        );
+
+        const encontrados = existentes.map(row => row.nro_orden);
+        const noEncontrados = ordenes.filter(o => !encontrados.includes(o));
+
+        if (encontrados.length > 0) {
+            await dbRailway.query(
+                `UPDATE registros_enel_gestion_ots SET atendida = 'OK' WHERE nro_orden IN (?)`,
+                [encontrados]
+            );
+        }
+
+        res.json({
+            message: `Actualización completada`,
+            totalEncontrados: encontrados.length,
+            totalNoEncontrados: noEncontrados.length,
+            noEncontrados
+        });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
 module.exports = router;
