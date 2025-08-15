@@ -311,6 +311,34 @@ router.post('/crearRegistrosEnelInspeccionBotiquin', async (req, res) => {
     }
 });
 
+router.post('/solucionRegistroEnelInspeccionBotiquin', async (req, res) => {
+    try {
+        const { id, solucion, inspeccionFinal } = req.body;
+
+        const solucionJSON = JSON.stringify(solucion);
+
+        const query = `
+            UPDATE registros_enel_inspeccion_botiquin SET solucion = ?, inspeccionFinal = ? WHERE id = ?
+        `;
+
+        const [result] = await dbRailway.query(query, [solucionJSON, inspeccionFinal, id]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Registro no encontrado' });
+        }
+
+        const [registroActualizado] = await dbRailway.query(
+            'SELECT * FROM registros_enel_inspeccion_botiquin WHERE id = ?',
+            [id]
+        );
+
+        res.status(200).json(registroActualizado[0]);
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.get('/registrosEnelInspeccionElementosEmergencia', async (req, res) => {
     try {
         const [rows] = await dbRailway.query('SELECT * FROM registros_enel_inspeccion_elementos_emergencia');
@@ -340,6 +368,34 @@ router.post('/crearRegistrosEnelInspeccionElementosEmergencia', async (req, res)
 
         const [registroGuardado] = await dbRailway.query('SELECT * FROM registros_enel_inspeccion_elementos_emergencia WHERE id = ?', [result.insertId]);
         res.status(201).json(registroGuardado[0]);
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/solucionRegistroEnelInspeccionElementosEmergencia', async (req, res) => {
+    try {
+        const { id, solucion, inspeccionFinal } = req.body;
+
+        const solucionJSON = JSON.stringify(solucion);
+
+        const query = `
+            UPDATE registros_enel_inspeccion_elementos_emergencia SET solucion = ?, inspeccionFinal = ? WHERE id = ?
+        `;
+
+        const [result] = await dbRailway.query(query, [solucionJSON, inspeccionFinal, id]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Registro no encontrado' });
+        }
+
+        const [registroActualizado] = await dbRailway.query(
+            'SELECT * FROM registros_enel_inspeccion_elementos_emergencia WHERE id = ?',
+            [id]
+        );
+
+        res.status(200).json(registroActualizado[0]);
 
     } catch (err) {
         res.status(500).json({ error: err.message });
