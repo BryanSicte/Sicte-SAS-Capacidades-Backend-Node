@@ -248,6 +248,34 @@ router.post('/crearRegistrosEnelInspeccionAmbiental', async (req, res) => {
     }
 });
 
+router.post('/solucionRegistroEnelInspeccionAmbiental', async (req, res) => {
+    try {
+        const { id, solucion, inspeccionFinal } = req.body;
+
+        const solucionJSON = JSON.stringify(solucion);
+
+        const query = `
+            UPDATE registros_enel_inspeccion_ambiental SET solucion = ?, inspeccionFinal = ? WHERE id = ?
+        `;
+
+        const [result] = await dbRailway.query(query, [solucionJSON, inspeccionFinal, id]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Registro no encontrado' });
+        }
+
+        const [registroActualizado] = await dbRailway.query(
+            'SELECT * FROM registros_enel_inspeccion_ambiental WHERE id = ?',
+            [id]
+        );
+
+        res.status(200).json(registroActualizado[0]);
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.get('/registrosEnelInspeccionBotiquin', async (req, res) => {
     try {
         const [rows] = await dbRailway.query('SELECT * FROM registros_enel_inspeccion_botiquin');
