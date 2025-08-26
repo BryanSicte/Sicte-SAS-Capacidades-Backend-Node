@@ -127,7 +127,7 @@ router.post('/nuevasOrdenes', async (req, res) => {
     }
 
     try {
-        const nroOrdenes = data.map(item => item["Nro Orden"]);
+        const nroOrdenes = data.map(item => item.nro_orden);
 
         const [existentes] = await dbRailway.query(
             `SELECT nro_orden FROM registros_enel_gestion_ots WHERE nro_orden IN (?)`,
@@ -139,38 +139,15 @@ router.post('/nuevasOrdenes', async (req, res) => {
         const encontrados = existentes.map(row => row.nro_orden);
         const encontradosSet = new Set(encontrados.map(norm));
 
-        const noEncontrados = data.filter(item => !encontradosSet.has(norm(item["Nro Orden"])));
+        const noEncontrados = data.filter(item => !encontradosSet.has(norm(item.nro_orden)));
 
         if (noEncontrados.length > 0) {
-            const columnasMap = {
-                "Nro Orden": "nro_orden",
-                "Fecha Ingreso": "fecha_ingreso",
-                "Dirección": "direccion",
-                "Localidad_Descrip": "localidad_giap",
-                "Número_Localidad": "localidad",
-                "Referencia (Barrio)": "referencia_barrio",
-                "Nombre": "nombre",
-                "Tipo de Falla": "tipo_falla",
-                "Cod": "cod",
-                "NoRotulo": "no_rotulo",
-                "Teléfono": "telefono",
-                "ASIGNADO": "asignado",
-                "Nro Transformador": "nro_transformador",
-                "LBT": "lbt",
-                "X": "x",
-                "Y": "y",
-                "Tipo": "tipo",
-                "CODIGO_CTO": "codigo_cto",
-                "USO": "uso",
-                "CD_PREVENTIVO": "cd_preventivo",
-                "Zona": "zona"
-            };
+            const columnasDB = Object.keys(noEncontrados[0]);
 
-            const columnasDB = Object.values(columnasMap);
             const placeholders = columnasDB.map(() => '?').join(',');
 
             const values = noEncontrados.map(obj =>
-                Object.keys(columnasMap).map(colArchivo => obj[colArchivo])
+                columnasDB.map(col => obj[col])
             );
 
             await dbRailway.query(
