@@ -12,14 +12,15 @@ router.get('/registros', async (req, res) => {
 });
 
 router.post('/asignarOT', async (req, res) => {
-    const { id, tipoMovil, cuadrilla, observaciones, nombreUsuario } = req.body;
+    const { id, tipoMovil, cuadrilla, observaciones, nombreUsuario, turnoAsignado } = req.body;
 
-    if (!id || (!tipoMovil && cuadrilla !== 'Disponible') || !cuadrilla || !nombreUsuario) {
+    if (!id || (!tipoMovil && cuadrilla !== 'Disponible') || !cuadrilla || !nombreUsuario || !turnoAsignado) {
         return res.status(400).json({ error: 'Faltan datos requeridos' });
     }
 
     let tipoMovilTemp = tipoMovil;
     let cuadrillaTemp = cuadrilla;
+    let turnoAsignadoTemp = turnoAsignado;
 
     try {
         const [rows] = await dbRailway.query(
@@ -40,7 +41,7 @@ router.post('/asignarOT', async (req, res) => {
                 historico = [];
             }
         }
-        const existeHistorico = historico.length > 0;
+        const existeHistorico = historico.length > 1;
 
         if (existeHistorico) {
             if (!observaciones && rows[0].cuadrilla !== null) {
@@ -56,11 +57,12 @@ router.post('/asignarOT', async (req, res) => {
                 });
                 cuadrillaTemp = null;
                 tipoMovilTemp = null;
+                turnoAsignadoTemp = null;
             } else {
                 historico.push({
                     fecha: new Date().toISOString(),
                     usuario: nombreUsuario,
-                    detalle: `Se reasigna actividad a la cuadrilla ${cuadrillaTemp} con tipo de movil ${tipoMovilTemp}`,
+                    detalle: `Se reasigna actividad a la cuadrilla ${cuadrillaTemp} con tipo de movil ${tipoMovilTemp} y turno ${turnoAsignadoTemp}`,
                     observacion: observaciones
                 });
             }
@@ -68,13 +70,13 @@ router.post('/asignarOT', async (req, res) => {
             historico.push({
                 fecha: new Date().toISOString(),
                 usuario: nombreUsuario,
-                detalle: `Se asigna actividad a la movil ${cuadrillaTemp} con tipo de movil ${tipoMovilTemp}`
+                detalle: `Se asigna actividad a la movil ${cuadrillaTemp} con tipo de movil ${tipoMovilTemp} y turno ${turnoAsignadoTemp}`
             });
         }
 
         const [result] = await dbRailway.query(
-            `UPDATE registros_enel_gestion_ots SET tipoMovil = ?, cuadrilla = ?, historico = ? WHERE id = ?`,
-            [tipoMovilTemp, cuadrillaTemp, JSON.stringify(historico), id]
+            `UPDATE registros_enel_gestion_ots SET tipoMovil = ?, cuadrilla = ?, turnoAsignado = ?, historico = ? WHERE id = ?`,
+            [tipoMovilTemp, cuadrillaTemp, turnoAsignadoTemp, JSON.stringify(historico), id]
         );
 
         if (result.affectedRows === 0) {
