@@ -177,9 +177,7 @@ router.post('/nuevasOrdenes', async (req, res) => {
 
         if (noEncontrados.length > 0) {
             const columnasDB = Object.keys(noEncontrados[0]);
-
             const placeholders = columnasDB.map(() => '?').join(',');
-
             const values = noEncontrados.map(obj =>
                 columnasDB.map(col => obj[col])
             );
@@ -189,9 +187,12 @@ router.post('/nuevasOrdenes', async (req, res) => {
                 values.flat()
             );
 
-            console.log(noEncontrados)
+            const [insertados] = await dbRailway.query(
+                `SELECT id, nro_orden, historico FROM registros_enel_gestion_ots WHERE nro_orden IN (?)`,
+                [noEncontrados.map(r => r.nro_orden)]
+            );
 
-            for (const row of noEncontrados) {
+            for (const row of insertados) {
                 let historico = [];
                 if (row.historico) {
                     try {
