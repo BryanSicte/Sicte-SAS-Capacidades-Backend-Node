@@ -229,4 +229,58 @@ router.post('/nuevasOrdenes', async (req, res) => {
     }
 });
 
+router.post('/rehabilitarOT', async (req, res) => {
+    const { id, observaciones, nombreUsuario } = req.body;
+
+    if (!id || !observaciones || !nombreUsuario) {
+        return res.status(400).json({ error: 'Faltan datos requeridos' });
+    }
+
+    let tipoMovilTemp = null;
+    let cuadrillaTemp = null;
+    let turnoAsignadoTemp = null;
+    let atendidaTemp = null;
+
+    try {
+        const [rows] = await dbRailway.query(
+            `SELECT historico FROM registros_enel_gestion_ots WHERE id = ?`,
+            [id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'Registro no encontrado' });
+        }
+
+        let historico = [];
+        if (rows[0].historico) {
+            try {
+                historico = JSON.parse(rows[0].historico);
+                if (!Array.isArray(historico)) historico = [];
+            } catch {
+                historico = [];
+            }
+        }
+        
+        historico.push({
+            fecha: new Date().toISOString(),
+            usuario: nombreUsuario,
+            detalle: `Se rehabilita la orden de trabajo`,
+            observacion: observaciones
+        });
+
+        const [result] = await dbRailway.query(
+            `UPDATE registros_enel_gestion_ots SET tipoMovil = ?, cuadrilla = ?, turnoAsignado = ?, historico = ?, atendida = ?, WHERE id = ?`,
+            [tipoMovilTemp, cuadrillaTemp, turnoAsignadoTemp, JSON.stringify(historico), atendidaTemp, id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Registro no encontrado' });
+        }
+
+        res.json({ message: 'Registro actualizado correctamente' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
