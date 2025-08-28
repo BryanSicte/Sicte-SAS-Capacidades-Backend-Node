@@ -269,7 +269,7 @@ router.post('/rehabilitarOT', async (req, res) => {
         });
 
         const [result] = await dbRailway.query(
-            `UPDATE registros_enel_gestion_ots SET tipoMovil = ?, cuadrilla = ?, turnoAsignado = ?, historico = ?, atendida = ?, WHERE id = ?`,
+            `UPDATE registros_enel_gestion_ots SET tipoMovil = ?, cuadrilla = ?, turnoAsignado = ?, historico = ?, atendida = ? WHERE id = ?`,
             [tipoMovilTemp, cuadrillaTemp, turnoAsignadoTemp, JSON.stringify(historico), atendidaTemp, id]
         );
 
