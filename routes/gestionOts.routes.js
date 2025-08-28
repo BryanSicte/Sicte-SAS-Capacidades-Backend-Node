@@ -189,7 +189,9 @@ router.post('/nuevasOrdenes', async (req, res) => {
                 values.flat()
             );
 
-            for (const row of existentes) {
+            console.log(noEncontrados)
+
+            for (const row of noEncontrados) {
                 let historico = [];
                 if (row.historico) {
                     try {
