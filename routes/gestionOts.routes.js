@@ -4,7 +4,7 @@ const dbRailway = require('../db/db_railway');
 
 router.get('/registros', async (req, res) => {
     try {
-        const [rows] = await dbRailway.query('SELECT * FROM registros_enel_gestion_ots where atendida is null');
+        const [rows] = await dbRailway.query('SELECT * FROM registros_enel_gestion_ots');
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -12,9 +12,9 @@ router.get('/registros', async (req, res) => {
 });
 
 router.post('/asignarOT', async (req, res) => {
-    const { id, tipoMovil, cuadrilla, observaciones } = req.body;
+    const { id, tipoMovil, cuadrilla, observaciones, nombreUsuario } = req.body;
 
-    if (!id || (!tipoMovil && cuadrilla !== 'Disponible') || !cuadrilla) {
+    if (!id || (!tipoMovil && cuadrilla !== 'Disponible') || !cuadrilla || !nombreUsuario) {
         return res.status(400).json({ error: 'Faltan datos requeridos' });
     }
 
@@ -50,6 +50,7 @@ router.post('/asignarOT', async (req, res) => {
             if (cuadrillaTemp === 'Disponible') {
                 historico.push({
                     fecha: new Date().toISOString(),
+                    usuario: nombreUsuario,
                     detalle: `La actividad queda disponible`,
                     observacion: observaciones
                 });
@@ -58,6 +59,7 @@ router.post('/asignarOT', async (req, res) => {
             } else {
                 historico.push({
                     fecha: new Date().toISOString(),
+                    usuario: nombreUsuario,
                     detalle: `Se reasigna actividad a la cuadrilla ${cuadrillaTemp} con tipo de movil ${tipoMovilTemp}`,
                     observacion: observaciones
                 });
@@ -65,6 +67,7 @@ router.post('/asignarOT', async (req, res) => {
         } else {
             historico.push({
                 fecha: new Date().toISOString(),
+                usuario: nombreUsuario,
                 detalle: `Se asigna actividad a la movil ${cuadrillaTemp} con tipo de movil ${tipoMovilTemp}`
             });
         }
@@ -85,15 +88,19 @@ router.post('/asignarOT', async (req, res) => {
 });
 
 router.post('/marcarAtendidas', async (req, res) => {
-    const { ordenes } = req.body;
+    const { ordenes, nombreUsuario } = req.body;
 
     if (!Array.isArray(ordenes) || ordenes.length === 0) {
         return res.status(400).json({ error: 'Debe enviar un arreglo de órdenes' });
     }
 
+    if (!nombreUsuario) {
+        return res.status(400).json({ error: 'Faltan datos requeridos' });
+    }
+
     try {
         const [existentes] = await dbRailway.query(
-            `SELECT nro_orden FROM registros_enel_gestion_ots WHERE nro_orden IN (?)`,
+            `SELECT nro_orden, historico FROM registros_enel_gestion_ots WHERE nro_orden IN (?)`,
             [ordenes]
         );
 
@@ -105,6 +112,29 @@ router.post('/marcarAtendidas', async (req, res) => {
                 `UPDATE registros_enel_gestion_ots SET atendida = 'OK' WHERE nro_orden IN (?)`,
                 [encontrados]
             );
+
+            for (const row of existentes) {
+                let historico = [];
+                if (row.historico) {
+                    try {
+                        historico = JSON.parse(row.historico);
+                        if (!Array.isArray(historico)) historico = [];
+                    } catch {
+                        historico = [];
+                    }
+                }
+
+                historico.push({
+                    fecha: new Date().toISOString(),
+                    usuario: nombreUsuario,
+                    detalle: `La orden fue marcada como atendida`
+                });
+
+                await dbRailway.query(
+                    `UPDATE registros_enel_gestion_ots SET historico = ? WHERE id = ?`,
+                    [JSON.stringify(historico), row.id]
+                );
+            }
         }
 
         res.json({
@@ -120,17 +150,21 @@ router.post('/marcarAtendidas', async (req, res) => {
 });
 
 router.post('/nuevasOrdenes', async (req, res) => {
-    const { data } = req.body;
+    const { data, nombreUsuario } = req.body;
 
     if (!Array.isArray(data) || data.length === 0) {
         return res.status(400).json({ error: 'Debes enviar un archivo con informacion' });
+    }
+
+    if (!nombreUsuario) {
+        return res.status(400).json({ error: 'Faltan datos requeridos' });
     }
 
     try {
         const nroOrdenes = data.map(item => item.nro_orden);
 
         const [existentes] = await dbRailway.query(
-            `SELECT nro_orden FROM registros_enel_gestion_ots WHERE nro_orden IN (?)`,
+            `SELECT nro_orden, historico FROM registros_enel_gestion_ots WHERE nro_orden IN (?)`,
             [nroOrdenes]
         );
 
@@ -154,6 +188,29 @@ router.post('/nuevasOrdenes', async (req, res) => {
                 `INSERT INTO registros_enel_gestion_ots (${columnasDB.join(',')}) VALUES ${values.map(() => `(${placeholders})`).join(',')}`,
                 values.flat()
             );
+
+            for (const row of existentes) {
+                let historico = [];
+                if (row.historico) {
+                    try {
+                        historico = JSON.parse(row.historico);
+                        if (!Array.isArray(historico)) historico = [];
+                    } catch {
+                        historico = [];
+                    }
+                }
+
+                historico.push({
+                    fecha: new Date().toISOString(),
+                    usuario: nombreUsuario,
+                    detalle: `La orden fue ingresada a la base de datos`
+                });
+
+                await dbRailway.query(
+                    `UPDATE registros_enel_gestion_ots SET historico = ? WHERE id = ?`,
+                    [JSON.stringify(historico), row.id]
+                );
+            }
         }
 
         res.json({
