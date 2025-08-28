@@ -100,7 +100,7 @@ router.post('/marcarAtendidas', async (req, res) => {
 
     try {
         const [existentes] = await dbRailway.query(
-            `SELECT nro_orden, historico FROM registros_enel_gestion_ots WHERE nro_orden IN (?)`,
+            `SELECT id, nro_orden, historico FROM registros_enel_gestion_ots WHERE nro_orden IN (?)`,
             [ordenes]
         );
 
