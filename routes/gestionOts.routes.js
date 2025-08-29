@@ -487,9 +487,9 @@ router.post('/rehabilitarOT', async (req, res) => {
         const nuevoConsecutivo = maxConsecutivo + 1;
 
         let lotes = [];
-        if (rows.lotes) {
+        if (rows[0].lotes) {
             try {
-                lotes = JSON.parse(rows.lotes);
+                lotes = JSON.parse(rows[0].lotes);
                 if (!Array.isArray(lotes)) lotes = [];
             } catch {
                 lotes = [];
