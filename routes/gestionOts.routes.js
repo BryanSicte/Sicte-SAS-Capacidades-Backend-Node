@@ -2,6 +2,15 @@ const express = require('express');
 const router = express.Router();
 const dbRailway = require('../db/db_railway');
 
+router.get('/cuadrillasEnelAlumbradoPublico', async (req, res) => {
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM cuadrillas_enel_alumbrado_publico');
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.get('/registros', async (req, res) => {
     try {
         const [rows] = await dbRailway.query('SELECT * FROM registros_enel_gestion_ots');
