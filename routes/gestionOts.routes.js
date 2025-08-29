@@ -12,10 +12,14 @@ router.get('/registros', async (req, res) => {
 });
 
 router.post('/asignarOT', async (req, res) => {
-    const { id, tipoMovil, cuadrilla, observaciones, nombreUsuario, turnoAsignado } = req.body;
+    const { ids, tipoMovil, cuadrilla, observaciones, nombreUsuario, turnoAsignado } = req.body;
 
-    if (!id || (!tipoMovil && cuadrilla !== 'Disponible') || !cuadrilla || !nombreUsuario || (!turnoAsignado && cuadrilla !== 'Disponible')) {
+    if ((!tipoMovil && cuadrilla !== 'Disponible') || !cuadrilla || !nombreUsuario || (!turnoAsignado && cuadrilla !== 'Disponible')) {
         return res.status(400).json({ error: 'Faltan datos requeridos' });
+    }
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: 'Debe enviar un arreglo de IDs' });
     }
 
     let tipoMovilTemp = tipoMovil;
@@ -23,67 +27,103 @@ router.post('/asignarOT', async (req, res) => {
     let turnoAsignadoTemp = turnoAsignado;
 
     try {
-        const [rows] = await dbRailway.query(
-            `SELECT historico, cuadrilla FROM registros_enel_gestion_ots WHERE id = ?`,
-            [id]
+        const [registros] = await dbRailway.query(
+            `SELECT id, historico, cuadrilla FROM registros_enel_gestion_ots WHERE id = ?`,
+            [ids]
         );
 
-        if (rows.length === 0) {
+        if (registros.length === 0) {
             return res.status(404).json({ error: 'Registro no encontrado' });
         }
 
-        let historico = [];
-        if (rows[0].historico) {
+        const [todos] = await dbRailway.query(
+            `SELECT lotes FROM registros_enel_gestion_ots WHERE lotes IS NOT NULL`
+        );
+        let maxConsecutivo = 0;
+        for (const row of todos) {
             try {
-                historico = JSON.parse(rows[0].historico);
-                if (!Array.isArray(historico)) historico = [];
-            } catch {
-                historico = [];
-            }
+                const arr = JSON.parse(row.lotes);
+                if (Array.isArray(arr) && arr.length > 0) {
+                    const localMax = Math.max(...arr);
+                    if (localMax > maxConsecutivo) {
+                        maxConsecutivo = localMax;
+                    }
+                }
+            } catch { }
         }
-        const existeHistorico = historico.length > 1;
+        const nuevoConsecutivo = maxConsecutivo + 1;
 
-        if (existeHistorico) {
-            if (!observaciones && rows[0].cuadrilla !== null) {
-                return res.status(400).json({ error: 'Falta la observacion' });
+        for (const row of registros) {
+            let historico = [];
+            if (row[0].historico) {
+                try {
+                    historico = JSON.parse(row[0].historico);
+                    if (!Array.isArray(historico)) historico = [];
+                } catch {
+                    historico = [];
+                }
             }
+            const existeHistorico = historico.length > 1;
 
-            if (cuadrillaTemp === 'Disponible') {
-                historico.push({
-                    fecha: new Date().toISOString(),
-                    usuario: nombreUsuario,
-                    detalle: `La actividad queda disponible`,
-                    observacion: observaciones
-                });
-                cuadrillaTemp = null;
-                tipoMovilTemp = null;
-                turnoAsignadoTemp = null;
+            if (existeHistorico) {
+                if (!observaciones && row[0].cuadrilla !== null) {
+                    return res.status(400).json({ error: 'Falta la observacion' });
+                }
+
+                if (cuadrillaTemp === 'Disponible') {
+                    historico.push({
+                        fecha: new Date().toISOString(),
+                        usuario: nombreUsuario,
+                        lote: nuevoConsecutivo,
+                        detalle: `La actividad queda disponible`,
+                        observacion: observaciones
+                    });
+                    cuadrillaTemp = null;
+                    tipoMovilTemp = null;
+                    turnoAsignadoTemp = null;
+                } else {
+                    historico.push({
+                        fecha: new Date().toISOString(),
+                        usuario: nombreUsuario,
+                        lote: nuevoConsecutivo,
+                        detalle: `Se reasigna actividad a la cuadrilla ${cuadrillaTemp} con tipo de movil ${tipoMovilTemp} y turno ${turnoAsignadoTemp}`,
+                        observacion: observaciones
+                    });
+                }
             } else {
                 historico.push({
                     fecha: new Date().toISOString(),
                     usuario: nombreUsuario,
-                    detalle: `Se reasigna actividad a la cuadrilla ${cuadrillaTemp} con tipo de movil ${tipoMovilTemp} y turno ${turnoAsignadoTemp}`,
-                    observacion: observaciones
+                    lote: nuevoConsecutivo,
+                    detalle: `Se asigna actividad a la movil ${cuadrillaTemp} con tipo de movil ${tipoMovilTemp} y turno ${turnoAsignadoTemp}`
                 });
             }
-        } else {
-            historico.push({
-                fecha: new Date().toISOString(),
-                usuario: nombreUsuario,
-                detalle: `Se asigna actividad a la movil ${cuadrillaTemp} con tipo de movil ${tipoMovilTemp} y turno ${turnoAsignadoTemp}`
-            });
+
+            let lotes = [];
+            if (row.lotes) {
+                try {
+                    lotes = JSON.parse(row.lotes);
+                    if (!Array.isArray(lotes)) lotes = [];
+                } catch {
+                    lotes = [];
+                }
+            }
+            lotes.push(nuevoConsecutivo);
+
+            const [result] = await dbRailway.query(
+                `UPDATE registros_enel_gestion_ots SET tipoMovil = ?, cuadrilla = ?, turnoAsignado = ?, historico = ?, lotes = ? WHERE id = ?`,
+                [tipoMovilTemp, cuadrillaTemp, turnoAsignadoTemp, JSON.stringify(historico), JSON.stringify(lotes), row.id]
+            );
+
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ error: 'Registro no encontrado' });
+            }
         }
 
-        const [result] = await dbRailway.query(
-            `UPDATE registros_enel_gestion_ots SET tipoMovil = ?, cuadrilla = ?, turnoAsignado = ?, historico = ? WHERE id = ?`,
-            [tipoMovilTemp, cuadrillaTemp, turnoAsignadoTemp, JSON.stringify(historico), id]
-        );
-
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Registro no encontrado' });
-        }
-
-        res.json({ message: 'Registro actualizado correctamente' });
+        res.json({
+            message: 'Registros actualizados correctamente',
+            totalActualizados: registros.length
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -142,12 +182,6 @@ router.post('/marcarAtendidas', async (req, res) => {
                     }
                 }
 
-                historico.push({
-                    fecha: new Date().toISOString(),
-                    usuario: nombreUsuario,
-                    detalle: `La orden fue marcada como atendida`
-                });
-
                 let lotes = [];
                 if (row.lotes) {
                     try {
@@ -158,6 +192,13 @@ router.post('/marcarAtendidas', async (req, res) => {
                     }
                 }
                 lotes.push(nuevoConsecutivo);
+
+                historico.push({
+                    fecha: new Date().toISOString(),
+                    usuario: nombreUsuario,
+                    lote: nuevoConsecutivo,
+                    detalle: `La orden fue marcada como atendida`
+                });
 
                 await dbRailway.query(
                     `UPDATE registros_enel_gestion_ots SET atendida = 'OK', historico = ?, lotes = ? WHERE id = ?`,
@@ -221,6 +262,26 @@ router.post('/nuevasOrdenes', async (req, res) => {
         const noEncontrados = data.filter(item => !existentesMap.has(String(item.nro_orden ?? '').trim()));
 
         let totalInsertados = 0;
+
+        const [todos] = await dbRailway.query(
+            `SELECT lotes FROM registros_enel_gestion_ots WHERE lotes IS NOT NULL`
+        );
+
+        let maxConsecutivo = 0;
+        for (const row of todos) {
+            try {
+                const arr = JSON.parse(row.lotes);
+                if (Array.isArray(arr) && arr.length > 0) {
+                    const localMax = Math.max(...arr);
+                    if (localMax > maxConsecutivo) {
+                        maxConsecutivo = localMax;
+                    }
+                }
+            } catch { }
+        }
+
+        const nuevoConsecutivo = maxConsecutivo + 1;
+
         if (noEncontrados.length > 0) {
             const unionCols = Array.from(new Set(noEncontrados.flatMap(obj => Object.keys(obj))));
             const insertCols = unionCols.filter(c => allowedCols.has(c));
@@ -238,7 +299,7 @@ router.post('/nuevasOrdenes', async (req, res) => {
             totalInsertados = noEncontrados.length;
 
             const [insertedRows] = await dbRailway.query(
-                'SELECT id, nro_orden, historico FROM registros_enel_gestion_ots WHERE nro_orden IN (?)',
+                'SELECT id, nro_orden, historico, lotes FROM registros_enel_gestion_ots WHERE nro_orden IN (?)',
                 [noEncontrados.map(r => r.nro_orden)]
             );
 
@@ -251,15 +312,27 @@ router.post('/nuevasOrdenes', async (req, res) => {
                     } catch { historicoArr = []; }
                 }
 
+                let lotes = [];
+                if (row.lotes) {
+                    try {
+                        lotes = JSON.parse(row.lotes);
+                        if (!Array.isArray(lotes)) lotes = [];
+                    } catch {
+                        lotes = [];
+                    }
+                }
+                lotes.push(nuevoConsecutivo);
+
                 historicoArr.push({
                     fecha: new Date().toISOString(),
                     usuario: nombreUsuario,
+                    lote: nuevoConsecutivo,
                     detalle: `La orden fue ingresada a la base de datos`
                 });
 
                 await dbRailway.query(
-                    'UPDATE registros_enel_gestion_ots SET historico = ? WHERE id = ?',
-                    [JSON.stringify(historicoArr), row.id]
+                    'UPDATE registros_enel_gestion_ots SET historico = ?, lotes = ? WHERE id = ?',
+                    [JSON.stringify(historicoArr), JSON.stringify(lotes), row.id]
                 );
             }
         }
@@ -268,6 +341,23 @@ router.post('/nuevasOrdenes', async (req, res) => {
         const actualizados = [];
 
         const dataMap = new Map(data.map(item => [String(item.nro_orden ?? '').trim(), item]));
+
+        const [todosActualizacion] = await dbRailway.query(
+            `SELECT lotes FROM registros_enel_gestion_ots WHERE lotes IS NOT NULL`
+        );
+        let maxConsecutivoActualizacion = 0;
+        for (const row of todosActualizacion) {
+            try {
+                const arr = JSON.parse(row.lotes);
+                if (Array.isArray(arr) && arr.length > 0) {
+                    const localMax = Math.max(...arr);
+                    if (localMax > maxConsecutivoActualizacion) {
+                        maxConsecutivoActualizacion = localMax;
+                    }
+                }
+            } catch { }
+        }
+        const nuevoConsecutivoActualizacion = maxConsecutivoActualizacion + 1;
 
         for (const existingRow of existentesFull) {
             const key = String(existingRow.nro_orden).trim();
@@ -303,15 +393,27 @@ router.post('/nuevasOrdenes', async (req, res) => {
                 return `${c}: "${String(ov)}" -> "${String(nv ?? '')}"`;
             }).join('; ');
 
+            let lotes = [];
+            if (existingRow.lotes) {
+                try {
+                    lotes = JSON.parse(existingRow.lotes);
+                    if (!Array.isArray(lotes)) lotes = [];
+                } catch {
+                    lotes = [];
+                }
+            }
+            lotes.push(nuevoConsecutivoActualizacion);
+
             historicoArr.push({
                 fecha: new Date().toISOString(),
                 usuario: nombreUsuario,
+                lote: nuevoConsecutivoActualizacion,
                 detalle: `Actualización detectó cambios en la orden ${key}: ${cambiosDetalle}`
             });
 
             const setCols = Object.keys(cambios).map(c => `\`${c}\` = ?`).join(', ');
-            const params = [...Object.values(cambios), JSON.stringify(historicoArr), key];
-            const sqlUpdate = `UPDATE registros_enel_gestion_ots SET ${setCols}, historico = ? WHERE nro_orden = ?`;
+            const params = [...Object.values(cambios), JSON.stringify(historicoArr), JSON.stringify(lotes), key];
+            const sqlUpdate = `UPDATE registros_enel_gestion_ots SET ${setCols}, historico = ?, lotes = ? WHERE nro_orden = ?`;
 
             await dbRailway.query(sqlUpdate, params);
 
@@ -384,13 +486,6 @@ router.post('/rehabilitarOT', async (req, res) => {
 
         const nuevoConsecutivo = maxConsecutivo + 1;
 
-        historico.push({
-            fecha: new Date().toISOString(),
-            usuario: nombreUsuario,
-            detalle: `Se rehabilita la orden de trabajo`,
-            observacion: observaciones
-        });
-
         let lotes = [];
         if (rows.lotes) {
             try {
@@ -402,9 +497,17 @@ router.post('/rehabilitarOT', async (req, res) => {
         }
         lotes.push(nuevoConsecutivo);
 
+        historico.push({
+            fecha: new Date().toISOString(),
+            usuario: nombreUsuario,
+            lote: nuevoConsecutivo,
+            detalle: `Se rehabilita la orden de trabajo`,
+            observacion: observaciones
+        });
+
         const [result] = await dbRailway.query(
             `UPDATE registros_enel_gestion_ots SET tipoMovil = ?, cuadrilla = ?, turnoAsignado = ?, historico = ?, atendida = ?, lotes = ? WHERE id = ?`,
-            [tipoMovilTemp, cuadrillaTemp, turnoAsignadoTemp, JSON.stringify(historico), atendidaTemp,  JSON.stringify(lotes), id]
+            [tipoMovilTemp, cuadrillaTemp, turnoAsignadoTemp, JSON.stringify(historico), atendidaTemp, JSON.stringify(lotes), id]
         );
 
         if (result.affectedRows === 0) {
