@@ -102,7 +102,7 @@ router.post('/marcarAtendidas', async (req, res) => {
 
     try {
         const [existentes] = await dbRailway.query(
-            `SELECT id, nro_orden, historico FROM registros_enel_gestion_ots WHERE nro_orden IN (?)`,
+            `SELECT id, nro_orden, historico, lotes FROM registros_enel_gestion_ots WHERE nro_orden IN (?)`,
             [ordenes]
         );
 
@@ -110,10 +110,24 @@ router.post('/marcarAtendidas', async (req, res) => {
         const noEncontrados = ordenes.filter(o => !encontrados.includes(o));
 
         if (encontrados.length > 0) {
-            await dbRailway.query(
-                `UPDATE registros_enel_gestion_ots SET atendida = 'OK' WHERE nro_orden IN (?)`,
-                [encontrados]
+            const [todos] = await dbRailway.query(
+                `SELECT lotes FROM registros_enel_gestion_ots WHERE lotes IS NOT NULL`
             );
+
+            let maxConsecutivo = 0;
+            for (const row of todos) {
+                try {
+                    const arr = JSON.parse(row.lotes);
+                    if (Array.isArray(arr) && arr.length > 0) {
+                        const localMax = Math.max(...arr);
+                        if (localMax > maxConsecutivo) {
+                            maxConsecutivo = localMax;
+                        }
+                    }
+                } catch { }
+            }
+
+            const nuevoConsecutivo = maxConsecutivo + 1;
 
             for (const row of existentes) {
                 let historico = [];
@@ -132,9 +146,20 @@ router.post('/marcarAtendidas', async (req, res) => {
                     detalle: `La orden fue marcada como atendida`
                 });
 
+                let lotes = [];
+                if (row.lotes) {
+                    try {
+                        lotes = JSON.parse(row.lotes);
+                        if (!Array.isArray(lotes)) lotes = [];
+                    } catch {
+                        lotes = [];
+                    }
+                }
+                lotes.push(nuevoConsecutivo);
+
                 await dbRailway.query(
-                    `UPDATE registros_enel_gestion_ots SET historico = ? WHERE id = ?`,
-                    [JSON.stringify(historico), row.id]
+                    `UPDATE registros_enel_gestion_ots SET atendida = 'OK', historico = ?, lotes = ? WHERE id = ?`,
+                    [JSON.stringify(historico), JSON.stringify(lotes), row.id]
                 );
             }
         }
@@ -164,7 +189,6 @@ router.post('/nuevasOrdenes', async (req, res) => {
     const norm = v => String(v ?? '').trim();
 
     try {
-        // lista única de nro_orden válidos desde el archivo
         const nroOrdenes = Array.from(
             new Set(
                 data
@@ -177,11 +201,9 @@ router.post('/nuevasOrdenes', async (req, res) => {
             return res.status(400).json({ error: 'No hay nro_orden válidos en el archivo' });
         }
 
-        // 1) obtener columnas reales de la tabla para validar nombres de columnas (evita inyección por nombres)
         const [colsInfo] = await dbRailway.query('SHOW COLUMNS FROM registros_enel_gestion_ots');
         const allowedCols = new Set(colsInfo.map(c => c.Field));
 
-        // 2) traer filas existentes (completa) para comparar
         const [existentesFull] = await dbRailway.query(
             'SELECT * FROM registros_enel_gestion_ots WHERE nro_orden IN (?)',
             [nroOrdenes]
@@ -193,12 +215,10 @@ router.post('/nuevasOrdenes', async (req, res) => {
 
         const encontrados = existentesFull.map(r => String(r.nro_orden).trim());
 
-        // 3) detectar no encontrados (para insertar)
         const noEncontrados = data.filter(item => !existentesMap.has(String(item.nro_orden ?? '').trim()));
 
         let totalInsertados = 0;
         if (noEncontrados.length > 0) {
-            // columnas a insertar: unión de claves de los objetos, filtrada por columnas válidas en DB
             const unionCols = Array.from(new Set(noEncontrados.flatMap(obj => Object.keys(obj))));
             const insertCols = unionCols.filter(c => allowedCols.has(c));
 
@@ -206,7 +226,6 @@ router.post('/nuevasOrdenes', async (req, res) => {
                 throw new Error('No hay columnas válidas para insertar en la tabla.');
             }
 
-            // construir INSERT masivo con placeholders
             const placeholders = insertCols.map(() => '?').join(',');
             const rowsPlaceholders = noEncontrados.map(() => `(${placeholders})`).join(',');
             const values = noEncontrados.flatMap(obj => insertCols.map(col => (obj[col] === undefined ? null : obj[col])));
@@ -215,7 +234,6 @@ router.post('/nuevasOrdenes', async (req, res) => {
             await dbRailway.query(sqlInsert, values);
             totalInsertados = noEncontrados.length;
 
-            // obtener insertados para agregar historico
             const [insertedRows] = await dbRailway.query(
                 'SELECT id, nro_orden, historico FROM registros_enel_gestion_ots WHERE nro_orden IN (?)',
                 [noEncontrados.map(r => r.nro_orden)]
@@ -243,24 +261,21 @@ router.post('/nuevasOrdenes', async (req, res) => {
             }
         }
 
-        // 4) comparar y actualizar las filas existentes (solo columnas presentes en el archivo)
         let totalActualizados = 0;
         const actualizados = [];
 
-        // crear un map para acceso rápido a los items del archivo por nro_orden
         const dataMap = new Map(data.map(item => [String(item.nro_orden ?? '').trim(), item]));
 
         for (const existingRow of existentesFull) {
             const key = String(existingRow.nro_orden).trim();
             const item = dataMap.get(key);
-            if (!item) continue; // por si acaso
+            if (!item) continue;
 
-            // revisar cada campo del item (solo si existe en la tabla y no es clave primaria)
             const cambios = {};
             for (const col of Object.keys(item)) {
-                if (!allowedCols.has(col)) continue;             // columna no existe en la tabla
-                if (col === 'id' || col === 'nro_orden') continue; // no modificar claves
-                if (col === 'historico') continue;               // historico lo manejamos aparte
+                if (!allowedCols.has(col)) continue;
+                if (col === 'id' || col === 'nro_orden') continue;
+                if (col === 'historico') continue;
 
                 const nuevo = item[col] === undefined ? null : item[col];
                 const viejo = existingRow[col] === undefined ? null : existingRow[col];
@@ -270,9 +285,8 @@ router.post('/nuevasOrdenes', async (req, res) => {
                 }
             }
 
-            if (Object.keys(cambios).length === 0) continue; // nada que actualizar
+            if (Object.keys(cambios).length === 0) continue;
 
-            // armar entrada de historico (adjuntar a lo que haya)
             let historicoArr = [];
             if (existingRow.historico) {
                 try {
@@ -292,7 +306,6 @@ router.post('/nuevasOrdenes', async (req, res) => {
                 detalle: `Actualización detectó cambios en la orden ${key}: ${cambiosDetalle}`
             });
 
-            // construir UPDATE parametrizado
             const setCols = Object.keys(cambios).map(c => `\`${c}\` = ?`).join(', ');
             const params = [...Object.values(cambios), JSON.stringify(historicoArr), key];
             const sqlUpdate = `UPDATE registros_enel_gestion_ots SET ${setCols}, historico = ? WHERE nro_orden = ?`;
