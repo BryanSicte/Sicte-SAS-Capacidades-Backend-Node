@@ -28,7 +28,7 @@ router.post('/asignarOT', async (req, res) => {
 
     try {
         const [registros] = await dbRailway.query(
-            `SELECT id, historico, cuadrilla FROM registros_enel_gestion_ots WHERE id = ?`,
+            `SELECT id, historico, cuadrilla, lotes FROM registros_enel_gestion_ots WHERE id IN (?)`,
             [ids]
         );
 
@@ -55,9 +55,9 @@ router.post('/asignarOT', async (req, res) => {
 
         for (const row of registros) {
             let historico = [];
-            if (row[0].historico) {
+            if (row.historico) {
                 try {
-                    historico = JSON.parse(row[0].historico);
+                    historico = JSON.parse(row.historico);
                     if (!Array.isArray(historico)) historico = [];
                 } catch {
                     historico = [];
@@ -66,7 +66,7 @@ router.post('/asignarOT', async (req, res) => {
             const existeHistorico = historico.length > 1;
 
             if (existeHistorico) {
-                if (!observaciones && row[0].cuadrilla !== null) {
+                if (!observaciones && row.cuadrilla !== null) {
                     return res.status(400).json({ error: 'Falta la observacion' });
                 }
 
