@@ -347,7 +347,7 @@ router.post('/rehabilitarOT', async (req, res) => {
 
     try {
         const [rows] = await dbRailway.query(
-            `SELECT historico FROM registros_enel_gestion_ots WHERE id = ?`,
+            `SELECT historico, lotes FROM registros_enel_gestion_ots WHERE id = ?`,
             [id]
         );
 
@@ -365,6 +365,25 @@ router.post('/rehabilitarOT', async (req, res) => {
             }
         }
 
+        const [todos] = await dbRailway.query(
+            `SELECT lotes FROM registros_enel_gestion_ots WHERE lotes IS NOT NULL`
+        );
+
+        let maxConsecutivo = 0;
+        for (const row of todos) {
+            try {
+                const arr = JSON.parse(row.lotes);
+                if (Array.isArray(arr) && arr.length > 0) {
+                    const localMax = Math.max(...arr);
+                    if (localMax > maxConsecutivo) {
+                        maxConsecutivo = localMax;
+                    }
+                }
+            } catch { }
+        }
+
+        const nuevoConsecutivo = maxConsecutivo + 1;
+
         historico.push({
             fecha: new Date().toISOString(),
             usuario: nombreUsuario,
@@ -372,9 +391,20 @@ router.post('/rehabilitarOT', async (req, res) => {
             observacion: observaciones
         });
 
+        let lotes = [];
+        if (rows.lotes) {
+            try {
+                lotes = JSON.parse(rows.lotes);
+                if (!Array.isArray(lotes)) lotes = [];
+            } catch {
+                lotes = [];
+            }
+        }
+        lotes.push(nuevoConsecutivo);
+
         const [result] = await dbRailway.query(
-            `UPDATE registros_enel_gestion_ots SET tipoMovil = ?, cuadrilla = ?, turnoAsignado = ?, historico = ?, atendida = ? WHERE id = ?`,
-            [tipoMovilTemp, cuadrillaTemp, turnoAsignadoTemp, JSON.stringify(historico), atendidaTemp, id]
+            `UPDATE registros_enel_gestion_ots SET tipoMovil = ?, cuadrilla = ?, turnoAsignado = ?, historico = ?, atendida = ?, lotes = ? WHERE id = ?`,
+            [tipoMovilTemp, cuadrillaTemp, turnoAsignadoTemp, JSON.stringify(historico), atendidaTemp,  JSON.stringify(lotes), id]
         );
 
         if (result.affectedRows === 0) {
