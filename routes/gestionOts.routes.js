@@ -102,14 +102,16 @@ router.post('/marcarAtendidas', async (req, res) => {
 
     try {
         const [existentes] = await dbRailway.query(
-            `SELECT id, nro_orden, historico, lotes FROM registros_enel_gestion_ots WHERE nro_orden IN (?)`,
+            `SELECT id, nro_orden, historico, lotes, atendida FROM registros_enel_gestion_ots WHERE nro_orden IN (?)`,
             [ordenes]
         );
 
         const encontrados = existentes.map(row => row.nro_orden);
         const noEncontrados = ordenes.filter(o => !encontrados.includes(o));
 
-        if (encontrados.length > 0) {
+        const pendientes = existentes.filter(row => row.atendida !== 'OK');
+
+        if (pendientes.length > 0) {
             const [todos] = await dbRailway.query(
                 `SELECT lotes FROM registros_enel_gestion_ots WHERE lotes IS NOT NULL`
             );
@@ -129,7 +131,7 @@ router.post('/marcarAtendidas', async (req, res) => {
 
             const nuevoConsecutivo = maxConsecutivo + 1;
 
-            for (const row of existentes) {
+            for (const row of pendientes) {
                 let historico = [];
                 if (row.historico) {
                     try {
@@ -167,6 +169,7 @@ router.post('/marcarAtendidas', async (req, res) => {
         res.json({
             message: `Actualización completada`,
             totalEncontrados: encontrados.length,
+            totalActualizados: pendientes.length,
             totalNoEncontrados: noEncontrados.length,
             noEncontrados
         });
