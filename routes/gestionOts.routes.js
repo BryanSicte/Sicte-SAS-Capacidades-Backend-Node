@@ -157,77 +157,165 @@ router.post('/nuevasOrdenes', async (req, res) => {
     if (!Array.isArray(data) || data.length === 0) {
         return res.status(400).json({ error: 'Debes enviar un archivo con informacion' });
     }
-
     if (!nombreUsuario) {
         return res.status(400).json({ error: 'Faltan datos requeridos' });
     }
 
-    try {
-        const nroOrdenes = data.map(item => item.nro_orden);
+    const norm = v => String(v ?? '').trim();
 
-        const [existentes] = await dbRailway.query(
-            `SELECT nro_orden, historico FROM registros_enel_gestion_ots WHERE nro_orden IN (?)`,
+    try {
+        // lista única de nro_orden válidos desde el archivo
+        const nroOrdenes = Array.from(
+            new Set(
+                data
+                    .map(i => (i.nro_orden === undefined || i.nro_orden === null) ? '' : String(i.nro_orden).trim())
+                    .filter(Boolean)
+            )
+        );
+
+        if (nroOrdenes.length === 0) {
+            return res.status(400).json({ error: 'No hay nro_orden válidos en el archivo' });
+        }
+
+        // 1) obtener columnas reales de la tabla para validar nombres de columnas (evita inyección por nombres)
+        const [colsInfo] = await dbRailway.query('SHOW COLUMNS FROM registros_enel_gestion_ots');
+        const allowedCols = new Set(colsInfo.map(c => c.Field));
+
+        // 2) traer filas existentes (completa) para comparar
+        const [existentesFull] = await dbRailway.query(
+            'SELECT * FROM registros_enel_gestion_ots WHERE nro_orden IN (?)',
             [nroOrdenes]
         );
 
-        const norm = v => String(v ?? '').trim();
+        const existentesMap = new Map(
+            existentesFull.map(r => [String(r.nro_orden).trim(), r])
+        );
 
-        const encontrados = existentes.map(row => row.nro_orden);
-        const encontradosSet = new Set(encontrados.map(norm));
+        const encontrados = existentesFull.map(r => String(r.nro_orden).trim());
 
-        const noEncontrados = data.filter(item => !encontradosSet.has(norm(item.nro_orden)));
+        // 3) detectar no encontrados (para insertar)
+        const noEncontrados = data.filter(item => !existentesMap.has(String(item.nro_orden ?? '').trim()));
 
+        let totalInsertados = 0;
         if (noEncontrados.length > 0) {
-            const columnasDB = Object.keys(noEncontrados[0]);
-            const placeholders = columnasDB.map(() => '?').join(',');
-            const values = noEncontrados.map(obj =>
-                columnasDB.map(col => obj[col])
-            );
+            // columnas a insertar: unión de claves de los objetos, filtrada por columnas válidas en DB
+            const unionCols = Array.from(new Set(noEncontrados.flatMap(obj => Object.keys(obj))));
+            const insertCols = unionCols.filter(c => allowedCols.has(c));
 
-            await dbRailway.query(
-                `INSERT INTO registros_enel_gestion_ots (${columnasDB.join(',')}) VALUES ${values.map(() => `(${placeholders})`).join(',')}`,
-                values.flat()
-            );
+            if (insertCols.length === 0) {
+                throw new Error('No hay columnas válidas para insertar en la tabla.');
+            }
 
-            const [insertados] = await dbRailway.query(
-                `SELECT id, nro_orden, historico FROM registros_enel_gestion_ots WHERE nro_orden IN (?)`,
+            // construir INSERT masivo con placeholders
+            const placeholders = insertCols.map(() => '?').join(',');
+            const rowsPlaceholders = noEncontrados.map(() => `(${placeholders})`).join(',');
+            const values = noEncontrados.flatMap(obj => insertCols.map(col => (obj[col] === undefined ? null : obj[col])));
+
+            const sqlInsert = `INSERT INTO registros_enel_gestion_ots (${insertCols.map(c => `\`${c}\``).join(',')}) VALUES ${rowsPlaceholders}`;
+            await dbRailway.query(sqlInsert, values);
+            totalInsertados = noEncontrados.length;
+
+            // obtener insertados para agregar historico
+            const [insertedRows] = await dbRailway.query(
+                'SELECT id, nro_orden, historico FROM registros_enel_gestion_ots WHERE nro_orden IN (?)',
                 [noEncontrados.map(r => r.nro_orden)]
             );
 
-            for (const row of insertados) {
-                let historico = [];
+            for (const row of insertedRows) {
+                let historicoArr = [];
                 if (row.historico) {
                     try {
-                        historico = JSON.parse(row.historico);
-                        if (!Array.isArray(historico)) historico = [];
-                    } catch {
-                        historico = [];
-                    }
+                        historicoArr = JSON.parse(row.historico);
+                        if (!Array.isArray(historicoArr)) historicoArr = [];
+                    } catch { historicoArr = []; }
                 }
 
-                historico.push({
+                historicoArr.push({
                     fecha: new Date().toISOString(),
                     usuario: nombreUsuario,
                     detalle: `La orden fue ingresada a la base de datos`
                 });
 
                 await dbRailway.query(
-                    `UPDATE registros_enel_gestion_ots SET historico = ? WHERE id = ?`,
-                    [JSON.stringify(historico), row.id]
+                    'UPDATE registros_enel_gestion_ots SET historico = ? WHERE id = ?',
+                    [JSON.stringify(historicoArr), row.id]
                 );
             }
         }
 
-        res.json({
-            message: 'Validación e inserción completada',
-            totalEncontrados: encontrados.length,
-            totalInsertados: noEncontrados.length
-        });
+        // 4) comparar y actualizar las filas existentes (solo columnas presentes en el archivo)
+        let totalActualizados = 0;
+        const actualizados = [];
 
+        // crear un map para acceso rápido a los items del archivo por nro_orden
+        const dataMap = new Map(data.map(item => [String(item.nro_orden ?? '').trim(), item]));
+
+        for (const existingRow of existentesFull) {
+            const key = String(existingRow.nro_orden).trim();
+            const item = dataMap.get(key);
+            if (!item) continue; // por si acaso
+
+            // revisar cada campo del item (solo si existe en la tabla y no es clave primaria)
+            const cambios = {};
+            for (const col of Object.keys(item)) {
+                if (!allowedCols.has(col)) continue;             // columna no existe en la tabla
+                if (col === 'id' || col === 'nro_orden') continue; // no modificar claves
+                if (col === 'historico') continue;               // historico lo manejamos aparte
+
+                const nuevo = item[col] === undefined ? null : item[col];
+                const viejo = existingRow[col] === undefined ? null : existingRow[col];
+
+                if (norm(nuevo) !== norm(viejo)) {
+                    cambios[col] = nuevo;
+                }
+            }
+
+            if (Object.keys(cambios).length === 0) continue; // nada que actualizar
+
+            // armar entrada de historico (adjuntar a lo que haya)
+            let historicoArr = [];
+            if (existingRow.historico) {
+                try {
+                    historicoArr = JSON.parse(existingRow.historico);
+                    if (!Array.isArray(historicoArr)) historicoArr = [];
+                } catch { historicoArr = []; }
+            }
+
+            const cambiosDetalle = Object.entries(cambios).map(([c, nv]) => {
+                const ov = existingRow[c] === undefined ? '' : existingRow[c];
+                return `${c}: "${String(ov)}" -> "${String(nv ?? '')}"`;
+            }).join('; ');
+
+            historicoArr.push({
+                fecha: new Date().toISOString(),
+                usuario: nombreUsuario,
+                detalle: `Actualización detectó cambios en la orden ${key}: ${cambiosDetalle}`
+            });
+
+            // construir UPDATE parametrizado
+            const setCols = Object.keys(cambios).map(c => `\`${c}\` = ?`).join(', ');
+            const params = [...Object.values(cambios), JSON.stringify(historicoArr), key];
+            const sqlUpdate = `UPDATE registros_enel_gestion_ots SET ${setCols}, historico = ? WHERE nro_orden = ?`;
+
+            await dbRailway.query(sqlUpdate, params);
+
+            totalActualizados++;
+            actualizados.push(key);
+        }
+
+        return res.json({
+            message: 'Validación, inserción y actualización completadas',
+            totalEncontrados: encontrados.length,
+            totalInsertados,
+            totalActualizados,
+            actualizados
+        });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error('Error en /nuevasOrdenes:', err);
+        return res.status(500).json({ error: err.message });
     }
 });
+
 
 router.post('/rehabilitarOT', async (req, res) => {
     const { id, observaciones, nombreUsuario } = req.body;
@@ -260,7 +348,7 @@ router.post('/rehabilitarOT', async (req, res) => {
                 historico = [];
             }
         }
-        
+
         historico.push({
             fecha: new Date().toISOString(),
             usuario: nombreUsuario,
