@@ -21,9 +21,9 @@ router.get('/registros', async (req, res) => {
 });
 
 router.post('/asignarOT', async (req, res) => {
-    const { ids, tipoMovil, cuadrilla, observaciones, nombreUsuario, turnoAsignado } = req.body;
+    const { ids, fecha_programacion, tipoMovil, cuadrilla, cedula_cuadrilla, nombre_cuadrilla, observaciones, nombreUsuario, turnoAsignado } = req.body;
 
-    if ((!tipoMovil && cuadrilla !== 'Disponible') || !cuadrilla || !nombreUsuario || (!turnoAsignado && cuadrilla !== 'Disponible')) {
+    if ((!tipoMovil && cuadrilla !== 'Disponible') || (!fecha_programacion && cuadrilla !== 'Disponible') || !cuadrilla || !cedula_cuadrilla || !nombre_cuadrilla || !nombreUsuario || (!turnoAsignado && cuadrilla !== 'Disponible')) {
         return res.status(400).json({ error: 'Faltan datos requeridos' });
     }
 
@@ -31,8 +31,11 @@ router.post('/asignarOT', async (req, res) => {
         return res.status(400).json({ error: 'Debe enviar un arreglo de IDs' });
     }
 
+    let fechaProgramacionTemp = fecha_programacion;
     let tipoMovilTemp = tipoMovil;
     let cuadrillaTemp = cuadrilla;
+    let cedulaCuadrillaTemp = cedula_cuadrilla;
+    let nombreCuadrillaTemp = nombre_cuadrilla;
     let turnoAsignadoTemp = turnoAsignado;
 
     try {
@@ -87,13 +90,23 @@ router.post('/asignarOT', async (req, res) => {
                         detalle: `La actividad queda disponible`,
                         observacion: observaciones
                     });
-                    cuadrillaTemp = null;
+                    fechaProgramacionTemp = null;
                     tipoMovilTemp = null;
                     turnoAsignadoTemp = null;
+                    cuadrillaTemp = null;
+                    cedulaCuadrillaTemp = null;
+                    nombreCuadrillaTemp = null;
+
                 } else {
                     historico.push({
                         fecha: new Date().toISOString(),
                         usuario: nombreUsuario,
+                        fechaProgramacion: fechaProgramacionTemp,
+                        tipoMovil: tipoMovilTemp,
+                        turno: turnoAsignadoTemp,
+                        cuadrilla: cuadrillaTemp,
+                        cedula_cuadrilla: cedulaCuadrillaTemp,
+                        nombre_cuadrilla: nombreCuadrillaTemp,
                         lote: nuevoConsecutivo,
                         detalle: `Se reasigna actividad a la cuadrilla ${cuadrillaTemp} con tipo de movil ${tipoMovilTemp} y turno ${turnoAsignadoTemp}`,
                         observacion: observaciones
@@ -103,6 +116,12 @@ router.post('/asignarOT', async (req, res) => {
                 historico.push({
                     fecha: new Date().toISOString(),
                     usuario: nombreUsuario,
+                    fechaProgramacion: fechaProgramacionTemp,
+                    tipoMovil: tipoMovilTemp,
+                    turno: turnoAsignadoTemp,
+                    cuadrilla: cuadrillaTemp,
+                    cedula_cuadrilla: cedulaCuadrillaTemp,
+                    nombre_cuadrilla: nombreCuadrillaTemp,
                     lote: nuevoConsecutivo,
                     detalle: `Se asigna actividad a la movil ${cuadrillaTemp} con tipo de movil ${tipoMovilTemp} y turno ${turnoAsignadoTemp}`
                 });
@@ -120,8 +139,8 @@ router.post('/asignarOT', async (req, res) => {
             lotes.push(nuevoConsecutivo);
 
             const [result] = await dbRailway.query(
-                `UPDATE registros_enel_gestion_ots SET tipoMovil = ?, cuadrilla = ?, turnoAsignado = ?, historico = ?, lotes = ? WHERE id = ?`,
-                [tipoMovilTemp, cuadrillaTemp, turnoAsignadoTemp, JSON.stringify(historico), JSON.stringify(lotes), row.id]
+                `UPDATE registros_enel_gestion_ots SET fecha_programacion = ?, tipoMovil = ?, cuadrilla = ?, cedula_cuadrilla = ?, nombre_cuadrilla = ?, turnoAsignado = ?, historico = ?, lotes = ? WHERE id = ?`,
+                [fechaProgramacionTemp, tipoMovilTemp, cuadrillaTemp, cedulaCuadrillaTemp, nombreCuadrillaTemp, turnoAsignadoTemp, JSON.stringify(historico), JSON.stringify(lotes), row.id]
             );
 
             if (result.affectedRows === 0) {
