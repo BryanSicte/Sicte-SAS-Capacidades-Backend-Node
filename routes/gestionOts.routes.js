@@ -23,7 +23,7 @@ router.get('/registros', async (req, res) => {
 router.post('/asignarOT', async (req, res) => {
     const { ids, fecha_programacion, tipoMovil, cuadrilla, cedula_cuadrilla, nombre_cuadrilla, observaciones, nombreUsuario, turnoAsignado } = req.body;
 
-    if ((!tipoMovil && cuadrilla !== 'Disponible') || (!fecha_programacion && cuadrilla !== 'Disponible') || !cuadrilla || !cedula_cuadrilla || !nombre_cuadrilla || !nombreUsuario || (!turnoAsignado && cuadrilla !== 'Disponible')) {
+    if ((!tipoMovil && cuadrilla !== 'Disponible') || (!fecha_programacion && cuadrilla !== 'Disponible') || !cuadrilla || (!cedula_cuadrilla && cuadrilla !== 'Disponible') || (!nombre_cuadrilla && cuadrilla !== 'Disponible') || !nombreUsuario || (!turnoAsignado && cuadrilla !== 'Disponible')) {
         return res.status(400).json({ error: 'Faltan datos requeridos' });
     }
 
