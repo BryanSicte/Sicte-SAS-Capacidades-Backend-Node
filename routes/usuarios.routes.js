@@ -95,6 +95,45 @@ router.post('/login', async (req, res) => {
     }
 });
 
+
+router.post('/loginV2', async (req, res) => {
+    const { correo, contrasena } = req.body;
+
+    if (!correo || !contrasena) {
+        return res.status(400).json({ message: 'Correo y contraseña son requeridos' });
+    }
+
+    try {
+        const [rows] = await dbRailway.query(
+            'SELECT * FROM user WHERE correo = ?',
+            [correo]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: 'Usuario no encontrado' });
+        }
+
+        const usuario = rows[0];
+
+        if (usuario.contrasena !== contrasena) {
+            return res.status(401).json({ message: 'Contraseña incorrecta' });
+        }
+
+        const [pages] = await dbRailway.query(
+            'SELECT * FROM pages_per_user WHERE cedula = ?',
+            [usuario.cedula]
+        );
+
+        return res.status(200).json({
+            usuario,
+            pages
+        });
+
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
 router.put('/users/:id', async (req, res) => {
     const { id } = req.params;
     const { nombre, correo, cedula, rol, telefono, contrasena } = req.body;
