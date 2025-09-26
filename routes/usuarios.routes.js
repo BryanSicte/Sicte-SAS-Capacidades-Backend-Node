@@ -124,9 +124,11 @@ router.post('/loginV2', async (req, res) => {
             [usuario.cedula]
         );
 
+        const page = pages[0];
+
         return res.status(200).json({
             usuario,
-            pages
+            page
         });
 
     } catch (err) {
