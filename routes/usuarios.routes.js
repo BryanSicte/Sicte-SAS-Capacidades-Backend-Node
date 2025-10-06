@@ -356,4 +356,13 @@ router.get('/relacionPersonal', async (req, res) => {
     }
 });
 
+router.get('/plantaEnLineaCedulaNombre', async (req, res) => {
+    try {
+        const [rows] = await dbRailway.query('SELECT nit, nombre FROM plantaenlinea');
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;
