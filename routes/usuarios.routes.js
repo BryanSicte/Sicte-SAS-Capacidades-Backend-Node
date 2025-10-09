@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const dbRailway = require('../db/db_railway');
 const sendEmail = require('../utils/mailer');
-const { v4: uuidv4 } = require('uuid');
+const { sendResponse, sendError } = require('../utils/responseHandler');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
+const validarToken = require('../middlewares/validarToken');
 
 router.get('/users', async (req, res) => {
     try {
@@ -28,38 +29,6 @@ router.get('/users/id/:id', async (req, res) => {
         }
 
         return res.status(200).json(rows[0]);
-
-    } catch (err) {
-        return res.status(500).json({ error: err.message });
-    }
-});
-
-router.post('/users', async (req, res) => {
-    const { nombre, correo, cedula, rol, telefono, contrasena } = req.body;
-
-    if (!nombre || !correo || !cedula || !rol || !telefono || !contrasena) {
-        return res.status(400).json({ message: 'Faltan campos requeridos: nombre, correo, cedula, rol, telefono o contraseña' });
-    }
-
-    try {
-        const saltRounds = 10;
-        const hashedPassword = await bcrypt.hash(contrasena, saltRounds);
-
-        const [result] = await dbRailway.query(
-            'INSERT INTO user (nombre, correo, cedula, rol, telefono, contrasena) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [nombre, correo, cedula, rol, telefono, hashedPassword]
-        );
-
-        const nuevoUsuario = {
-            id,
-            nombre,
-            correo,
-            cedula,
-            rol,
-            telefono
-        };
-
-        return res.status(201).json(nuevoUsuario);
 
     } catch (err) {
         return res.status(500).json({ error: err.message });
@@ -90,80 +59,6 @@ router.post('/login', async (req, res) => {
         }
 
         return res.status(200).json(usuario);
-
-    } catch (err) {
-        return res.status(500).json({ error: err.message });
-    }
-});
-
-
-router.post('/loginV2', async (req, res) => {
-    const { correo, contrasena } = req.body;
-
-    if (!correo || !contrasena) {
-        return res.status(400).json({ message: 'Correo y contraseña son requeridos' });
-    }
-
-    try {
-        const [rows] = await dbRailway.query(
-            'SELECT * FROM user WHERE correo = ?',
-            [correo]
-        );
-
-        if (rows.length === 0) {
-            return res.status(404).json({ message: 'Usuario no encontrado' });
-        }
-
-        const usuario = rows[0];
-
-        if (usuario.contrasena !== contrasena) {
-            return res.status(401).json({ message: 'Contraseña incorrecta' });
-        }
-
-        const [pages] = await dbRailway.query(
-            'SELECT * FROM pages_per_user WHERE cedula = ?',
-            [usuario.cedula]
-        );
-
-        const page = pages[0];
-
-        if (usuario.correo === 'invitado@sicte.com' || usuario.cedula === '0000') {
-            return res.status(200).json({
-                message1: 'Sesión finalizada',
-                message2: 'Has cerrado sesión correctamente.',
-                usuario,
-                page,
-                tokenUser: null
-            });
-        }
-
-        const token = generateToken();
-        const expiryDate = calculateExpiryDate(1440);
-
-        await dbRailway.query(
-            `INSERT INTO tokens (cedula, email, token, expiryDate)
-            VALUES (?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-                email = VALUES(email),
-                token = VALUES(token),
-                expiryDate = VALUES(expiryDate)`,
-            [usuario.cedula, usuario.correo, token, expiryDate]
-        );
-
-        const [tokenUserDB] = await dbRailway.query(
-            'SELECT * FROM tokens WHERE token = ?',
-            [token]
-        );
-
-        const tokenUser = tokenUserDB[0];
-
-        return res.status(200).json({
-            message1: '¡Inicio de sesión exitoso!',
-            message2: 'Bienvenido, Brayan Castelblanco.',
-            usuario,
-            page,
-            tokenUser
-        });
 
     } catch (err) {
         return res.status(500).json({ error: err.message });
@@ -338,20 +233,9 @@ router.get('/validarToken', async (req, res) => {
 
         return res.send('Token válido');
     } catch (err) {
-        console.error(err);
-        res.status(500).send('Error validando el token');
+        return sendError(res, 500, "Error inesperado", err);
     }
 });
-
-function generateToken() {
-    return crypto.randomBytes(20).toString('hex');
-}
-
-function calculateExpiryDate(minutes) {
-    const now = new Date();
-    now.setMinutes(now.getMinutes() + minutes);
-    return now.toLocaleString('sv-SE').replace('T', ' ');
-}
 
 router.post('/enviarToken', async (req, res) => {
     const { email } = req.body;
@@ -396,6 +280,131 @@ router.get('/plantaEnLineaCedulaNombre', async (req, res) => {
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+
+
+
+
+function generateToken() {
+    return crypto.randomBytes(20).toString('hex');
+}
+
+function calculateExpiryDate(minutes) {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() + minutes);
+    return now.toISOString();
+}
+
+router.post('/loginV2', async (req, res) => {
+    const { correo, contrasena } = req.body;
+
+    if (!correo || !contrasena) {
+        return sendError(res, 400, "Correo y contraseña son requeridos.", err);
+    }
+
+    try {
+        const [rows] = await dbRailway.query(
+            'SELECT * FROM user WHERE correo = ?',
+            [correo]
+        );
+
+        if (rows.length === 0) {
+            return sendError(res, 400, "Usuario no encontrado.", err);
+        }
+
+        const usuario = rows[0];
+
+        if (usuario.contrasena !== contrasena) {
+            return sendError(res, 400, "Contraseña incorrecta.", err);
+        }
+
+        const [pages] = await dbRailway.query(
+            'SELECT * FROM pages_per_user WHERE cedula = ?',
+            [usuario.cedula]
+        );
+
+        const page = pages[0];
+
+        if (usuario.correo === 'invitado@sicte.com' || usuario.cedula === '0000') {
+            return sendResponse(
+                res,
+                200,
+                `Sesión finalizada`,
+                `Has cerrado sesión correctamente.`,
+                { usuario, page }
+            );
+        }
+
+        const token = generateToken();
+        const expiryDate = calculateExpiryDate(1440);
+
+        await dbRailway.query(
+            `INSERT INTO tokens (cedula, email, token, expiryDate)
+            VALUES (?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                email = VALUES(email),
+                token = VALUES(token),
+                expiryDate = VALUES(expiryDate)`,
+            [usuario.cedula, usuario.correo, token, expiryDate]
+        );
+
+        const [tokenUserDB] = await dbRailway.query(
+            'SELECT * FROM tokens WHERE token = ?',
+            [token]
+        );
+
+        const tokenUser = tokenUserDB[0];
+
+        return sendResponse(
+            res,
+            200,
+            `¡Inicio de sesión exitoso!`,
+            `Bienvenido, ${usuario.nombre || 'usuario'}.`,
+            { usuario, page, tokenUser }
+        );
+
+    } catch (err) {
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.post('/users', validarToken, async (req, res) => {
+    const { nombre, correo, cedula, rol, telefono, contrasena } = req.body;
+
+    if (!nombre || !correo || !cedula || !rol || !telefono || !contrasena) {
+        return sendError(res, 400, "Faltan campos requeridos: nombre, correo, cedula, rol, telefono o contraseña.", err);
+    }
+
+    try {
+        const saltRounds = 10;
+        const hashedPassword = await bcrypt.hash(contrasena, saltRounds);
+
+        const [result] = await dbRailway.query(
+            'INSERT INTO user (nombre, correo, cedula, rol, telefono, contrasena) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [nombre, correo, cedula, rol, telefono, hashedPassword]
+        );
+
+        const nuevoUsuario = {
+            id,
+            nombre,
+            correo,
+            cedula,
+            rol,
+            telefono
+        };
+
+        return sendResponse(
+            res,
+            201,
+            'Usuario creado correctamente',
+            `El nuevo usuario ${nuevoUsuario.nombre || 'usuario'} ha sido registrado con éxito.`,
+            nuevoUsuario
+        );
+
+    } catch (err) {
+        return sendError(res, 500, "Error inesperado.", err);
     }
 });
 
