@@ -129,10 +129,11 @@ router.post('/loginV2', async (req, res) => {
 
         if (usuario.correo === 'invitado@sicte.com' || usuario.cedula === '0000') {
             return res.status(200).json({
+                message1: 'Sesión finalizada',
+                message2: 'Has cerrado sesión correctamente.',
                 usuario,
                 page,
-                tokenUser: null,
-                message: 'Usuario invitado, no requiere token'
+                tokenUser: null
             });
         }
 
@@ -157,6 +158,8 @@ router.post('/loginV2', async (req, res) => {
         const tokenUser = tokenUserDB[0];
 
         return res.status(200).json({
+            message1: '¡Inicio de sesión exitoso!',
+            message2: 'Bienvenido, Brayan Castelblanco.',
             usuario,
             page,
             tokenUser
@@ -347,7 +350,7 @@ function generateToken() {
 function calculateExpiryDate(minutes) {
     const now = new Date();
     now.setMinutes(now.getMinutes() + minutes);
-    return now.toISOString().slice(0, 19).replace('T', ' ');
+    return now.toLocaleString('sv-SE').replace('T', ' ');
 }
 
 router.post('/enviarToken', async (req, res) => {
