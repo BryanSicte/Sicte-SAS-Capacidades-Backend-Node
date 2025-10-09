@@ -301,7 +301,7 @@ router.post('/loginV2', async (req, res) => {
     const { correo, contrasena } = req.body;
 
     if (!correo || !contrasena) {
-        return sendError(res, 400, "Correo y contraseña son requeridos.", err);
+        return sendError(res, 400, "Correo y contraseña son requeridos.");
     }
 
     try {
@@ -311,13 +311,13 @@ router.post('/loginV2', async (req, res) => {
         );
 
         if (rows.length === 0) {
-            return sendError(res, 400, "Usuario no encontrado.", err);
+            return sendError(res, 400, "Usuario no encontrado.");
         }
 
         const usuario = rows[0];
 
         if (usuario.contrasena !== contrasena) {
-            return sendError(res, 400, "Contraseña incorrecta.", err);
+            return sendError(res, 400, "Contraseña incorrecta.");
         }
 
         const [pages] = await dbRailway.query(
@@ -374,7 +374,7 @@ router.post('/users', validarToken, async (req, res) => {
     const { nombre, correo, cedula, rol, telefono, contrasena } = req.body;
 
     if (!nombre || !correo || !cedula || !rol || !telefono || !contrasena) {
-        return sendError(res, 400, "Faltan campos requeridos: nombre, correo, cedula, rol, telefono o contraseña.", err);
+        return sendError(res, 400, "Faltan campos requeridos: nombre, correo, cedula, rol, telefono o contraseña.");
     }
 
     try {

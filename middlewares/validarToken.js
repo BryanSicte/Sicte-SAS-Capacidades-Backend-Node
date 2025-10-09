@@ -6,7 +6,7 @@ async function validarToken(req, res, next) {
         const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
 
         if (!token) {
-            return sendError(res, 400, "Token requerido.", err);
+            return sendError(res, 400, "Token requerido.");
         }
 
         const [rows] = await dbRailway.query(
@@ -15,7 +15,7 @@ async function validarToken(req, res, next) {
         );
 
         if (rows.length === 0) {
-            return sendError(res, 400, "Token inválido.", err);
+            return sendError(res, 400, "Token inválido.");
         }
 
         const tokenData = rows[0];
@@ -23,7 +23,7 @@ async function validarToken(req, res, next) {
         const ahoraUTC = new Date();
 
         if (expiracionUTC < ahoraUTC) {
-            return sendError(res, 400, "Token expirado.", err);
+            return sendError(res, 400, "Token expirado.");
         }
 
         req.token = {
@@ -38,15 +38,3 @@ async function validarToken(req, res, next) {
 }
 
 module.exports = validarToken;
-
-
-// const express = require('express');
-// const router = express.Router();
-// const validarToken = require('../middlewares/validarToken');
-
-// router.get('/perfil', validarToken, async (req, res) => {
-//     res.json({
-//         message: 'Token válido, acceso concedido',
-//         usuario: req.usuario
-//     });
-// });
