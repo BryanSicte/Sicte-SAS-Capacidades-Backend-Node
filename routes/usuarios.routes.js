@@ -4,6 +4,7 @@ const dbRailway = require('../db/db_railway');
 const sendEmail = require('../utils/mailer');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 
 router.get('/users', async (req, res) => {
     try {
@@ -40,12 +41,13 @@ router.post('/users', async (req, res) => {
         return res.status(400).json({ message: 'Faltan campos requeridos: nombre, correo, cedula, rol, telefono o contraseña' });
     }
 
-    const id = uuidv4();
-
     try {
+        const saltRounds = 10;
+        const hashedPassword = await bcrypt.hash(contrasena, saltRounds);
+
         const [result] = await dbRailway.query(
-            'INSERT INTO user (id, nombre, correo, cedula, rol, telefono, contrasena) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [id, nombre, correo, cedula, rol, telefono, contrasena]
+            'INSERT INTO user (nombre, correo, cedula, rol, telefono, contrasena) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [nombre, correo, cedula, rol, telefono, hashedPassword]
         );
 
         const nuevoUsuario = {
@@ -54,8 +56,7 @@ router.post('/users', async (req, res) => {
             correo,
             cedula,
             rol,
-            telefono,
-            contrasena
+            telefono
         };
 
         return res.status(201).json(nuevoUsuario);
@@ -126,9 +127,30 @@ router.post('/loginV2', async (req, res) => {
 
         const page = pages[0];
 
+        const token = generateToken();
+        const expiryDate = calculateExpiryDate(1440);
+
+        await dbRailway.query(
+            `INSERT INTO tokens (cedula, email, token, expiryDate)
+            VALUES (?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                email = VALUES(email),
+                token = VALUES(token),
+                expiryDate = VALUES(expiryDate)`,
+            [usuario.cedula, usuario.email, token, expiryDate]
+        );
+
+        const [tokenUserDB] = await dbRailway.query(
+            'SELECT * FROM tokens WHERE token = ?',
+            [token]
+        );
+
+        const tokenUser = tokenUserDB[0];
+
         return res.status(200).json({
             usuario,
-            page
+            page,
+            tokenUser
         });
 
     } catch (err) {
