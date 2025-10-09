@@ -347,7 +347,7 @@ function generateToken() {
 function calculateExpiryDate(minutes) {
     const now = new Date();
     now.setMinutes(now.getMinutes() + minutes);
-    return now;
+    return now.toISOString().slice(0, 19).replace('T', ' ');
 }
 
 router.post('/enviarToken', async (req, res) => {
