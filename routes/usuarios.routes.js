@@ -127,6 +127,15 @@ router.post('/loginV2', async (req, res) => {
 
         const page = pages[0];
 
+        if (usuario.correo === 'invitado@sicte.com' || usuario.cedula === '0000') {
+            return res.status(200).json({
+                usuario,
+                page,
+                tokenUser: null,
+                message: 'Usuario invitado, no requiere token'
+            });
+        }
+
         const token = generateToken();
         const expiryDate = calculateExpiryDate(1440);
 
@@ -137,7 +146,7 @@ router.post('/loginV2', async (req, res) => {
                 email = VALUES(email),
                 token = VALUES(token),
                 expiryDate = VALUES(expiryDate)`,
-            [usuario.cedula, usuario.email, token, expiryDate]
+            [usuario.cedula, usuario.correo, token, expiryDate]
         );
 
         const [tokenUserDB] = await dbRailway.query(
