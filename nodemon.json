@@ -1,0 +1,13 @@
+{
+    "watch": [
+        "routes",
+        "middlewares",
+        "utils",
+        "app.js"
+    ],
+    "ext": "js,json",
+    "ignore": [
+        "node_modules"
+    ],
+    "exec": "node app.js"
+}
