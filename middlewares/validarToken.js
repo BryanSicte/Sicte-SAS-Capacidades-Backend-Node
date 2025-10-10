@@ -3,8 +3,11 @@ const { sendError } = require('../utils/responseHandler');
 
 async function validarToken(req, res, next) {
     try {
+        const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
         console.log(req)
-        const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
+        console.log(req.headers)
+        console.log(req.headers.authorization)
+        console.log(token)
 
         if (!token) {
             return sendError(res, 400, "Token requerido.");
