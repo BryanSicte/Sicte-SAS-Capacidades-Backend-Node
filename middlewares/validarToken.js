@@ -3,6 +3,7 @@ const { sendError } = require('../utils/responseHandler');
 
 async function validarToken(req, res, next) {
     try {
+        console.log(req)
         const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
 
         if (!token) {
