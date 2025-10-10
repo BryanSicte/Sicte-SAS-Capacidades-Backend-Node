@@ -383,7 +383,7 @@ router.post('/users', validarToken, async (req, res) => {
 
         const [result] = await dbRailway.query(
             'INSERT INTO user (nombre, correo, cedula, rol, telefono, contrasena) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [nombre, correo, cedula, rol, telefono, hashedPassword]
+            [nombre, correo, cedula, rol, telefono, contrasena]
         );
 
         const nuevoUsuario = {

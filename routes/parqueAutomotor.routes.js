@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const dbRailway = require('../db/db_railway');
+const validarToken = require('../middlewares/validarToken');
 
-router.get('/registros', async (req, res) => {
+router.get('/registros', validarToken, async (req, res) => {
     try {
         const [rows] = await dbRailway.query('SELECT * FROM registros_parque_automotor');
         res.json(rows);
@@ -11,7 +12,7 @@ router.get('/registros', async (req, res) => {
     }
 });
 
-router.post('/crearRegistro', async (req, res) => {
+router.post('/crearRegistro', validarToken, async (req, res) => {
 
     try {
         const data = req.body;
