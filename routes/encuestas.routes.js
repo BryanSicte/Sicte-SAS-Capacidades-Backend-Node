@@ -2,16 +2,16 @@ const express = require('express');
 const router = express.Router();
 const dbRailway = require('../db/db_railway');
 
-router.get('/RegistroCometas', async (req, res) => {
+router.get('/Registros', async (req, res) => {
     try {
-        const [rows] = await dbRailway.query('SELECT * FROM RegistroCometas');
+        const [rows] = await dbRailway.query('SELECT * FROM registros_encuestas');
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-router.post('/crearRegistroCometas', async (req, res) => {
+router.post('/crearRegistro', async (req, res) => {
 
     try {
         const data = Object.fromEntries(
@@ -31,7 +31,7 @@ router.post('/crearRegistroCometas', async (req, res) => {
         const { nombreCompleto, correo } = data;
 
         const [existentes] = await dbRailway.query(
-            'SELECT * FROM registros_encuesta_cometas WHERE nombreCompleto = ? OR correo = ?',
+            'SELECT * FROM registros_encuestas WHERE nombreCompleto = ? OR correo = ?',
             [nombreCompleto, correo]
         );
 
@@ -48,13 +48,13 @@ router.post('/crearRegistroCometas', async (req, res) => {
         const campos = keys.join(', ');
 
         const query = `
-            INSERT INTO registros_encuesta_cometas (${campos})
+            INSERT INTO registros_encuestas (${campos})
             VALUES (${placeholders})
         `;
 
         const [result] = await dbRailway.query(query, values);
 
-        const [registroGuardado] = await dbRailway.query('SELECT * FROM registros_encuesta_cometas WHERE id = ?', [result.insertId]);
+        const [registroGuardado] = await dbRailway.query('SELECT * FROM registros_encuestas WHERE id = ?', [result.insertId]);
         res.status(201).json(registroGuardado[0]);
 
     } catch (err) {
