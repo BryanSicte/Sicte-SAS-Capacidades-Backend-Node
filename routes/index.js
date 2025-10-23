@@ -12,7 +12,9 @@ const alumbradoPublicoRoutes = require('./alumbradoPublico.routes');
 const imagenesRoutes = require('./imagenes.routes');
 const encuestasRoutes = require('./encuestas.routes');
 const gestionOtsRoutes = require('./gestionOts.routes');
-const parqueAutomotor = require('./parqueAutomotor.routes');
+const parqueAutomotorRoutes = require('./parqueAutomotor.routes');
+const inventariosRoutes = require('./inventarios.routes');
+const bodegaRoutes = require('./bodega.routes');
 
 router.use('/usuarios', usuariosRoutes);
 router.use('/chatbot', chatbotRoutes);
@@ -25,6 +27,8 @@ router.use('/alumbradoPublico', alumbradoPublicoRoutes);
 router.use('/imagenes', imagenesRoutes);
 router.use('/encuestas', encuestasRoutes);
 router.use('/gestionOts', gestionOtsRoutes);
-router.use('/parqueAutomotor', parqueAutomotor);
+router.use('/parqueAutomotor', parqueAutomotorRoutes);
+router.use('/inventarios', inventariosRoutes);
+router.use('/bodega', bodegaRoutes);
 
 module.exports = router;
