@@ -6,7 +6,7 @@ async function validarToken(req, res, next) {
         const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
 
         if (!token) {
-            return sendError(res, 400, "Token requerido.");
+            return sendError(res, 400, "Token requerido, por favor, cierra sesión y vuelve a ingresar para restablecer tu sesión.");
         }
 
         const [rows] = await dbRailway.query(
@@ -15,7 +15,7 @@ async function validarToken(req, res, next) {
         );
 
         if (rows.length === 0) {
-            return sendError(res, 400, "Token inválido.");
+            return sendError(res, 400, "Token invalido, por favor, cierra sesión y vuelve a ingresar para restablecer tu sesión.");
         }
 
         const tokenData = rows[0];
@@ -23,7 +23,7 @@ async function validarToken(req, res, next) {
         const ahoraUTC = new Date();
 
         if (expiracionUTC < ahoraUTC) {
-            return sendError(res, 400, "Token expirado.");
+            return sendError(res, 400, "Token expirado, por favor, cierra sesión y vuelve a ingresar para restablecer tu sesión.");
         }
 
         req.token = {

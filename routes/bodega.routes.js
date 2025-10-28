@@ -22,7 +22,7 @@ router.get('/registrosKgprod', validarToken, async (req, res) => {
 
 router.get('/registrosKgprodOperacionesCodigoDescripUnimed', validarToken, async (req, res) => {
     try {
-        const [rows] = await dbRailway.query('SELECT codigo, descrip, unimed FROM bodega_kgprod where `Bodega` = "KGPROD_BOG"');
+        const [rows] = await dbRailway.query('SELECT codigo, descrip, unimed FROM bodega_kgprod where `Bodega` = "KGPROD_CORP_BOG"');
 
         return sendResponse(
             res,
