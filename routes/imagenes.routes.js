@@ -13,13 +13,20 @@ cloudinary.config({
 
 router.get('/encuestas', async (req, res) => {
     try {
-        const result = await cloudinary.api.resources({
+        const images = await cloudinary.api.resources({
             type: 'upload',
-            resource_type: 'auto',
+            resource_type: 'image',
             prefix: 'Encuestas/',
             max_results: 100
         });
-        res.json(result.resources);
+
+        const videos = await cloudinary.api.resources({
+            type: 'upload',
+            resource_type: 'video',
+            prefix: 'Encuestas/',
+            max_results: 100
+        });
+        res.json([...images.resources, ...videos.resources]);
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Error al obtener imágenes' });
