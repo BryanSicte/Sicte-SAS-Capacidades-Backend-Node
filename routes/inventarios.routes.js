@@ -104,6 +104,40 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
     }
 });
 
+router.put('/actualizarFirmaEquipos', validarToken, async (req, res) => {
+
+    try {
+        const data = req.body;
+
+        if (!data || Object.keys(data).length === 0) {
+            return sendError(res, 400, "Los datos del registro son requeridos.");
+        }
+
+        const fecha = Date.now();
+        const nombreFirmaEquipos = `${fecha}_fe_${data.cedulaTecnico}`
+        const firmaEquiposId = await guardarImagenBase64(data.firmaEquipos, nombreFirmaEquipos, folderId);
+
+        const query = `
+            UPDATE registros_inventarios
+            SET firmaEquipos = ?
+            WHERE cedulaTecnico = ? AND inventario = ? AND fecha = ?
+        `;
+        const values = [nombreFirmaEquipos, data.cedulaTecnico, data.inventario, data.fecha];
+
+        const [result] = await dbRailway.query(query, values);
+
+        return sendResponse(
+            res,
+            200,
+            `Registro actualizado correctamente`,
+            `Se han actualizado ${result.affectedRows} filas.`,
+            { affectedRows: result.affectedRows }
+        );
+
+    } catch (err) {
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
 
 router.get("/descargarImagen", validarToken, async (req, res) => {
     try {
