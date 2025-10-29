@@ -51,6 +51,19 @@ async function getFileByName(filename, folderId) {
     return Buffer.from(response.data);
 }
 
+async function listarArchivosEnCarpeta(folderId) {
+    const res = await driveService.files.list({
+        q: `'${folderId}' in parents and trashed=false`,
+        fields: 'files(id, name)',
+        spaces: 'drive'
+    });
+
+    console.log("📂 Archivos actuales en la carpeta:");
+    res.data.files.forEach(f => console.log(`   🧾 ${f.name}`));
+
+    return res.data.files;
+}
+
 async function compartirArchivosConUsuario(folderId, emailDestino) {
     const res = await driveService.files.list({
         q: `'${folderId}' in parents and trashed = false`,
@@ -83,5 +96,6 @@ async function compartirArchivosConUsuario(folderId, emailDestino) {
 module.exports = {
     uploadFile,
     getFileByName,
+    listarArchivosEnCarpeta,
     compartirArchivosConUsuario
 };
