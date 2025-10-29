@@ -15,6 +15,7 @@ router.get('/encuestas', async (req, res) => {
     try {
         const result = await cloudinary.api.resources({
             type: 'upload',
+            resource_type: 'auto',
             prefix: 'Encuestas/',
             max_results: 100
         });
