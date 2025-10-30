@@ -13,7 +13,17 @@ router.get('/cuadrillasEnelAlumbradoPublico', async (req, res) => {
 
 router.get('/registros', async (req, res) => {
     try {
-        const [rows] = await dbRailway.query('SELECT * FROM registros_enel_gestion_ots');
+        const [rows] = await dbRailway.query(`SELECT *,
+                CASE 
+                    WHEN atendida is null
+                        THEN DATEDIFF(NOW(), STR_TO_DATE(fecha_ingreso, '%Y-%m-%d %H:%i'))
+                    ELSE NULL
+                END AS dias_diferencia
+            FROM railway.registros_enel_gestion_ots
+            WHERE atendida IS NULL
+            OR (atendida = 'OK' 
+                AND STR_TO_DATE(fecha_ingreso, '%Y-%m-%d %H:%i') >= NOW() - INTERVAL 5 DAY)
+            ORDER BY STR_TO_DATE(fecha_ingreso, '%Y-%m-%d %H:%i') DESC`);
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
