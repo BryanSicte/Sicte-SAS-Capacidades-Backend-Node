@@ -28,16 +28,16 @@ router.post('/crearRegistro', async (req, res) => {
             })
         );
 
-        const { nombreCompleto, correo } = data;
+        const { nombreCompleto, correo, nombreEncuesta } = data;
 
         const [existentes] = await dbRailway.query(
-            'SELECT * FROM registros_encuestas WHERE nombreCompleto = ? OR correo = ?',
-            [nombreCompleto, correo]
+            'SELECT * FROM registros_encuestas WHERE (nombreCompleto = ? OR correo = ?) AND nombreEncuesta = ?',
+            [nombreCompleto, correo, nombreEncuesta]
         );
 
         if (existentes.length > 0) {
             return res.status(400).json({
-                error: 'Ya existe un registro con el mismo nombre o correo.'
+                error: 'Ya existe un registro con el mismo nombre o correo en esta encuesta.'
             });
         }
 
