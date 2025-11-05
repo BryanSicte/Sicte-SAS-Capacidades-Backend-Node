@@ -13,6 +13,11 @@ router.get('/Registros', async (req, res) => {
 
 router.post('/crearRegistro', async (req, res) => {
 
+    return res.status(503).json({
+        success: false,
+        message: '🚧 El servicio de encuestas está en mantenimiento. Intenta nuevamente más tarde.'
+    });
+    
     try {
         const data = Object.fromEntries(
             Object.entries(req.body).map(([key, value]) => {
