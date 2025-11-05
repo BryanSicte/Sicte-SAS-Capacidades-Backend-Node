@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const cloudinary = require('cloudinary').v2;
 const path = require('path');
-const { uploadFile, getFileByName, listarArchivosEnCarpeta } = require('../services/googleDriveService');
+const { getDriveClient, uploadFile, getFileByName, listarArchivosEnCarpeta, obtenerDetallesArchivo, hacerPublico } = require('../services/googleDriveService');
 const fs = require('fs');
 
 cloudinary.config({
@@ -13,25 +13,60 @@ cloudinary.config({
 
 router.get('/encuestas', async (req, res) => {
     try {
-        const images = await cloudinary.api.resources({
-            type: 'upload',
-            resource_type: 'image',
-            prefix: 'Encuestas/',
-            max_results: 100
-        });
+        const folderId = '1YP6fMEroaBnR-KLndDKzWjy1g8uNxZaN';
+        const archivos = await listarArchivosEnCarpeta(folderId);
 
-        const videos = await cloudinary.api.resources({
-            type: 'upload',
-            resource_type: 'video',
-            prefix: 'Encuestas/',
-            max_results: 100
-        });
-        res.json([...images.resources, ...videos.resources]);
+        const detalles = await Promise.all(
+            archivos.map(async (f) => {
+                const file = await obtenerDetallesArchivo(f.id);
+                const fileId = file.id;
+                const linkDirecto = `https://drive.google.com/file/d/${fileId}/view`;
+                const linkDescarga = `https://drive.google.com/uc?id=${fileId}&export=download`;
+                return {
+                    id: fileId,
+                    nombre: file.name,
+                    tipo: file.mimeType,
+                    link: linkDirecto,
+                    descarga: linkDescarga,
+                    tamaño: file.size,
+                    creado: file.createdTime,
+                    modificado: file.modifiedTime,
+                };
+            })
+        );
+
+        await Promise.all(detalles.map(d => hacerPublico(d.id).catch(e => { /* ignorar */ })));
+
+        res.json({ success: true, archivos: detalles });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Error al obtener imágenes' });
+        console.error('❌ Error al listar encuestas:', error);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
+
+router.get('/file/:id', async (req, res) => {
+    const fileId = req.params.id;
+    const drive = getDriveClient();
+
+    try {
+        const meta = await drive.files.get({
+            fileId,
+            fields: 'id, name, mimeType, size',
+            supportsAllDrives: true,
+        });
+
+        res.setHeader('Content-Type', meta.data.mimeType);
+        const response = await drive.files.get(
+            { fileId, alt: 'media', supportsAllDrives: true },
+            { responseType: 'stream' }
+        );
+
+        response.data.pipe(res);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 
 async function guardarImagenBase64(base64Data, filename, folderId) {
     try {
