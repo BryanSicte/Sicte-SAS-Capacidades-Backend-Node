@@ -57,4 +57,20 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
     }
 });
 
+router.get('/base', validarToken, async (req, res) => {
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM parque_automotor');
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron ${rows.length} registros de la base de parque automotor.`,
+            rows
+        );
+    } catch (err) {
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
 module.exports = router;

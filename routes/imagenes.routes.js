@@ -12,12 +12,7 @@ cloudinary.config({
 });
 
 router.get('/encuestas', async (req, res) => {
-
-    return res.status(503).json({
-        success: false,
-        message: '🚧 El servicio de encuestas está en mantenimiento. Intenta nuevamente más tarde.'
-    });
-
+    
     try {
         const folderId = '1YP6fMEroaBnR-KLndDKzWjy1g8uNxZaN';
         const archivos = await listarArchivosEnCarpeta(folderId);
