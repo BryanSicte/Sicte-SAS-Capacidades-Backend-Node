@@ -23,6 +23,9 @@ app.use(
         '[Fecha: :date ] | Metodo: :method | Endpoint: :url | Estado HTTP: :status | Tamaño de respuesta HTTP: :res-length | Tiempo de Respuesta: :response-time ms | Encabezado de respuesta: :res[header] | Encabezado de peticion: :req[header] | Direccion IP remota: :remote-addr | Usuario remoto: :remote-user | Version de HTTP: :http-version | URL referencia: :referrer | Tiempo Total: :total-time | IP: :ip | Host: :host | Origin: :origin | Protocolo: :protocol | Body: :body | Query: :query | Navegador: :user-agent\n'
     )
 );
+app.get('/api', (req, res) => {
+    res.send('Backend activo');
+});
 app.use('/api', routes);
 
 const PORT = process.env.PORT || 3030;

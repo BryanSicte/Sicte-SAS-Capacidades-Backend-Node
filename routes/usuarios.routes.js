@@ -423,4 +423,60 @@ router.get('/plantaEnLineaCedulaNombreV2', validarToken, async (req, res) => {
     }
 });
 
+router.get('/ubicacionUsuarios', validarToken, async (req, res) => {
+    try {
+        const [rows] = await dbRailway.query("SELECT * FROM registros_ubicacion_usuarios");
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron ${rows.length} registros de ubicacion de usuarios.`,
+            rows
+        );
+    } catch (err) {
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.post('/ubicacionUsuarios', validarToken, async (req, res) => {
+    const data = req.body;
+
+    if (!data.fechaToma || !data.cedulaUsuario || !data.nombreUsuario || !data.latitud || !data.longitud || !data.origen) {
+        return sendError(res, 400, "Faltan campos requeridos: fechaToma, cedulaUsuario, nombreUsuario, latitud, longitud o origen.");
+    }
+
+    try {
+
+        if (!data || Object.keys(data).length === 0) {
+            return sendError(res, 400, "Los datos del registro son requeridos.");
+        }
+
+        const keys = Object.keys(data);
+        const values = Object.values(data);
+
+        const placeholders = keys.map(() => '?').join(', ');
+        const campos = keys.join(', ');
+
+        const query = `
+            INSERT INTO registros_ubicacion_usuarios (${campos})
+            VALUES (${placeholders})
+        `;
+
+        const [result] = await dbRailway.query(query, values);
+
+        const [registroGuardado] = await dbRailway.query('SELECT * FROM registros_ubicacion_usuarios WHERE id = ?', [result.insertId]);
+
+        return sendResponse(
+            res,
+            200,
+            `Registro creado correctamente`,
+            `Se ha guardado el registro con ID ${result.insertId}.`,
+            registroGuardado[0]
+        );
+
+    } catch (err) {
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
 module.exports = router;
