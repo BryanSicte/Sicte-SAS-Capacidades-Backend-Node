@@ -2,6 +2,7 @@ const dbRailway = require('../db/db_railway');
 const { sendError } = require('../utils/responseHandler');
 
 async function validarToken(req, res, next) {
+
     try {
         const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
 
