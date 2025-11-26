@@ -11,6 +11,40 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+router.get('/inicio', async (req, res) => {
+    
+    try {
+        const folderId = '1CuZhG1A4dwIngQoC1ONH6xJPYNKoK7W-';
+        const archivos = await listarArchivosEnCarpeta(folderId);
+
+        const detalles = await Promise.all(
+            archivos.map(async (f) => {
+                const file = await obtenerDetallesArchivo(f.id);
+                const fileId = file.id;
+                const linkDirecto = `https://drive.google.com/file/d/${fileId}/view`;
+                const linkDescarga = `https://drive.google.com/uc?id=${fileId}&export=download`;
+                return {
+                    id: fileId,
+                    nombre: file.name,
+                    tipo: file.mimeType,
+                    link: linkDirecto,
+                    descarga: linkDescarga,
+                    tamaño: file.size,
+                    creado: file.createdTime,
+                    modificado: file.modifiedTime,
+                };
+            })
+        );
+
+        await Promise.all(detalles.map(d => hacerPublico(d.id).catch(e => { /* ignorar */ })));
+
+        res.json({ success: true, archivos: detalles });
+    } catch (error) {
+        console.error('❌ Error al listar encuestas:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 router.get('/encuestas', async (req, res) => {
     
     try {

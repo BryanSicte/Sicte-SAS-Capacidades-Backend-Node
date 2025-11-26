@@ -15,6 +15,7 @@ const gestionOtsRoutes = require('./gestionOts.routes');
 const parqueAutomotorRoutes = require('./parqueAutomotor.routes');
 const inventariosRoutes = require('./inventarios.routes');
 const bodegaRoutes = require('./bodega.routes');
+const versionRoutes = require('./version.routes');
 
 router.use('/usuarios', usuariosRoutes);
 router.use('/chatbot', chatbotRoutes);
@@ -30,5 +31,6 @@ router.use('/gestionOts', gestionOtsRoutes);
 router.use('/parqueAutomotor', parqueAutomotorRoutes);
 router.use('/inventarios', inventariosRoutes);
 router.use('/bodega', bodegaRoutes);
+router.use('/version', versionRoutes);
 
 module.exports = router;
