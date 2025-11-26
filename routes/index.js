@@ -34,3 +34,4 @@ router.use('/bodega', bodegaRoutes);
 router.use('/version', versionRoutes);
 
 module.exports = router;
+
