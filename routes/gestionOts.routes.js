@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const dbRailway = require('../db/db_railway');
+const multer = require("multer");
+const XLSX = require("xlsx");
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 router.get('/cuadrillasEnelAlumbradoPublico', async (req, res) => {
     try {
@@ -258,118 +262,146 @@ router.post('/marcarAtendidas', async (req, res) => {
     }
 });
 
-router.post('/nuevasOrdenes', async (req, res) => {
-    const { data, nombreUsuario } = req.body;
-
-    if (!Array.isArray(data) || data.length === 0) {
-        return res.status(400).json({ error: 'Debes enviar un archivo con informacion' });
-    }
-    if (!nombreUsuario) {
-        return res.status(400).json({ error: 'Faltan datos requeridos' });
-    }
-
-    const norm = v => String(v ?? '').trim();
+router.post('/subirExcelNuevasOrdenes', upload.single('file'), async (req, res) => {
 
     try {
-        const nroOrdenes = Array.from(
-            new Set(
-                data
-                    .map(i => (i.nro_orden === undefined || i.nro_orden === null) ? '' : String(i.nro_orden).trim())
-                    .filter(Boolean)
-            )
-        );
-
-        if (nroOrdenes.length === 0) {
-            return res.status(400).json({ error: 'No hay nro_orden válidos en el archivo' });
+        if (!req.file) {
+            return res.status(400).json({ error: "No se envió archivo" });
         }
 
-        const [colsInfo] = await dbRailway.query('SHOW COLUMNS FROM registros_enel_gestion_ots');
+        const nombreUsuario = req.body.nombreUsuario;
+        if (!nombreUsuario) {
+            return res.status(400).json({ error: "Falta nombreUsuario" });
+        }
+
+        const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+
+        if (!workbook.SheetNames.includes("Ordenes")) {
+            return res.status(400).json({ error: 'La hoja "Ordenes" no existe en el archivo' });
+        }
+
+        const worksheet = workbook.Sheets["Ordenes"];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+        if (jsonData.length === 0) {
+            return res.status(400).json({ error: "La hoja está vacía" });
+        }
+
+        return procesarNuevasOrdenes(jsonData, nombreUsuario, res);
+
+    } catch (err) {
+        console.error("Error en /subirExcel:", err);
+        return res.status(500).json({ error: "Error procesando archivo" });
+    }
+});
+
+router.post('/nuevasOrdenes', async (req, res) => {
+    const { data, nombreUsuario } = req.body;
+    return procesarNuevasOrdenes(data, nombreUsuario, res);
+});
+
+async function procesarNuevasOrdenes(data, nombreUsuario, res) {
+    const norm = v => String(v ?? '').trim();
+    const parseArray = v => {
+        try {
+            const arr = JSON.parse(v);
+            return Array.isArray(arr) ? arr : [];
+        } catch {
+            return [];
+        }
+    };
+
+    try {
+        if (!Array.isArray(data) || data.length === 0)
+            return res.status(400).json({ error: "Debes enviar un archivo con informacion" });
+
+        if (!nombreUsuario)
+            return res.status(400).json({ error: "Faltan datos requeridos" });
+
+        const nroOrdenes = [...new Set(
+            data
+                .map(v => norm(v.nro_orden))
+                .filter(Boolean)
+        )];
+
+        if (nroOrdenes.length === 0)
+            return res.status(400).json({ error: "No hay nro_orden válidos en el archivo" });
+
+        const [colsInfo] = await dbRailway.query("SHOW COLUMNS FROM registros_enel_gestion_ots");
         const allowedCols = new Set(colsInfo.map(c => c.Field));
 
         const [existentesFull] = await dbRailway.query(
-            'SELECT * FROM registros_enel_gestion_ots WHERE nro_orden IN (?)',
+            "SELECT * FROM registros_enel_gestion_ots WHERE nro_orden IN (?)",
             [nroOrdenes]
         );
 
         const existentesMap = new Map(
-            existentesFull.map(r => [String(r.nro_orden).trim(), r])
+            existentesFull.map(r => [norm(r.nro_orden), r])
         );
 
-        const encontrados = existentesFull.map(r => String(r.nro_orden).trim());
+        const encontrados = existentesFull.map(r => norm(r.nro_orden));
 
-        const noEncontrados = data.filter(item => !existentesMap.has(String(item.nro_orden ?? '').trim()));
+        const noEncontrados = data.filter(item => !existentesMap.has(norm(item.nro_orden)));
+
+        const [todosLotes] = await dbRailway.query(
+            "SELECT lotes FROM registros_enel_gestion_ots WHERE lotes IS NOT NULL"
+        );
+
+        let currentMax = 0;
+        for (const row of todosLotes) {
+            const arr = parseArray(row.lotes);
+            const max = Math.max(0, ...arr);
+            if (max > currentMax) currentMax = max;
+        }
+
+        const consecutivoInsert = currentMax + 1;
+        const consecutivoUpdate = consecutivoInsert + 1;
 
         let totalInsertados = 0;
 
-        const [todos] = await dbRailway.query(
-            `SELECT lotes FROM registros_enel_gestion_ots WHERE lotes IS NOT NULL`
-        );
-
-        let maxConsecutivo = 0;
-        for (const row of todos) {
-            try {
-                const arr = JSON.parse(row.lotes);
-                if (Array.isArray(arr) && arr.length > 0) {
-                    const localMax = Math.max(...arr);
-                    if (localMax > maxConsecutivo) {
-                        maxConsecutivo = localMax;
-                    }
-                }
-            } catch { }
-        }
-
-        const nuevoConsecutivo = maxConsecutivo + 1;
-
         if (noEncontrados.length > 0) {
-            const unionCols = Array.from(new Set(noEncontrados.flatMap(obj => Object.keys(obj))));
+            const unionCols = [...new Set(noEncontrados.flatMap(o => Object.keys(o)))];
             const insertCols = unionCols.filter(c => allowedCols.has(c));
 
-            if (insertCols.length === 0) {
-                throw new Error('No hay columnas válidas para insertar en la tabla.');
-            }
+            if (insertCols.length === 0)
+                throw new Error("No hay columnas válidas para insertar en la tabla");
 
-            const placeholders = insertCols.map(() => '?').join(',');
-            const rowsPlaceholders = noEncontrados.map(() => `(${placeholders})`).join(',');
-            const values = noEncontrados.flatMap(obj => insertCols.map(col => (obj[col] === undefined ? null : obj[col])));
+            const placeholders = "(" + insertCols.map(() => "?").join(",") + ")";
+            const rowsPlaceholder = noEncontrados.map(() => placeholders).join(",");
+            const values = noEncontrados.flatMap(obj =>
+                insertCols.map(col => obj[col] ?? null)
+            );
 
-            const sqlInsert = `INSERT INTO registros_enel_gestion_ots (${insertCols.map(c => `\`${c}\``).join(',')}) VALUES ${rowsPlaceholders}`;
-            await dbRailway.query(sqlInsert, values);
+            const sql = `
+                INSERT INTO registros_enel_gestion_ots 
+                (\`${insertCols.join("`,`")}\`) 
+                VALUES ${rowsPlaceholder}
+            `;
+
+            await dbRailway.query(sql, values);
+
             totalInsertados = noEncontrados.length;
 
             const [insertedRows] = await dbRailway.query(
-                'SELECT id, nro_orden, historico, lotes FROM registros_enel_gestion_ots WHERE nro_orden IN (?)',
+                "SELECT id, nro_orden, historico, lotes FROM registros_enel_gestion_ots WHERE nro_orden IN (?)",
                 [noEncontrados.map(r => r.nro_orden)]
             );
 
             for (const row of insertedRows) {
-                let historicoArr = [];
-                if (row.historico) {
-                    try {
-                        historicoArr = JSON.parse(row.historico);
-                        if (!Array.isArray(historicoArr)) historicoArr = [];
-                    } catch { historicoArr = []; }
-                }
+                const historicoArr = parseArray(row.historico);
+                const lotes = parseArray(row.lotes);
 
-                let lotes = [];
-                if (row.lotes) {
-                    try {
-                        lotes = JSON.parse(row.lotes);
-                        if (!Array.isArray(lotes)) lotes = [];
-                    } catch {
-                        lotes = [];
-                    }
-                }
-                lotes.push(nuevoConsecutivo);
+                lotes.push(consecutivoInsert);
 
                 historicoArr.push({
                     fecha: new Date().toISOString(),
                     usuario: nombreUsuario,
-                    lote: nuevoConsecutivo,
+                    lote: consecutivoInsert,
                     detalle: `La orden fue ingresada a la base de datos`
                 });
 
                 await dbRailway.query(
-                    'UPDATE registros_enel_gestion_ots SET historico = ?, lotes = ? WHERE id = ?',
+                    "UPDATE registros_enel_gestion_ots SET historico=?, lotes=? WHERE id=?",
                     [JSON.stringify(historicoArr), JSON.stringify(lotes), row.id]
                 );
             }
@@ -377,39 +409,29 @@ router.post('/nuevasOrdenes', async (req, res) => {
 
         let totalActualizados = 0;
         const actualizados = [];
+        const dataMap = new Map(data.map(i => [norm(i.nro_orden), i]));
+        let index = 0;
+        const total = existentesFull.length;
 
-        const dataMap = new Map(data.map(item => [String(item.nro_orden ?? '').trim(), item]));
+        const batchSize = 50;
+        let updates = [];
 
-        const [todosActualizacion] = await dbRailway.query(
-            `SELECT lotes FROM registros_enel_gestion_ots WHERE lotes IS NOT NULL`
-        );
-        let maxConsecutivoActualizacion = 0;
-        for (const row of todosActualizacion) {
-            try {
-                const arr = JSON.parse(row.lotes);
-                if (Array.isArray(arr) && arr.length > 0) {
-                    const localMax = Math.max(...arr);
-                    if (localMax > maxConsecutivoActualizacion) {
-                        maxConsecutivoActualizacion = localMax;
-                    }
-                }
-            } catch { }
-        }
-        const nuevoConsecutivoActualizacion = maxConsecutivoActualizacion + 1;
+        for (const existing of existentesFull) {
+            index++;
+            console.log(`Gestion OTs, actualizando ordenes procesando ${index} de ${total} ( ${((index / total) * 100).toFixed(2)}% )`);
 
-        for (const existingRow of existentesFull) {
-            const key = String(existingRow.nro_orden).trim();
+            const key = norm(existing.nro_orden);
             const item = dataMap.get(key);
             if (!item) continue;
 
             const cambios = {};
+
             for (const col of Object.keys(item)) {
                 if (!allowedCols.has(col)) continue;
-                if (col === 'id' || col === 'nro_orden') continue;
-                if (col === 'historico') continue;
+                if (["id", "nro_orden", "historico"].includes(col)) continue;
 
-                const nuevo = item[col] === undefined ? null : item[col];
-                const viejo = existingRow[col] === undefined ? null : existingRow[col];
+                const nuevo = item[col] ?? null;
+                const viejo = existing[col] ?? null;
 
                 if (norm(nuevo) !== norm(viejo)) {
                     cambios[col] = nuevo;
@@ -418,59 +440,55 @@ router.post('/nuevasOrdenes', async (req, res) => {
 
             if (Object.keys(cambios).length === 0) continue;
 
-            let historicoArr = [];
-            if (existingRow.historico) {
-                try {
-                    historicoArr = JSON.parse(existingRow.historico);
-                    if (!Array.isArray(historicoArr)) historicoArr = [];
-                } catch { historicoArr = []; }
-            }
+            const historicoArr = parseArray(existing.historico);
+            const lotes = parseArray(existing.lotes);
 
-            const cambiosDetalle = Object.entries(cambios).map(([c, nv]) => {
-                const ov = existingRow[c] === undefined ? '' : existingRow[c];
-                return `${c}: "${String(ov)}" -> "${String(nv ?? '')}"`;
-            }).join('; ');
+            const cambiosDetalle = Object.entries(cambios)
+                .map(([c, nv]) => `${c}: "${existing[c] ?? ""}" -> "${nv ?? ""}"`)
+                .join("; ");
 
-            let lotes = [];
-            if (existingRow.lotes) {
-                try {
-                    lotes = JSON.parse(existingRow.lotes);
-                    if (!Array.isArray(lotes)) lotes = [];
-                } catch {
-                    lotes = [];
-                }
-            }
-            lotes.push(nuevoConsecutivoActualizacion);
+            lotes.push(consecutivoUpdate);
 
             historicoArr.push({
                 fecha: new Date().toISOString(),
                 usuario: nombreUsuario,
-                lote: nuevoConsecutivoActualizacion,
+                lote: consecutivoUpdate,
                 detalle: `Actualización detectó cambios en la orden ${key}: ${cambiosDetalle}`
             });
 
-            const setCols = Object.keys(cambios).map(c => `\`${c}\` = ?`).join(', ');
+            const setCols = Object.keys(cambios).map(c => `\`${c}\`=?`).join(", ");
             const params = [...Object.values(cambios), JSON.stringify(historicoArr), JSON.stringify(lotes), key];
-            const sqlUpdate = `UPDATE registros_enel_gestion_ots SET ${setCols}, historico = ?, lotes = ? WHERE nro_orden = ?`;
 
-            await dbRailway.query(sqlUpdate, params);
+            updates.push(
+                dbRailway.query(
+                    `UPDATE registros_enel_gestion_ots SET ${setCols}, historico=?, lotes=? WHERE nro_orden=?`,
+                    params
+                )
+            );
 
-            totalActualizados++;
-            actualizados.push(key);
+            if (updates.length >= batchSize) {
+                await Promise.all(updates);
+                updates = [];
+            }
+        }
+
+        if (updates.length > 0) {
+            await Promise.all(updates);
         }
 
         return res.json({
-            message: 'Validación, inserción y actualización completadas',
+            message: "Validación, inserción y actualización completadas",
             totalEncontrados: encontrados.length,
             totalInsertados,
             totalActualizados,
             actualizados
         });
+
     } catch (err) {
-        console.error('Error en /nuevasOrdenes:', err);
+        console.error("Error en /nuevasOrdenes:", err);
         return res.status(500).json({ error: err.message });
     }
-});
+}
 
 
 router.post('/rehabilitarOT', async (req, res) => {
