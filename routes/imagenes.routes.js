@@ -12,7 +12,7 @@ cloudinary.config({
 });
 
 router.get('/inicio', async (req, res) => {
-    
+
     try {
         const folderId = '1CuZhG1A4dwIngQoC1ONH6xJPYNKoK7W-';
         const archivos = await listarArchivosEnCarpeta(folderId);
@@ -21,13 +21,13 @@ router.get('/inicio', async (req, res) => {
             archivos.map(async (f) => {
                 const file = await obtenerDetallesArchivo(f.id);
                 const fileId = file.id;
-                const linkDirecto = `https://drive.google.com/file/d/${fileId}/view`;
+                const linkImagen = `https://drive.google.com/uc?export=view&id=${fileId}`;
                 const linkDescarga = `https://drive.google.com/uc?id=${fileId}&export=download`;
                 return {
                     id: fileId,
                     nombre: file.name,
                     tipo: file.mimeType,
-                    link: linkDirecto,
+                    link: linkImagen,
                     descarga: linkDescarga,
                     tamaño: file.size,
                     creado: file.createdTime,
@@ -46,7 +46,7 @@ router.get('/inicio', async (req, res) => {
 });
 
 router.get('/encuestas', async (req, res) => {
-    
+
     try {
         const folderId = '1YP6fMEroaBnR-KLndDKzWjy1g8uNxZaN';
         const archivos = await listarArchivosEnCarpeta(folderId);
