@@ -54,7 +54,7 @@ router.post('/asignarOT', async (req, res) => {
 
     try {
         const [registros] = await dbRailway.query(
-            `SELECT id, historico, cuadrilla, lotes FROM registros_enel_gestion_ots WHERE id IN (?)`,
+            `SELECT id, cedula_cuadrilla, historico, cuadrilla, lotes FROM registros_enel_gestion_ots WHERE id IN (?)`,
             [ids]
         );
 
@@ -91,7 +91,7 @@ router.post('/asignarOT', async (req, res) => {
             }
             const existeHistorico = historico.length > 1;
 
-            if (existeHistorico) {
+            if (row.cedula_cuadrilla) {
                 if (!observaciones && row.cuadrilla !== null) {
                     return res.status(400).json({ error: 'Falta la observacion' });
                 }
@@ -488,28 +488,29 @@ async function procesarNuevasOrdenes(data, nombreUsuario, res) {
 
             if (Object.keys(cambios).length === 0) continue;
 
-            const historicoArr = parseArray(existing.historico);
+            // const historicoArr = parseArray(existing.historico);
             const lotes = parseArray(existing.lotes);
 
-            const cambiosDetalle = Object.entries(cambios)
-                .map(([c, nv]) => `${c}: "${existing[c] ?? ""}" -> "${nv ?? ""}"`)
-                .join("; ");
+            // const cambiosDetalle = Object.entries(cambios)
+            //     .map(([c, nv]) => `${c}: "${existing[c] ?? ""}" -> "${nv ?? ""}"`)
+            //     .join("; ");
 
             lotes.push(consecutivoUpdate);
 
-            historicoArr.push({
-                fecha: fechaLocal,
-                usuario: nombreUsuario,
-                lote: consecutivoUpdate,
-                detalle: `Actualización detectó cambios en la orden ${key}: ${cambiosDetalle}`
-            });
+            // historicoArr.push({
+            //     fecha: fechaLocal,
+            //     usuario: nombreUsuario,
+            //     lote: consecutivoUpdate,
+            //     detalle: `Actualización detectó cambios en la orden ${key}: ${cambiosDetalle}`
+            // });
 
             const setCols = Object.keys(cambios).map(c => `\`${c}\`=?`).join(", ");
-            const params = [...Object.values(cambios), JSON.stringify(historicoArr), JSON.stringify(lotes), key];
+            // const params = [...Object.values(cambios), JSON.stringify(historicoArr), JSON.stringify(lotes), key];
+            const params = [...Object.values(cambios), JSON.stringify(lotes), key];
 
             updates.push(
                 dbRailway.query(
-                    `UPDATE registros_enel_gestion_ots SET ${setCols}, historico=?, lotes=? WHERE nro_orden=?`,
+                    `UPDATE registros_enel_gestion_ots SET ${setCols}, lotes=? WHERE nro_orden=?`,
                     params
                 )
             );
