@@ -17,7 +17,8 @@ app.use(cors({
         'http://localhost:3000',
         'http://localhost:8080',
         'https://sictepowergmail.github.io',
-        'https://sicte-sas-ccot.up.railway.app'
+        'https://bryansicte.github.io',
+        'https://sicte-sas-ccot.up.railway.app',
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
