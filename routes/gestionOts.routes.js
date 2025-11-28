@@ -311,12 +311,36 @@ async function procesarNuevasOrdenes(data, nombreUsuario, res) {
         }
     };
 
+    function excelToJSDate(serial) {
+        if (!serial || isNaN(serial)) return null;
+        const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+        const days = Math.floor(serial);
+        const ms = (serial - days) * 24 * 60 * 60 * 1000;
+        return new Date(excelEpoch.getTime() + days * 86400000 + ms);
+    }
+
+    function formatDate(d) {
+        if (!d) return null;
+        const pad = n => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
     try {
         if (!Array.isArray(data) || data.length === 0)
             return res.status(400).json({ error: "Debes enviar un archivo con informacion" });
 
         if (!nombreUsuario)
             return res.status(400).json({ error: "Faltan datos requeridos" });
+
+        for (const row of data) {
+            const columnasFecha = ["fecha_ingreso", "ahora"];
+            for (const col of columnasFecha) {
+                if (row[col]) {
+                    const d = excelToJSDate(Number(row[col]));
+                    row[col] = d ? formatDate(d) : null;
+                }
+            }
+        }
 
         const nroOrdenes = [...new Set(
             data

@@ -129,7 +129,7 @@ async function compartirArchivosConUsuario(folderId, emailDestino) {
 }
 
 async function subirArchivosDeTemp() {
-    const folderId = '1CuZhG1A4dwIngQoC1ONH6xJPYNKoK7W-';
+    const folderId = '1gWDVpbQA-h1Zx7bzTC3xjbR5WpvD67WI';
 
     const tempDir = path.resolve(__dirname, '../temp');
 
