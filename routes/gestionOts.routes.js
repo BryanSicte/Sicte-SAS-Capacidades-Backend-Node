@@ -313,7 +313,7 @@ async function procesarNuevasOrdenes(data, nombreUsuario, res) {
 
     function excelToJSDate(serial) {
         if (!serial || isNaN(serial)) return null;
-        const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+         const excelEpoch = new Date(1899, 11, 30);
         const days = Math.floor(serial);
         const ms = (serial - days) * 24 * 60 * 60 * 1000;
         return new Date(excelEpoch.getTime() + days * 86400000 + ms);
