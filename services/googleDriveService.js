@@ -82,6 +82,15 @@ async function obtenerDetallesArchivo(fileId) {
     return res.data;
 }
 
+async function obtenerStreamArchivo(fileId) {
+    const res = await driveService.files.get(
+        { fileId, alt: "media" },
+        { responseType: "stream" }
+    );
+
+    return res.data;
+}
+
 async function hacerPublico(fileId) {
     try {
         await driveService.permissions.create({
@@ -178,6 +187,7 @@ module.exports = {
     getFileByName,
     listarArchivosEnCarpeta,
     obtenerDetallesArchivo,
+    obtenerStreamArchivo,
     hacerPublico,
     compartirArchivosConUsuario
 };

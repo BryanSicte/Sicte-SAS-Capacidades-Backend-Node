@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const cloudinary = require('cloudinary').v2;
 const path = require('path');
-const { getDriveClient, uploadFile, getFileByName, listarArchivosEnCarpeta, obtenerDetallesArchivo, hacerPublico } = require('../services/googleDriveService');
+const { getDriveClient, uploadFile, getFileByName, listarArchivosEnCarpeta, obtenerDetallesArchivo, obtenerStreamArchivo, hacerPublico } = require('../services/googleDriveService');
 const fs = require('fs');
 
 cloudinary.config({
@@ -11,36 +11,42 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-router.get('/ccot', async (req, res) => {
+router.get("/archivo/:id", async (req, res) => {
+    const { id } = req.params;
 
+    try {
+        const metadata = await obtenerDetallesArchivo(id);
+        const mimeType = metadata.mimeType || "application/octet-stream";
+        const fileName = metadata.name || "archivo";
+
+        const fileStream = await obtenerStreamArchivo(id);
+
+        res.setHeader("Content-Type", mimeType);
+        res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+
+        fileStream.pipe(res);
+
+    } catch (err) {
+        console.error("❌ Error al servir archivo:", err.message);
+        res.status(500).json({ error: "No se pudo obtener el archivo" });
+    }
+});
+
+router.get('/ccot', async (req, res) => {
     try {
         const folderId = '1gWDVpbQA-h1Zx7bzTC3xjbR5WpvD67WI';
         const archivos = await listarArchivosEnCarpeta(folderId);
 
-        const detalles = await Promise.all(
-            archivos.map(async (f) => {
-                const file = await obtenerDetallesArchivo(f.id);
-                const fileId = file.id;
-                const linkImagen = `https://drive.google.com/uc?export=view&id=${fileId}`;
-                const linkDescarga = `https://drive.google.com/uc?id=${fileId}&export=download`;
-                return {
-                    id: fileId,
-                    nombre: file.name,
-                    tipo: file.mimeType,
-                    link: linkImagen,
-                    descarga: linkDescarga,
-                    tamaño: file.size,
-                    creado: file.createdTime,
-                    modificado: file.modifiedTime,
-                };
-            })
-        );
-
-        await Promise.all(detalles.map(d => hacerPublico(d.id).catch(e => { /* ignorar */ })));
+        const detalles = archivos.map(file => ({
+            id: file.id,
+            nombre: file.name,
+            tipo: file.mimeType,
+            url: `${process.env.BASE_URL}/imagenes/archivo/${file.id}`
+        }));
 
         res.json({ success: true, archivos: detalles });
     } catch (error) {
-        console.error('❌ Error al listar encuestas:', error);
+        console.error('❌ Error al listar archivos:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -51,30 +57,16 @@ router.get('/inicio', async (req, res) => {
         const folderId = '1CuZhG1A4dwIngQoC1ONH6xJPYNKoK7W-';
         const archivos = await listarArchivosEnCarpeta(folderId);
 
-        const detalles = await Promise.all(
-            archivos.map(async (f) => {
-                const file = await obtenerDetallesArchivo(f.id);
-                const fileId = file.id;
-                const linkImagen = `https://drive.google.com/uc?export=view&id=${fileId}`;
-                const linkDescarga = `https://drive.google.com/uc?id=${fileId}&export=download`;
-                return {
-                    id: fileId,
-                    nombre: file.name,
-                    tipo: file.mimeType,
-                    link: linkImagen,
-                    descarga: linkDescarga,
-                    tamaño: file.size,
-                    creado: file.createdTime,
-                    modificado: file.modifiedTime,
-                };
-            })
-        );
-
-        await Promise.all(detalles.map(d => hacerPublico(d.id).catch(e => { /* ignorar */ })));
+        const detalles = archivos.map(file => ({
+            id: file.id,
+            nombre: file.name,
+            tipo: file.mimeType,
+            url: `${process.env.BASE_URL}/imagenes/archivo/${file.id}`
+        }));
 
         res.json({ success: true, archivos: detalles });
     } catch (error) {
-        console.error('❌ Error al listar encuestas:', error);
+        console.error('❌ Error al listar archivos:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

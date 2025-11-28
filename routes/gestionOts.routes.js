@@ -313,7 +313,7 @@ async function procesarNuevasOrdenes(data, nombreUsuario, res) {
 
     function excelToJSDate(serial) {
         if (!serial || isNaN(serial)) return null;
-         const excelEpoch = new Date(1899, 11, 30);
+        const excelEpoch = new Date(1899, 11, 30);
         const days = Math.floor(serial);
         const ms = (serial - days) * 24 * 60 * 60 * 1000;
         return new Date(excelEpoch.getTime() + days * 86400000 + ms);
@@ -324,6 +324,30 @@ async function procesarNuevasOrdenes(data, nombreUsuario, res) {
         const pad = n => String(n).padStart(2, "0");
         return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
+
+    function fechaHoraLocalBogota() {
+        const fecha = new Date();
+
+        const opciones = {
+            timeZone: "America/Bogota",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false
+        };
+
+        const partes = fecha.toLocaleString("es-CO", opciones);
+
+        const [fechaPart, horaPart] = partes.split(", ");
+        const [dia, mes, año] = fechaPart.split("/");
+
+        return `${año}-${mes}-${dia} ${horaPart}`;
+    }
+
+    const fechaLocal = fechaHoraLocalBogota();
 
     try {
         if (!Array.isArray(data) || data.length === 0)
@@ -418,7 +442,7 @@ async function procesarNuevasOrdenes(data, nombreUsuario, res) {
                 lotes.push(consecutivoInsert);
 
                 historicoArr.push({
-                    fecha: new Date().toISOString(),
+                    fecha: fechaLocal,
                     usuario: nombreUsuario,
                     lote: consecutivoInsert,
                     detalle: `La orden fue ingresada a la base de datos`
@@ -474,7 +498,7 @@ async function procesarNuevasOrdenes(data, nombreUsuario, res) {
             lotes.push(consecutivoUpdate);
 
             historicoArr.push({
-                fecha: new Date().toISOString(),
+                fecha: fechaLocal,
                 usuario: nombreUsuario,
                 lote: consecutivoUpdate,
                 detalle: `Actualización detectó cambios en la orden ${key}: ${cambiosDetalle}`
