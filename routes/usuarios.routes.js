@@ -152,9 +152,11 @@ router.post('/actualizarContrasena', async (req, res) => {
     }
 });
 
-router.get('/pagesUser', async (req, res) => {
+router.post('/pagesUser', async (req, res) => {
+    const { cedula } = req.body;
+
     try {
-        const [rows] = await dbRailway.query('SELECT * FROM pages_per_user');
+        const [rows] = await dbRailway.query('SELECT * FROM pages_per_user where cedula = ?', [cedula]);
         res.status(200).json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
