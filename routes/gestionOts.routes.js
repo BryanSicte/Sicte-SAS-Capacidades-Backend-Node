@@ -461,7 +461,7 @@ async function procesarNuevasOrdenes(data, nombreUsuario, res) {
         let index = 0;
         const total = existentesFull.length;
 
-        const batchSize = 50;
+        const batchSize = 1;
         let updates = [];
 
         for (const existing of existentesFull) {
