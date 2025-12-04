@@ -372,6 +372,24 @@ router.post('/loginV2', async (req, res) => {
     }
 });
 
+
+router.get('/usersV2', validarToken, async (req, res) => {
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM user');
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron ${rows.length} registros de usuarios.`,
+            rows
+        );
+
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
 router.post('/users', validarToken, async (req, res) => {
     const { nombre, correo, cedula, rol, telefono, contrasena } = req.body;
 

@@ -12,18 +12,25 @@ app.use((req, res, next) => {
     next();
 });
 
+// app.use(cors({
+//     origin: [
+//         'http://localhost:3000',
+//         'http://localhost:8080',
+//         'http://localhost:8081',
+//         'https://sictepowergmail.github.io',
+//         'https://bryansicte.github.io',
+//         'https://sicte-sas-ccot.up.railway.app',
+//     ],
+//     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+//     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+//     credentials: false
+// }));
+
 app.use(cors({
-    origin: [
-        'http://localhost:3000',
-        'http://localhost:8080',
-        'http://localhost:8081',
-        'https://sictepowergmail.github.io',
-        'https://bryansicte.github.io',
-        'https://sicte-sas-ccot.up.railway.app',
-    ],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-    credentials: false
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  credentials: false
 }));
 
 app.options('*', cors());
