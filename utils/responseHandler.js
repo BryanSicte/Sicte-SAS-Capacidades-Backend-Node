@@ -11,7 +11,7 @@ function sendResponse(res, status, message1, message2 = null, data = null) {
     });
 }
 
-function sendError(res, status, message2 = null, error = null) {
+function sendError(res, status, message2 = null, error = null, data = null) {
     return res.status(status).json({
         success: false,
         messages: {
@@ -19,7 +19,7 @@ function sendError(res, status, message2 = null, error = null) {
             message2,
             message3: error ? (error.message || error) : null
         },
-        data: null
+        data
     });
 }
 

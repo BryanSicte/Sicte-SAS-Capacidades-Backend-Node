@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const usuariosRoutes = require('./usuarios.routes');
+const usuariosv2Routes = require('./usuariosv2.routes');
 const chatbotRoutes = require('./chatbot.routes');
 const carnetizacionRoutes = require('./carnetizacion.routes');
 const solicitudMaterialRoutes = require('./solicitudMaterial.routes');
@@ -18,6 +19,7 @@ const bodegaRoutes = require('./bodega.routes');
 const versionRoutes = require('./version.routes');
 
 router.use('/usuarios', usuariosRoutes);
+router.use('/usuariosv2', usuariosv2Routes);
 router.use('/chatbot', chatbotRoutes);
 router.use('/carnetizacion', carnetizacionRoutes);
 router.use('/solicitudMaterial', solicitudMaterialRoutes);
