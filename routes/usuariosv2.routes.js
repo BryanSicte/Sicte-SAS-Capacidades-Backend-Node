@@ -275,4 +275,21 @@ router.post('/actualizarContrasena', async (req, res) => {
     }
 });
 
+router.get('/plantaEnLineaCedulaNombreActivos', validarToken, async (req, res) => {
+    try {
+        const [rows] = await dbRailway.query("SELECT nit, nombre FROM plantaenlinea WHERE perfil <> 'RETIRADO'");
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron ${rows.length} registros de la planta.`,
+            rows
+        );
+
+    } catch (err) {
+        return sendError(res, 500, "Error inesperado", err);
+    }
+});
+
 module.exports = router;
