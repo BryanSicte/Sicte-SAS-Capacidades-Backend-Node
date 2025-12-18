@@ -138,7 +138,6 @@ router.post('/actualizarContrasena', async (req, res) => {
             return res.status(404).json({ message: 'Usuario no encontrado' });
         }
 
-        // Actualizamos la contraseña
         await dbRailway.query(
             'UPDATE user SET contrasena = ? WHERE correo = ?',
             [contrasena, correo]
