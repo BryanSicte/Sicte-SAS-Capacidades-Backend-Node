@@ -73,4 +73,24 @@ router.get('/base', validarToken, async (req, res) => {
     }
 });
 
+router.get('/auxiliar', validarToken, async (req, res) => {
+    try {
+        const optionsSede = ["Armenia", "Bogotá Enel", "Bogotá Ferias", "Bogotá San Cipriano", "Manizales", "Pereira", "Zipaquira"];
+        const optionsEstado = ["Entrada de vehiculo de la sede", "Salida de vehiculo de la sede", "En taller", "No usado"];
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron registros de la data auxiliar de parque automotor.`,
+            {
+                sedes: optionsSede, 
+                estado: optionsEstado
+            }
+        );
+    } catch (err) {
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
 module.exports = router;

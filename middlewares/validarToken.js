@@ -34,7 +34,7 @@ async function validarToken(req, res, next) {
         next();
 
     } catch (error) {
-        return sendError(res, 500, "Error validando el token.", err);
+        return sendError(res, 500, "Error validando el token.", error);
     }
 }
 
