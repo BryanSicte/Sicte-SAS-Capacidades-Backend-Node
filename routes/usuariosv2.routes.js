@@ -21,11 +21,11 @@ router.post('/login', async (req, res) => {
     const { correo, contrasena } = req.body;
 
     if (!correo) {
-        return sendError(res, 400, "Campo obligatorio", null, { "correo": "Ingresa tu correo." });
+        return sendError(res, 400, "Campo obligatorio: Correo", null, { "correo": "Ingresa tu correo." });
     }
 
     if (!contrasena) {
-        return sendError(res, 400, "Campo obligatorio", null, { "contrasena": "Ingresa tu contraseña." });
+        return sendError(res, 400, "Campo obligatorio: Contraseña", null, { "contrasena": "Ingresa tu contraseña." });
     }
 
     try {
@@ -98,7 +98,7 @@ router.post('/recibir', async (req, res) => {
     const { correo } = req.body;
 
     if (!correo) {
-        return sendError(res, 400, "Campo obligatorio", null, { "correo": "Ingresa tu correo." });
+        return sendError(res, 400, "Campo obligatorio: Correo", null, { "correo": "Ingresa tu correo." });
     }
 
     try {
@@ -132,7 +132,7 @@ router.post('/cambiar', async (req, res) => {
     const { correo } = req.body;
 
     if (!correo) {
-        return sendError(res, 400, "Campo obligatorio", null, { "correo": "Ingresa tu correo." });
+        return sendError(res, 400, "Campo obligatorio: Correo", null, { "correo": "Ingresa tu correo." });
     }
 
     const token = generateToken();
@@ -219,11 +219,11 @@ router.post('/actualizarContrasena', async (req, res) => {
     }
 
     if (!contrasenaActual) {
-        return sendError(res, 400, "Campo obligatorio", null, { "passwordActual": "Ingresa tu contraseña actual." });
+        return sendError(res, 400, "Campo obligatorio: Contraseña actual", null, { "passwordActual": "Ingresa tu contraseña actual." });
     }
 
     if (!contrasenaNueva) {
-        return sendError(res, 400, "Campo obligatorio", null, { "passwordNueva": "Ingresa una nueva contraseña." });
+        return sendError(res, 400, "Campo obligatorio: Contraseña nueva", null, { "passwordNueva": "Ingresa una nueva contraseña." });
     }
 
     try {

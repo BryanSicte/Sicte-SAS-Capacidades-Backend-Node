@@ -52,19 +52,19 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
             const [userRows] = await dbRailway.query(`SELECT cedula FROM user WHERE cedula = ? LIMIT 1`, [cedulaUsuario]);
 
             if (userRows.length === 0) {
-                return sendError(res, 400, "Registro no permitido", null, { "cedulaUsuario": `La cédula ${cedulaUsuario} no se encuentra registrada en el sistema.` });
+                return sendError(res, 400, "Registro no permitido: Cédula de usuario", null, { "cedulaUsuario": `La cédula ${cedulaUsuario} no se encuentra registrada en el sistema.` });
             }
         }
 
         if (!optionsSede.includes(sede)) {
-            return sendError(res, 400, "Registro no permitido", null, { "sede": `La sede ingresada y/o seleccionada no es válida.` });
+            return sendError(res, 400, "Registro no permitido: Sede", null, { "sede": `La sede ingresada y/o seleccionada no es válida.` });
         }
 
         if (placa) {
             const [placaBaseRows] = await dbRailway.query(`SELECT CENTRO FROM parque_automotor WHERE CENTRO = ?`, [placa]);
 
             if (placaBaseRows.length === 0) {
-                return sendError(res, 400, "Registro no permitido", null, { "placa": `La placa ${placa} no se encuentra registrada en la base de datos.` });
+                return sendError(res, 400, "Registro no permitido: Placa", null, { "placa": `La placa ${placa} no se encuentra registrada en la base de datos.` });
             }
         }
 
@@ -72,47 +72,47 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
             const [plantaRows] = await dbRailway.query(`SELECT nit FROM plantaenlinea WHERE nit = ? and perfil <> 'RETIRADO' LIMIT 1`, [cedula]);
 
             if (plantaRows.length === 0) {
-                return sendError(res, 400, "Registro no permitido", null, { "cedulaConductor": `La cédula ${cedula} no se encuentra registrada en la nomina.` });
+                return sendError(res, 400, "Registro no permitido: Cédula de conductor", null, { "cedulaConductor": `La cédula ${cedula} no se encuentra registrada en la nomina.` });
             }
         }
 
         if (!optionsEstado.includes(estado)) {
-            return sendError(res, 400, "Registro no permitido", null, { "estado": `El estado ingresado y/o seleccionado no es válido.` });
+            return sendError(res, 400, "Registro no permitido: Estado", null, { "estado": `El estado ingresado y/o seleccionado no es válido.` });
         }
 
         if (estado === 'Salida de vehiculo de la sede') {
             const [cedulaRows] = await dbRailway.query(`SELECT estado FROM registros_parque_automotor WHERE cedula = ? ORDER BY fecha DESC LIMIT 1`, [cedula]);
 
             if (cedulaRows.length > 0 && cedulaRows[0].estado?.includes('Salida de vehiculo de la sede')) {
-                return sendError(res, 400, "Registro no permitido", null, { "cedulaConductor": `La cédula ${cedula} ya se encuentra en campo y no tiene un registro de ingreso.` });
+                return sendError(res, 400, "Registro no permitido: Cédula de conductor", null, { "cedulaConductor": `La cédula ${cedula} ya se encuentra en campo y no tiene un registro de ingreso.` });
             }
 
             const [placaRows] = await dbRailway.query(`SELECT estado FROM registros_parque_automotor WHERE placa = ? ORDER BY fecha DESC LIMIT 1`, [placa]);
 
             if (placaRows.length > 0 && placaRows[0].estado?.includes('Salida de vehiculo de la sede')) {
-                return sendError(res, 400, "Registro no permitido", null, { "placa": `El vehículo con placa ${placa} ya salió de la sede y aún no ha registrado su ingreso.` });
+                return sendError(res, 400, "Registro no permitido: Placa", null, { "placa": `El vehículo con placa ${placa} ya salió de la sede y aún no ha registrado su ingreso.` });
             }
         } else if (estado === 'Entrada de vehiculo a la sede') {
             const [cedulaRows] = await dbRailway.query(`SELECT cedula, estado FROM registros_parque_automotor WHERE placa = ? ORDER BY fecha DESC LIMIT 1`, [placa]);
 
             if (cedulaRows.length > 0 && cedulaRows[0].estado?.includes('Salida de vehiculo de la sede') && cedulaRows[0].cedula !== cedula) {
-                return sendError(res, 400, "Registro no permitido", null, { "placa": `La placa ${placa} esta asignada al usuario ${cedulaRows[0].cedula}, no la cedula ingresada.` });
+                return sendError(res, 400, "Registro no permitido: Placa", null, { "placa": `La placa ${placa} esta asignada al usuario ${cedulaRows[0].cedula}, no la cedula ingresada.` });
             }
 
             if (cedulaRows.length > 0 && cedulaRows[0].estado?.includes('No usado')) {
-                return sendError(res, 400, "Registro no permitido", null, { "estado": `No puede marcar como "Entrada de vehiculo a la sede" un vehiculo que su ultimo estado fue "No Usado", debe existir una salida a terreno o en taller.` });
+                return sendError(res, 400, "Registro no permitido: Estado", null, { "estado": `No puede marcar como "Entrada de vehiculo a la sede" un vehiculo que su ultimo estado fue "No Usado", debe existir una salida a terreno o en taller.` });
             }
 
             const [placaRows] = await dbRailway.query(`SELECT placa, estado FROM registros_parque_automotor WHERE cedula = ? ORDER BY fecha DESC LIMIT 1`, [cedula]);
 
             if (placaRows.length > 0 && placaRows[0].estado?.includes('Salida de vehiculo de la sede') && placaRows[0].placa !== placa) {
-                return sendError(res, 400, "Registro no permitido", null, { "cedulaConductor": `La cedula ${cedula} tiene asignado el vehiculo ${placaRows[0].placa}, no la placa ingresada.` });
+                return sendError(res, 400, "Registro no permitido: Cédula de conductor", null, { "cedulaConductor": `La cedula ${cedula} tiene asignado el vehiculo ${placaRows[0].placa}, no la placa ingresada.` });
             }
         } else if (estado === 'No usado') {
             const [cedulaRows] = await dbRailway.query(`SELECT nombre, estado FROM registros_parque_automotor WHERE placa = ? ORDER BY fecha DESC LIMIT 1`, [placa]);
 
             if (cedulaRows.length > 0 && cedulaRows[0].estado?.includes('Salida de vehiculo de la sede')) {
-                return sendError(res, 400, "Registro no permitido", null, { "estado": `No puede marcar como "No usado" el vehículo ${placa} que tiene como ultimo estado una salida a ${cedulaRows[0].nombre}, se debe tener la entrada del vehiculo.` });
+                return sendError(res, 400, "Registro no permitido: Estado", null, { "estado": `No puede marcar como "No usado" el vehículo ${placa} que tiene como ultimo estado una salida a ${cedulaRows[0].nombre}, se debe tener la entrada del vehiculo.` });
             }
         }
 
