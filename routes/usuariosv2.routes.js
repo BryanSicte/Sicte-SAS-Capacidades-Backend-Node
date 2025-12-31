@@ -160,7 +160,7 @@ router.post('/cambiar', async (req, res) => {
             [user.cedula, correo, token, expiryDate]
         );
 
-        const resetLink = `http://localhost:8081/cambiarContrasena?token=${token}`;
+        const resetLink = `https://sicte-sas-ccot.up.railway.app/cambiarContrasena?token=${token}`;
         const mensaje = `Hola,\n\nRecibimos una solicitud para cambiar el acceso a tu cuenta para la pagina del CCOT.\n\nHaz clic en el siguiente enlace para cambiar tu contraseña, recuerda que solo tiene 30 minutos para hacer el cambio:\n${resetLink}\n\nTe recomendamos mantener esta información en un lugar seguro.\n\nSi no realizaste esta solicitud, puedes ignorar este mensaje.`;
 
         await sendEmail(correo, 'CCOT - Cambiar Contraseña', mensaje);
