@@ -310,42 +310,95 @@ router.get('/ubicacionUsuarios', validarToken, async (req, res) => {
 router.post('/ubicacionUsuarios', validarToken, async (req, res) => {
     const data = req.body;
 
-    if (!data.fechaToma || !data.cedulaUsuario || !data.nombreUsuario || !data.latitud || !data.longitud || !data.origen) {
-        return sendError(res, 400, "Faltan campos requeridos: fechaToma, cedulaUsuario, nombreUsuario, latitud, longitud o origen.");
+    if (!Array.isArray(data) || data.length === 0) {
+        return sendError(res, 400, "Se espera un arreglo de ubicaciones.");
+    }
+
+    const syncedIds = [];
+    const values = [];
+
+    for (const item of data) {
+
+        const {
+            localId,
+            fechaToma,
+            cedulaUsuario,
+            nombreUsuario,
+            latitud,
+            longitud,
+            precisionLatLon,
+            altitud,
+            precisionAltitud,
+            direccionGrados,
+            velocidad,
+            origen,
+            tipoMuestra
+        } = item;
+
+        if (!fechaToma || !cedulaUsuario || !nombreUsuario || !latitud || !longitud || !origen || !tipoMuestra) {
+            continue;
+        }
+
+        values.push([
+            fechaToma,
+            cedulaUsuario,
+            nombreUsuario,
+            latitud,
+            longitud,
+            precisionLatLon,
+            altitud,
+            precisionAltitud,
+            direccionGrados,
+            velocidad,
+            origen,
+            tipoMuestra,
+            localId
+        ]);
+    }
+
+    if (!values.length) {
+        return sendResponse(res, 200, "Sin datos válidos", { syncedIds: [] });
     }
 
     try {
 
-        if (!data || Object.keys(data).length === 0) {
-            return sendError(res, 400, "Los datos del registro son requeridos.");
-        }
-
-        const keys = Object.keys(data);
-        const values = Object.values(data);
-
-        const placeholders = keys.map(() => '?').join(', ');
-        const campos = keys.join(', ');
-
         const query = `
-            INSERT INTO registros_ubicacion_usuarios (${campos})
-            VALUES (${placeholders})
+            INSERT IGNORE INTO registros_ubicacion_usuarios
+            (
+                fechaToma,
+                cedulaUsuario,
+                nombreUsuario,
+                latitud,
+                longitud,
+                precisionLatLon,
+                altitud,
+                precisionAltitud,
+                direccionGrados,
+                velocidad,
+                origen,
+                tipoMuestra
+            )
+            VALUES ?
         `;
 
-        const [result] = await dbRailway.query(query, values);
+        const [result] = await dbRailway.query(query, [values.map(v => v.slice(0, -1))]);
 
-        const [registroGuardado] = await dbRailway.query('SELECT * FROM registros_ubicacion_usuarios WHERE id = ?', [result.insertId]);
+        for (const v of values) {
+            syncedIds.push(v[v.length - 1]);
+        }
 
         return sendResponse(
             res,
             200,
-            `Registro creado correctamente`,
-            `Se ha guardado el registro con ID ${result.insertId}.`,
-            registroGuardado[0]
+            `Sincronización completada`,
+            `Se han sin sincronizado ${syncedIds.length} registros.`,
+            { syncedIds }
         );
 
     } catch (err) {
         return sendError(res, 500, "Error inesperado.", err);
     }
+
 });
 
 module.exports = router;

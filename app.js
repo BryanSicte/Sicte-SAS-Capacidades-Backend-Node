@@ -12,26 +12,26 @@ app.use((req, res, next) => {
     next();
 });
 
-// app.use(cors({
-//     origin: [
-//         'http://localhost:3000',
-//         'http://localhost:8080',
-//         'http://localhost:8081',
-//         'https://sictepowergmail.github.io',
-//         'https://bryansicte.github.io',
-//         'https://sicte-sas-ccot.up.railway.app',
-//     ],
-//     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-//     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-//     credentials: false
-// }));
-
 app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-  credentials: false
+    origin: [
+        'http://localhost:3000',
+        'http://localhost:8080',
+        'http://localhost:8081',
+        'https://sictepowergmail.github.io',
+        'https://bryansicte.github.io',
+        'https://sicte-sas-ccot.up.railway.app',
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type','Authorization','Accept','X-Platform'],
+    credentials: false
 }));
+
+// app.use(cors({
+//   origin: '*',
+//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+//   allowedHeaders: ['Content-Type','Authorization','Accept','X-Platform'],
+//   credentials: false
+// }));
 
 app.options('*', cors());
 
@@ -46,6 +46,7 @@ morgan.token('host', (req) => req.hostname);
 morgan.token('protocol', (req) => req.protocol);
 morgan.token('origin', (req) => req.headers.origin || '-');
 morgan.token('res-length', (req, res) => res.getHeader('content-length') || '-');
+morgan.token("platform", (req) => { return req.body?.origen || req.headers["x-platform"] || "unknown"; });
 
 // app.use(
 //     morgan(
@@ -54,7 +55,7 @@ morgan.token('res-length', (req, res) => res.getHeader('content-length') || '-')
 // );
 
 app.use(
-    morgan(':method :url :status :response-time ms - :res[content-length]')
+    morgan(':method :url :status :response-time ms - :res[content-length] platform=:platform')
 );
 
 app.get('/api', (req, res) => {
