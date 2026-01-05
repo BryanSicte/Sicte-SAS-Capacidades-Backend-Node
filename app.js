@@ -20,6 +20,7 @@ app.use(cors({
         'https://sictepowergmail.github.io',
         'https://bryansicte.github.io',
         'https://sicte-sas-ccot.up.railway.app',
+        'https://gya-ccot.up.railway.app',
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type','Authorization','Accept','X-Platform'],
