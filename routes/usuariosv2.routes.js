@@ -277,7 +277,7 @@ router.post('/actualizarContrasena', async (req, res) => {
 
 router.get('/plantaEnLineaCedulaNombreActivos', validarToken, async (req, res) => {
     try {
-        const [rows] = await dbRailway.query("SELECT nit, nombre FROM plantaenlinea WHERE perfil <> 'RETIRADO'");
+        const [rows] = await dbRailway.query("SELECT nit, nombre, perfil FROM plantaenlinea WHERE perfil <> 'RETIRADO'");
 
         return sendResponse(
             res,
