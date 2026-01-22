@@ -19,6 +19,7 @@ const inventariosRoutes = require('./inventarios.routes');
 const bodegaRoutes = require('./bodega.routes');
 const versionRoutes = require('./version.routes');
 const gestionDeSstRoutes = require('./gestionDeSst.routes');
+const liquidacionPersonalRoutes = require('./liquidacionPersonal.routes');
 
 router.use('/usuarios', usuariosRoutes);
 router.use('/usuariosv2', usuariosv2Routes);
@@ -38,6 +39,7 @@ router.use('/bodega', bodegaRoutes);
 router.use('/version', versionRoutes);
 router.use('/gestionDeSst', gestionDeSstRoutes);
 router.use('/capacitaciones', capacitacionesRoutes);
+router.use('/liquidacionPersonal', liquidacionPersonalRoutes);
 
 module.exports = router;
 
