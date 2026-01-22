@@ -14,6 +14,7 @@ const imagenesRoutes = require('./imagenes.routes');
 const encuestasRoutes = require('./encuestas.routes');
 const gestionOtsRoutes = require('./gestionOts.routes');
 const parqueAutomotorRoutes = require('./parqueAutomotor.routes');
+const capacitacionesRoutes = require('./capacitaciones.routes');
 const inventariosRoutes = require('./inventarios.routes');
 const bodegaRoutes = require('./bodega.routes');
 const versionRoutes = require('./version.routes');
@@ -36,6 +37,7 @@ router.use('/inventarios', inventariosRoutes);
 router.use('/bodega', bodegaRoutes);
 router.use('/version', versionRoutes);
 router.use('/gestionDeSst', gestionDeSstRoutes);
+router.use('/capacitaciones', capacitacionesRoutes);
 
 module.exports = router;
 
