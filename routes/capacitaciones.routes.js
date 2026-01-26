@@ -5,6 +5,35 @@ const validarToken = require('../middlewares/validarToken');
 const { sendResponse, sendError } = require('../utils/responseHandler');
 const { validateRequiredFields } = require('../utils/validate');
 
+router.post('/crearRegistro', validarToken, async (req, res) => {
+
+    try {
+        const data = req.body;
+
+        console.log(data);
+
+    } catch (err) {
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.get('/ciudades', validarToken, async (req, res) => {
+    try {
+
+        const [rows] = await dbRailway.query('SELECT nombre FROM ciudad');
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron ${rows.length} ciudades de la base de datos.`,
+            rows
+        );
+    } catch (err) {
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
 router.get('/ciudades', validarToken, async (req, res) => {
     try {
 
