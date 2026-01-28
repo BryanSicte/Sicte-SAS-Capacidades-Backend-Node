@@ -5,6 +5,22 @@ const validarToken = require('../middlewares/validarToken');
 const { sendResponse, sendError } = require('../utils/responseHandler');
 const { validateRequiredFields } = require('../utils/validate');
 
+router.get('/tablaAuxiliar', validarToken, async (req, res) => {
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM tabla_aux_liquidacion_personal');
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron ${rows.length} registros de la tabla auxiliar de liquidación personal.`,
+            rows
+        );
+    } catch (err) {
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
 router.get('/plantaActivaGyA', validarToken, async (req, res) => {
     try {
         const [rows] = await dbRailway.query('SELECT * FROM planta_activa_gya');
