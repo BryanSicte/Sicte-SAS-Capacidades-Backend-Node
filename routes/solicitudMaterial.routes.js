@@ -13,8 +13,18 @@ const folderId = "13wCWGhH7UkPJeFA_uciQg_-s_WjBeAnb";
 
 router.get('/registros', async (req, res) => {
     try {
-        const [rows] = await dbRailway.query('SELECT * FROM registros_solicitud_materiales');
-        res.json(rows);
+        const query = `
+            SELECT * 
+            FROM registros_solicitud_materiales 
+            WHERE 
+                estadoProyecto = 'Abierto'
+                OR (
+                    estadoProyecto = 'Cerrado' 
+                    AND fecha >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+                )
+        `;
+        const [registrosFiltrados] = await dbRailway.query(query);
+        res.json(registrosFiltrados);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -31,6 +41,7 @@ router.get('/registrosEntregados', async (req, res) => {
 
 router.post('/cargarDatos', async (req, res) => {
     const {
+        area,
         fecha,
         cedula,
         nombre,
@@ -65,6 +76,7 @@ router.post('/cargarDatos', async (req, res) => {
     try {
         const [result] = await dbRailway.query(`
             INSERT INTO registros_solicitud_materiales (
+                area,
                 fecha,
                 cedula,
                 nombre,
@@ -94,8 +106,9 @@ router.post('/cargarDatos', async (req, res) => {
                 observacionesEntregaBodega,
                 pdfs,
                 estadoProyecto
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
+            area,
             fecha,
             cedula,
             nombre,
