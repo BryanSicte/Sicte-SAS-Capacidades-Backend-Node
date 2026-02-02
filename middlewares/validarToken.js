@@ -10,16 +10,17 @@ async function validarToken(req, res, next) {
             return sendError(res, 400, "Token requerido, por favor, cierra sesión y vuelve a ingresar para restablecer tu sesión.");
         }
 
-        const [rows] = await dbRailway.query(
+        const [tokenData] = await dbRailway.query(
             'SELECT * FROM tokens WHERE token = ?',
             [token]
         );
 
-        if (rows.length === 0) {
+        const resetToken = tokenData[0];
+
+        if (resetToken.length === 0) {
             return sendError(res, 400, "Token invalido, por favor, cierra sesión y vuelve a ingresar para restablecer tu sesión.");
         }
 
-        const tokenData = rows[0];
         const expiracionUTC = new Date(tokenData.expiryDate);
         const ahoraUTC = new Date();
 
@@ -27,8 +28,20 @@ async function validarToken(req, res, next) {
             return sendError(res, 400, "Token expirado, por favor, cierra sesión y vuelve a ingresar para restablecer tu sesión.");
         }
 
-        req.token = {
-            tokenData
+        const [users] = await dbRailway.query(
+            'SELECT * FROM user WHERE cedula = ?',
+            [resetToken.cedula || ""]
+        );
+
+        const usuario = users[0];
+
+        req.validarToken = {
+            tokenData: tokenData.token,
+            usuario: {
+                cedula: usuario.cedula,
+                nombre: usuario.nombre,
+                rol: usuario.rol
+            }
         };
 
         next();
