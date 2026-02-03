@@ -892,22 +892,22 @@ router.post('/actualizarContrasena', async (req, res) => {
 
 router.get('/plantaEnLineaCedulaNombreActivos', validarToken, async (req, res) => {
 
-    const usuario = req.validarToken.usuario
+    const usuarioToken = req.validarToken.usuario
 
     try {
         const [rows] = await dbRailway.query("SELECT nit, nombre, perfil FROM plantaenlinea WHERE perfil <> 'RETIRADO'");
 
         await registrarHistorial({
-            nombreUsuario: usuario.nombre || 'No registrado',
-            cedulaUsuario: usuario.cedula || 'No registrado',
-            rolUsuario: usuario.rol || 'No registrado',
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'usuarios',
             metodo: 'get',
             endPoint: 'plantaEnLineaCedulaNombreActivos',
             accion: 'Consulta planta en linea exitosa',
-            detalle: `Usuario ${usuario?.nombre || 'desconocido'} consultó ${rows.length} registros de planta en linea`,
+            detalle: `Se consultó ${rows.length} registros`,
             datos: {},
             tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
@@ -925,9 +925,9 @@ router.get('/plantaEnLineaCedulaNombreActivos', validarToken, async (req, res) =
     } catch (err) {
 
         await registrarHistorial({
-            nombreUsuario: usuario.nombre || 'Error sistema',
-            cedulaUsuario: usuario.cedula || 'Error sistema',
-            rolUsuario: usuario.rol || 'Error sistema',
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'usuarios',
@@ -950,22 +950,22 @@ router.get('/plantaEnLineaCedulaNombreActivos', validarToken, async (req, res) =
 
 router.get('/ubicacionUsuarios', validarToken, async (req, res) => {
 
-    const usuario = req.validarToken.usuario
+    const usuarioToken = req.validarToken.usuario
 
     try {
         const [rows] = await dbRailway.query("SELECT * FROM registros_ubicacion_usuarios");
 
         await registrarHistorial({
-            nombreUsuario: usuario.nombre || 'No registrado',
-            cedulaUsuario: usuario.cedula || 'No registrado',
-            rolUsuario: usuario.rol || 'No registrado',
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'usuarios',
             metodo: 'get',
             endPoint: 'ubicacionUsuarios',
             accion: 'Consulta ubicacion de usuarios exitosa',
-            detalle: `Usuario ${usuario?.nombre || 'desconocido'} consultó ${rows.length} registros de ubicación de usuarios`,
+            detalle: `Se consultó ${rows.length} registros`,
             datos: {},
             tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
@@ -983,9 +983,9 @@ router.get('/ubicacionUsuarios', validarToken, async (req, res) => {
     } catch (err) {
 
         await registrarHistorial({
-            nombreUsuario: usuario.nombre || 'Error sistema',
-            cedulaUsuario: usuario.cedula || 'Error sistema',
-            rolUsuario: usuario.rol || 'Error sistema',
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'usuarios',
