@@ -20,6 +20,7 @@ function calculateExpiryDate(minutes) {
 
 router.post('/login', async (req, res) => {
     const { correo, contrasena } = req.body;
+    const tokenOld = req.headers.authorization?.replace('Bearer ', '') || "";
 
     if (!correo) {
         await registrarHistorial({
@@ -149,11 +150,29 @@ router.post('/login', async (req, res) => {
         const page = pages[0];
 
         if (usuario.correo === 'invitado@sicte.com' || usuario.cedula === '0000') {
+            let usuarioOld = null;
+            try {
+                const [tokenData] = await dbRailway.query(
+                    'SELECT * FROM tokens WHERE token = ?',
+                    [tokenOld]
+                );
+
+                const resetToken = tokenData[0];
+
+                const [users] = await dbRailway.query(
+                    'SELECT * FROM user WHERE cedula = ?',
+                    [resetToken.cedula || ""]
+                );
+
+                usuarioOld = users[0];
+
+            } catch (err) {
+            }
 
             await registrarHistorial({
-                nombreUsuario: usuario.nombre || 'No registrado',
-                cedulaUsuario: usuario.cedula || 'No registrado',
-                rolUsuario: usuario.rol || 'No registrado',
+                nombreUsuario: usuarioOld?.nombre || 'No registrado',
+                cedulaUsuario: usuarioOld?.cedula || 'No registrado',
+                rolUsuario: usuarioOld?.rol || 'No registrado',
                 nivel: 'success',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
                 app: 'usuarios',
