@@ -12,8 +12,7 @@ async function registrarHistorial({
     accion,
     detalle,
     datos = null,
-    tablasAfectadas = [],
-    idsAfectados = [],
+    tablasIdsAfectados = [],
     ipAddress,
     userAgent
 }) {
@@ -21,9 +20,9 @@ async function registrarHistorial({
         await dbRailway.query(
             `INSERT INTO historial (
                 nombreUsuario, cedulaUsuario, rolUsuario, nivel, plataforma,
-                app, metodo, endPoint, accion, detalle, datos, tablasAfectadas,
-                idsAfectados, ipAddress, userAgent, fechaUTC
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+                app, metodo, endPoint, accion, detalle, datos,
+                tablasIdsAfectados, ipAddress, userAgent, fechaUTC
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
             [
                 nombreUsuario,
                 cedulaUsuario,
@@ -36,8 +35,7 @@ async function registrarHistorial({
                 accion,
                 detalle,
                 datos ? JSON.stringify(datos) : null,
-                JSON.stringify(tablasAfectadas),
-                JSON.stringify(idsAfectados),
+                JSON.stringify(tablasIdsAfectados),
                 ipAddress,
                 userAgent
             ]

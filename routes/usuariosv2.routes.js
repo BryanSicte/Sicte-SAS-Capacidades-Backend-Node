@@ -34,8 +34,7 @@ router.post('/login', async (req, res) => {
             accion: 'Inicio de sesion fallido',
             detalle: 'Campo obligatorio: Correo',
             datos: { correoProporcionado: correo },
-            tablasAfectadas: [],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -63,8 +62,7 @@ router.post('/login', async (req, res) => {
             accion: 'Inicio de sesion fallido',
             detalle: 'Campo obligatorio: Contraseña',
             datos: { correoProporcionado: correo },
-            tablasAfectadas: [],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -89,8 +87,7 @@ router.post('/login', async (req, res) => {
                 datos: {
                     correoBuscado: correo
                 },
-                tablasAfectadas: ['user'],
-                idsAfectados: [],
+                tablasIdsAfectados: [],
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
@@ -114,8 +111,7 @@ router.post('/login', async (req, res) => {
                     correoIntentado: correo,
                     contrasenaIntentada: contrasena
                 },
-                tablasAfectadas: ['user'],
-                idsAfectados: [],
+                tablasIdsAfectados: [],
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
@@ -139,8 +135,7 @@ router.post('/login', async (req, res) => {
                     correo: usuario.correo,
                     metodo: 'Credenciales',
                 },
-                tablasAfectadas: ['user'],
-                idsAfectados: [],
+                tablasIdsAfectados: [],
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
@@ -167,8 +162,7 @@ router.post('/login', async (req, res) => {
                 accion: 'Sesión finalizada automáticamente',
                 detalle: 'Sesión cerrada automáticamente',
                 datos: {},
-                tablasAfectadas: ['user','pages_per_user'],
-                idsAfectados: [],
+                tablasIdsAfectados: [],
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
@@ -216,8 +210,7 @@ router.post('/login', async (req, res) => {
             datos: {
                 expiryDate: expiryDate,
             },
-            tablasAfectadas: ['user','pages_per_user','tokens'],
-            idsAfectados: [{
+            tablasIdsAfectados: [{
                 tabla: 'tokens',
                 id: tokenUser.id?.toString()
             }],
@@ -251,8 +244,7 @@ router.post('/login', async (req, res) => {
                 error: err.message,
                 stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
             },
-            tablasAfectadas: ['user','pages_per_user','tokens'],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -277,8 +269,7 @@ router.post('/recibir', async (req, res) => {
             accion: 'Recibir correo con contraseña fallido',
             detalle: 'Campo obligatorio: Correo',
             datos: { correoProporcionado: correo },
-            tablasAfectadas: [],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -310,8 +301,7 @@ router.post('/recibir', async (req, res) => {
                 datos: {
                     correoProporcionado: correo
                 },
-                tablasAfectadas: ['user'],
-                idsAfectados: [],
+                tablasIdsAfectados: [],
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
@@ -337,8 +327,7 @@ router.post('/recibir', async (req, res) => {
             datos: {
                 correoProporcionado: correo
             },
-            tablasAfectadas: ['user'],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -367,8 +356,7 @@ router.post('/recibir', async (req, res) => {
                 error: err.message,
                 stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
             },
-            tablasAfectadas: ['user'],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -393,8 +381,7 @@ router.post('/cambiar', async (req, res) => {
             accion: 'Recibir correo para cambiar contraseña fallido',
             detalle: 'Campo obligatorio: Correo',
             datos: { correoProporcionado: correo },
-            tablasAfectadas: [],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -429,8 +416,7 @@ router.post('/cambiar', async (req, res) => {
                 datos: {
                     correoProporcionado: correo
                 },
-                tablasAfectadas: ['user'],
-                idsAfectados: [],
+                tablasIdsAfectados: [],
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
@@ -467,8 +453,7 @@ router.post('/cambiar', async (req, res) => {
             datos: {
                 correoProporcionado: correo
             },
-            tablasAfectadas: ['user', 'tokens'],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -498,8 +483,7 @@ router.post('/cambiar', async (req, res) => {
                 error: err.message,
                 stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
             },
-            tablasAfectadas: ['user', 'tokens'],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -524,8 +508,7 @@ router.post('/validarToken', async (req, res) => {
             accion: 'Token valido fallido',
             detalle: 'Falta campo token',
             datos: {},
-            tablasAfectadas: [],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -562,8 +545,7 @@ router.post('/validarToken', async (req, res) => {
                 accion: 'Token valido fallido',
                 detalle: 'Token no encontrado',
                 datos: {},
-                tablasAfectadas: ['tokens'],
-                idsAfectados: [],
+                tablasIdsAfectados: [],
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
@@ -586,8 +568,7 @@ router.post('/validarToken', async (req, res) => {
                 accion: 'Token valido fallido',
                 detalle: 'Token expirado',
                 datos: { tokenProporcionado: token },
-                tablasAfectadas: ['user', 'tokens'],
-                idsAfectados: [],
+                tablasIdsAfectados: [],
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
@@ -607,8 +588,7 @@ router.post('/validarToken', async (req, res) => {
             accion: 'Token valido exitoso',
             detalle: 'Token validado exitosamente',
             datos: { tokenProporcionado: token },
-            tablasAfectadas: ['user', 'tokens'],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -637,8 +617,7 @@ router.post('/validarToken', async (req, res) => {
                 error: err.message,
                 stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
             },
-            tablasAfectadas: ['user', 'tokens'],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -663,8 +642,7 @@ router.post('/actualizarContrasena', async (req, res) => {
             accion: 'Actualizar contraseña fallido',
             detalle: 'Falta campo token',
             datos: {},
-            tablasAfectadas: [],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -699,8 +677,7 @@ router.post('/actualizarContrasena', async (req, res) => {
             accion: 'Actualizar contraseña fallido',
             detalle: 'Campo obligatorio: Contraseña actual',
             datos: { tokenProporcionado: token },
-            tablasAfectadas: [],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -721,8 +698,7 @@ router.post('/actualizarContrasena', async (req, res) => {
             accion: 'Actualizar contraseña fallido',
             detalle: 'Campo obligatorio: Contraseña nueva',
             datos: { tokenProporcionado: token },
-            tablasAfectadas: [],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -744,8 +720,7 @@ router.post('/actualizarContrasena', async (req, res) => {
                 accion: 'Actualizar contraseña fallido',
                 detalle: 'Token no encontrado',
                 datos: {},
-                tablasAfectadas: ['tokens'],
-                idsAfectados: [],
+                tablasIdsAfectados: [],
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
@@ -766,8 +741,7 @@ router.post('/actualizarContrasena', async (req, res) => {
                 accion: 'Actualizar contraseña fallido',
                 detalle: 'Usuario no encontrado',
                 datos: {},
-                tablasAfectadas: ['tokens', 'user'],
-                idsAfectados: [],
+                tablasIdsAfectados: [],
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
@@ -788,8 +762,7 @@ router.post('/actualizarContrasena', async (req, res) => {
                 accion: 'Actualizar contraseña fallido',
                 detalle: 'Contraseña actual incorrecta',
                 datos: {},
-                tablasAfectadas: ['tokens', 'user'],
-                idsAfectados: [],
+                tablasIdsAfectados: [],
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
@@ -810,8 +783,7 @@ router.post('/actualizarContrasena', async (req, res) => {
                 accion: 'Actualizar contraseña fallido',
                 detalle: 'Contraseña no permitida',
                 datos: {},
-                tablasAfectadas: ['tokens', 'user'],
-                idsAfectados: [],
+                tablasIdsAfectados: [],
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
@@ -833,8 +805,7 @@ router.post('/actualizarContrasena', async (req, res) => {
                 accion: 'Actualizar contraseña fallido',
                 detalle: 'Contraseña no válida',
                 datos: {},
-                tablasAfectadas: ['tokens', 'user'],
-                idsAfectados: [],
+                tablasIdsAfectados: [],
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
@@ -859,8 +830,7 @@ router.post('/actualizarContrasena', async (req, res) => {
             accion: 'Actualizar contraseña exitoso',
             detalle: 'Contraseña actualizada exitosamente',
             datos: {},
-            tablasAfectadas: ['tokens', 'user'],
-            idsAfectados: [{
+            tablasIdsAfectados: [{
                 tabla: 'user',
                 id: usuario.id?.toString()
             }],
@@ -892,8 +862,7 @@ router.post('/actualizarContrasena', async (req, res) => {
                 error: err.message,
                 stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
             },
-            tablasAfectadas: ['tokens', 'user'],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -921,8 +890,7 @@ router.get('/plantaEnLineaCedulaNombreActivos', validarToken, async (req, res) =
             accion: 'Consulta planta en linea exitosa',
             detalle: `Usuario ${usuario?.nombre || 'desconocido'} consultó ${rows.length} registros de planta en linea`,
             datos: {},
-            tablasAfectadas: ['plantaenlinea'],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -952,8 +920,7 @@ router.get('/plantaEnLineaCedulaNombreActivos', validarToken, async (req, res) =
                 error: err.message,
                 stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
             },
-            tablasAfectadas: ['plantaenlinea'],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -981,8 +948,7 @@ router.get('/ubicacionUsuarios', validarToken, async (req, res) => {
             accion: 'Consulta ubicacion de usuarios exitosa',
             detalle: `Usuario ${usuario?.nombre || 'desconocido'} consultó ${rows.length} registros de ubicación de usuarios`,
             datos: {},
-            tablasAfectadas: ['registros_ubicacion_usuarios'],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
@@ -1012,8 +978,7 @@ router.get('/ubicacionUsuarios', validarToken, async (req, res) => {
                 error: err.message,
                 stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
             },
-            tablasAfectadas: ['registros_ubicacion_usuarios'],
-            idsAfectados: [],
+            tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
         });
