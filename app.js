@@ -17,6 +17,7 @@ app.use(cors({
         'http://localhost:3000',
         'http://localhost:8080',
         'http://localhost:8081',
+        'http://localhost:8082',
         'https://sictepowergmail.github.io',
         'https://bryansicte.github.io',
         'https://sicte-sas-ccot.up.railway.app',

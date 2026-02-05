@@ -458,4 +458,60 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
     }
 });
 
+router.get('/auxiliar', validarToken, async (req, res) => {
+
+    const usuarioToken = req.validarToken.usuario
+
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM tabla_aux_cadena_de_suministro');
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'get',
+            endPoint: 'auxiliar',
+            accion: 'Consulta tabla auxiliar exitosa',
+            detalle: `Se consultó ${rows.length} registros`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron registros de la data auxiliar de cadena de suministro.`,
+            rows
+        );
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'get',
+            endPoint: 'auxiliar',
+            accion: 'Error al obtener la tabla auxiliar',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
 module.exports = router;
