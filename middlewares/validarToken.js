@@ -15,6 +15,10 @@ async function validarToken(req, res, next) {
             [token]
         );
 
+        if (!tokenData || tokenData.length === 0) {
+            return sendError(res, 400, "Token invalido, por favor, cierra sesión y vuelve a ingresar para restablecer tu sesión.");
+        }
+
         const resetToken = tokenData[0];
 
         if (resetToken.length === 0) {
