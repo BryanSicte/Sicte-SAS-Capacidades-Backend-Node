@@ -4,23 +4,377 @@ const dbRailway = require('../db/db_railway');
 const validarToken = require('../middlewares/validarToken');
 const { sendResponse, sendError } = require('../utils/responseHandler');
 const { validateRequiredFields } = require('../utils/validate');
+const { registrarHistorial, getClientIp, determinarPlataforma } = require('../utils/historial');
+const { handleFirmaUpload } = require('../utils/base64')
+const { getFileByNameBase64 } = require('../services/googleDriveService');
+
+const folderId = '1HVkPL6fUoTkOMqeVLZfaNskcKGCBQF33';
+
+router.get('/registros', validarToken, async (req, res) => {
+
+    const usuarioToken = req.validarToken.usuario
+
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM registros_capacitaciones');
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'get',
+            endPoint: 'registros',
+            accion: 'Consulta registros exitosa',
+            detalle: `Se consultó ${rows.length} registros`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron ${rows.length} registros de capacitaciones.`,
+            rows
+        );
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'get',
+            endPoint: 'registros',
+            accion: 'Error al obtener los registros',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
 
 router.post('/crearRegistro', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario
 
     try {
         const data = req.body;
 
-        console.log(data);
+        if (!data || Object.keys(data).length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'capacitaciones',
+                metodo: 'post',
+                endPoint: 'crearRegistro',
+                accion: 'Crear registro fallido',
+                detalle: 'Los datos del registro son requeridos.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Los datos del registro son requeridos.");
+        }
+
+        const requiredFields = {
+            fecha: "No se pudo obtener la fecha del registro.",
+            nombreCapacitacion: "Ingrese y seleccione el nombre de la capacitacion.",
+            regional: "Ingrese y seleccione la regional.",
+            ciudad: "Ingrese y seleccione la ciudad.",
+            area: "Ingrese y seleccione el area.",
+            capacitador: "Ingrese el capacitador.",
+            numeroHoras: "Ingrese el numero de horas.",
+            cedula: "Ingrese y seleccione la cedula.",
+            nombre: "Ingrese y seleccione el nombre.",
+            nomina: "Ingrese la nomina.",
+            telefono: "Ingrese el telefono.",
+            firma: "Ingrese la firma.",
+        };
+
+        if (!validateRequiredFields(data, requiredFields, res)) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'capacitaciones',
+                metodo: 'post',
+                endPoint: 'crearRegistro',
+                accion: 'Crear registro fallido',
+                detalle: 'Falta campos obligatorios por diligenciar.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return;
+        }
+
+        const { nombreCapacitacion, regional, ciudad, area, cedula, firma } = data;
+
+        if (nombreCapacitacion) {
+            const [dataRows] = await dbRailway.query(`SELECT capacitacion FROM tabla_aux_capacitaciones WHERE capacitacion = ?`, [nombreCapacitacion]);
+
+            if (dataRows.length === 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'capacitaciones',
+                    metodo: 'post',
+                    endPoint: 'crearRegistro',
+                    accion: 'Crear registro fallido',
+                    detalle: 'Registro no permitido: Nombre de capacitador',
+                    datos: { nombreCapacitacionProporcionado: nombreCapacitacion },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Registro no permitido: Nombre de capacitador", null, { "nombreCapacitacion": `El nombre del capacitador ${nombreCapacitacion} no se encuentra registrado en el sistema.` });
+            }
+        }
+
+        if (regional) {
+            const [dataRows] = await dbRailway.query(`SELECT regional FROM tabla_aux_capacitaciones WHERE regional = ?`, [regional]);
+
+            if (dataRows.length === 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'capacitaciones',
+                    metodo: 'post',
+                    endPoint: 'crearRegistro',
+                    accion: 'Crear registro fallido',
+                    detalle: 'Registro no permitido: Regional',
+                    datos: { regionalProporcionado: regional },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Registro no permitido: Regional", null, { "regional": `La regional ${regional} no se encuentra registrado en el sistema.` });
+            }
+        }
+
+        if (ciudad) {
+            const [dataRows] = await dbRailway.query(`SELECT ciudad FROM tabla_aux_capacitaciones WHERE ciudad = ?`, [ciudad]);
+
+            if (dataRows.length === 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'capacitaciones',
+                    metodo: 'post',
+                    endPoint: 'crearRegistro',
+                    accion: 'Crear registro fallido',
+                    detalle: 'Registro no permitido: Ciudad',
+                    datos: { ciudadProporcionado: ciudad },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Registro no permitido: Ciudad", null, { "ciudad": `La ciudad ${regional} no se encuentra registrado en el sistema.` });
+            }
+        }
+
+        if (area) {
+            const [dataRows] = await dbRailway.query(`SELECT area FROM tabla_aux_capacitaciones WHERE area = ?`, [area]);
+
+            if (dataRows.length === 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'capacitaciones',
+                    metodo: 'post',
+                    endPoint: 'crearRegistro',
+                    accion: 'Crear registro fallido',
+                    detalle: 'Registro no permitido: Area',
+                    datos: { areaProporcionado: area },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Registro no permitido: Area", null, { "area": `El area ${regional} no se encuentra registrado en el sistema.` });
+            }
+        }
+
+        if (cedula) {
+            const [dataRows] = await dbRailway.query(`SELECT nit FROM plantaenlinea WHERE nit = ?`, [cedula]);
+
+            if (dataRows.length === 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'capacitaciones',
+                    metodo: 'post',
+                    endPoint: 'crearRegistro',
+                    accion: 'Crear registro fallido',
+                    detalle: 'Registro no permitido: Cedula',
+                    datos: { cedulaProporcionado: cedula },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Registro no permitido: Cedula", null, { "cedula": `La cedula ${regional} no se encuentra registrado en el sistema.` });
+            }
+        }
+
+        if (firma) {
+            if (!firma.includes('base64,')) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'capacitaciones',
+                    metodo: 'post',
+                    endPoint: 'crearRegistro',
+                    accion: 'Crear registro fallido',
+                    detalle: 'Registro no permitido: Firma',
+                    datos: { cedulaProporcionado: cedula },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Registro no permitido: Firma", null, { "firma": `Formato de firma inválido. Debe ser Base64 con prefijo data:image/.` });
+            }
+        }
+
+        const fileId = await handleFirmaUpload(data.firma, data.cedula, folderId);
+
+        const datosParaBD = {
+            ...data,
+            firma: fileId.nameFile ? fileId.nameFile : null,
+        };
+        const keys = Object.keys(datosParaBD);
+        const values = Object.values(datosParaBD);
+        const placeholders = keys.map(() => '?').join(', ');
+        const campos = keys.join(', ');
+
+        const query = `
+            INSERT INTO registros_capacitaciones (${campos})
+            VALUES (${placeholders})
+        `;
+
+        const [result] = await dbRailway.query(query, values);
+
+        const [registroGuardado] = await dbRailway.query('SELECT * FROM registros_capacitaciones WHERE id = ?', [result.insertId]);
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'post',
+            endPoint: 'crearRegistro',
+            accion: 'Crear registro exitoso',
+            detalle: 'Registro creado con exito',
+            datos: { datosParaBD },
+            tablasIdsAfectados: [],
+            tablasIdsAfectados: [{
+                tabla: 'registros_capacitaciones',
+                id: result.insertId?.toString()
+            }],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Registro creado correctamente`,
+            `Se ha guardado el registro con ID ${result.insertId}.`,
+            registroGuardado[0]
+        );
 
     } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'post',
+            endPoint: 'crearRegistro',
+            accion: 'Error al crear registro',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
         return sendError(res, 500, "Error inesperado.", err);
     }
 });
 
 router.get('/ciudades', validarToken, async (req, res) => {
-    try {
+    const usuarioToken = req.validarToken.usuario
 
+    try {
         const [rows] = await dbRailway.query('SELECT nombre FROM ciudad');
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'get',
+            endPoint: 'ciudades',
+            accion: 'Consulta base exitosa',
+            detalle: `Se consultó ${rows.length} registros`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
 
         return sendResponse(
             res,
@@ -30,31 +384,52 @@ router.get('/ciudades', validarToken, async (req, res) => {
             rows
         );
     } catch (err) {
-        return sendError(res, 500, "Error inesperado.", err);
-    }
-});
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'get',
+            endPoint: 'ciudades',
+            accion: 'Error al obtener la base',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
 
-router.get('/ciudades', validarToken, async (req, res) => {
-    try {
-
-        const [rows] = await dbRailway.query('SELECT nombre FROM ciudad');
-
-        return sendResponse(
-            res,
-            200,
-            `Consulta exitosa`,
-            `Se obtuvieron ${rows.length} ciudades de la base de datos.`,
-            rows
-        );
-    } catch (err) {
         return sendError(res, 500, "Error inesperado.", err);
     }
 });
 
 router.get('/auxiliar', validarToken, async (req, res) => {
-    try {
+    const usuarioToken = req.validarToken.usuario
 
+    try {
         const [rows] = await dbRailway.query('SELECT * FROM tabla_aux_capacitaciones');
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'get',
+            endPoint: 'auxiliar',
+            accion: 'Consulta base exitosa',
+            detalle: `Se consultó ${rows.length} registros`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
 
         return sendResponse(
             res,
@@ -64,6 +439,149 @@ router.get('/auxiliar', validarToken, async (req, res) => {
             rows
         );
     } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'get',
+            endPoint: 'auxiliar',
+            accion: 'Error al obtener la base',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.post('/obtenerImagen', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario
+    const { imageName } = req.body;
+
+    if (!imageName) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'log',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'post',
+            endPoint: 'obtenerImagen',
+            accion: 'Obtencion de imagen fallido',
+            detalle: 'Imagen no encontrada',
+            datos: { cedulaProporcionado: cedula },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 400, "Debe proporcionar el nombre de la imagen");
+    }
+
+    try {
+        const imageData = await getFileByNameBase64(imageName, folderId);
+
+        if (!imageData) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'capacitaciones',
+                metodo: 'post',
+                endPoint: 'obtenerImagen',
+                accion: 'Obtencion de imagen fallido',
+                detalle: 'Imagen no encontrada',
+                datos: { cedulaProporcionado: cedula },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Imagen no encontrada");
+        }
+
+        if (!imageData.startsWith('data:')) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'capacitaciones',
+                metodo: 'post',
+                endPoint: 'obtenerImagen',
+                accion: 'Obtencion de imagen fallido',
+                detalle: 'Formato de imagen inválido',
+                datos: { cedulaProporcionado: cedula },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Formato de imagen inválido");
+        }
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'post',
+            endPoint: 'obtenerImagen',
+            accion: 'Consulta imagen exitosa',
+            detalle: `Se obtuvo la imagen ${imageName} exitosamente.`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvo la imagen ${imageName} exitosamente.`,
+            {
+                imageName: imageName,
+                imageData: imageData,
+                format: 'base64',
+            }
+        );
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'post',
+            endPoint: 'obtenerImagen',
+            accion: 'Error al obtener la imagen',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
         return sendError(res, 500, "Error inesperado.", err);
     }
 });

@@ -62,6 +62,42 @@ async function getFileByName(filename, folderId) {
     return Buffer.from(response.data);
 }
 
+async function getFileByNameBase64(filename, folderId) {
+    try {
+        const searchQuery = `name='${filename}' and '${folderId}' in parents and trashed=false`;
+
+        const res = await driveService.files.list({
+            q: searchQuery,
+            fields: 'files(id, name, mimeType)',
+            spaces: 'drive'
+        });
+
+        const file = res.data.files[0];
+        if (!file) {
+            return null;
+        }
+
+        const fileId = file.id;
+        const mimeType = file.mimeType || 'image/png';
+
+        const response = await driveService.files.get(
+            { fileId, alt: 'media' },
+            { responseType: 'arraybuffer' }
+        );
+
+        const buffer = Buffer.from(response.data);
+        const base64Data = buffer.toString('base64');
+
+        const dataUrl = `data:${mimeType};base64,${base64Data}`;
+
+        return dataUrl;
+
+    } catch (error) {
+        console.error('Error en getFileByName:', error.message);
+        throw error;
+    }
+}
+
 async function listarArchivosEnCarpeta(folderId) {
     const res = await driveService.files.list({
         q: `'${folderId}' in parents and trashed=false`,
@@ -185,6 +221,7 @@ module.exports = {
     getDriveClient,
     uploadFile,
     getFileByName,
+    getFileByNameBase64,
     listarArchivosEnCarpeta,
     obtenerDetallesArchivo,
     obtenerStreamArchivo,
