@@ -12,28 +12,28 @@ app.use((req, res, next) => {
     next();
 });
 
-// app.use(cors({
-//     origin: [
-//         'http://localhost:3000',
-//         'http://localhost:8080',
-//         'http://localhost:8081',
-//         'http://localhost:8082',
-//         'https://sictepowergmail.github.io',
-//         'https://bryansicte.github.io',
-//         'https://sicte-sas-ccot.up.railway.app',
-//         'https://gya-ccot.up.railway.app',
-//     ],
-//     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-//     allowedHeaders: ['Content-Type','Authorization','Accept','X-Platform'],
-//     credentials: false
-// }));
-
 app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization','Accept','X-Platform'],
-  credentials: false
+    origin: [
+        'http://localhost:3000',
+        'http://localhost:8080',
+        'http://localhost:8081',
+        'http://localhost:8082',
+        'https://sictepowergmail.github.io',
+        'https://bryansicte.github.io',
+        'https://sicte-sas-ccot.up.railway.app',
+        'https://gya-ccot.up.railway.app',
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type','Authorization','Accept','X-Platform'],
+    credentials: false
 }));
+
+// app.use(cors({
+//   origin: '*',
+//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+//   allowedHeaders: ['Content-Type','Authorization','Accept','X-Platform'],
+//   credentials: false
+// }));
 
 app.options('*', cors());
 
