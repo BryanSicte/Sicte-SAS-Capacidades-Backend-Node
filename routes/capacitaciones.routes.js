@@ -132,7 +132,7 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
         const { nombreCapacitacion, regional, ciudad, area, cedula, firma } = data;
 
         if (nombreCapacitacion) {
-            const [dataRows] = await dbRailway.query(`SELECT capacitacion FROM tabla_aux_capacitaciones WHERE capacitacion = ?`, [nombreCapacitacion]);
+            const [dataRows] = await dbRailway.query(`SELECT nombreCapacitacion FROM capacitaciones WHERE nombreCapacitacion = ?`, [nombreCapacitacion]);
 
             if (dataRows.length === 0) {
                 await registrarHistorial({
@@ -153,6 +153,39 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
                 });
 
                 return sendError(res, 400, "Registro no permitido: Nombre de capacitador", null, { "nombreCapacitacion": `El nombre del capacitador ${nombreCapacitacion} no se encuentra registrado en el sistema.` });
+            }
+
+            const ahora = new Date();
+            const opcionesZonaHoraria = { timeZone: 'America/Bogota' };
+            const ahoraColombia = new Date(ahora.toLocaleString('en-US', opcionesZonaHoraria));
+
+            const [capacitacionEnCurso] = await dbRailway.query(`
+                SELECT id, nombreCapacitacion, fechaInicio, fechaFin, cedulaCapacitador, nombreCapacitador FROM capacitaciones WHERE nombreCapacitacion = ? AND ? BETWEEN fechaInicio AND fechaFin LIMIT 1
+            `, [nombreCapacitacion, ahoraColombia]);
+
+            if (capacitacionEnCurso.length === 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'capacitaciones',
+                    metodo: 'post',
+                    endPoint: 'crearRegistro',
+                    accion: 'Crear registro fallido',
+                    detalle: 'La capacitacion no esta en curso',
+                    datos: {
+                        horaActualColombia: ahoraColombia,
+                        nombreCapacitacionSolicitado: nombreCapacitacion,
+                        mensaje: 'No hay una sesión activa de esta capacitación en este momento'
+                    },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Registro no permitido: Nombre de capacitador", null, { "nombreCapacitacion": `La capacitación "${nombreCapacitacion}" no está en curso en este momento.` });
             }
         }
 
@@ -582,6 +615,341 @@ router.post('/obtenerImagen', validarToken, async (req, res) => {
         });
 
         return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.get('/capacitaciones', validarToken, async (req, res) => {
+
+    const usuarioToken = req.validarToken.usuario
+
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM capacitaciones');
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'get',
+            endPoint: 'capacitaciones',
+            accion: 'Consulta registros exitosa',
+            detalle: `Se consultó ${rows.length} registros`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron ${rows.length} capacitaciones.`,
+            rows
+        );
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'get',
+            endPoint: 'capacitaciones',
+            accion: 'Error al obtener los registros',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.post('/crearCapacitacion', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario
+
+    try {
+        const data = req.body;
+
+        if (!data || Object.keys(data).length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'capacitaciones',
+                metodo: 'post',
+                endPoint: 'crearCapacitacion',
+                accion: 'Crear registro fallido',
+                detalle: 'Los datos del registro son requeridos.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Los datos del registro son requeridos.");
+        }
+
+        const requiredFields = {
+            fechaRegistro: "No se pudo obtener la fecha del registro.",
+            cedulaUsuario: "No se pudo identificar la cedula del usuario.",
+            nombreUsuario: "No se pudo identificar el nombre del usuario.",
+            nombreCapacitacion: "Ingrese el nombre de la capacitacion.",
+            cedulaCapacitador: "Ingrese y seleccione la cedula del capacitador.",
+            nombreCapacitador: "Ingrese y seleccione el nombre del capacitador.",
+            numeroHoras: "Ingrese el numero de horas.",
+            fechaInicio: "Seleccione la fecha de inicio.",
+            fechaFin: "Seleccione la fecha de fin.",
+
+        };
+
+        if (!validateRequiredFields(data, requiredFields, res)) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'capacitaciones',
+                metodo: 'post',
+                endPoint: 'crearCapacitacion',
+                accion: 'Crear registro fallido',
+                detalle: 'Falta campos obligatorios por diligenciar.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return;
+        }
+
+        const { cedulaCapacitador } = data;
+
+        if (cedulaCapacitador) {
+            const [dataRows] = await dbRailway.query(`SELECT nit FROM plantaenlinea WHERE nit = ?`, [cedulaCapacitador]);
+
+            if (dataRows.length === 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'capacitaciones',
+                    metodo: 'post',
+                    endPoint: 'crearCapacitacion',
+                    accion: 'Crear registro fallido',
+                    detalle: 'Registro no permitido: Cedula',
+                    datos: { cedulaProporcionado: cedula },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Registro no permitido: Cedula", null, { "cedula": `La cedula ${regional} no se encuentra registrado en el sistema.` });
+            }
+        }
+
+        const keys = Object.keys(data);
+        const values = Object.values(data);
+        const placeholders = keys.map(() => '?').join(', ');
+        const campos = keys.join(', ');
+
+        const query = `
+            INSERT INTO capacitaciones (${campos})
+            VALUES (${placeholders})
+        `;
+
+        const [result] = await dbRailway.query(query, values);
+
+        const [registroGuardado] = await dbRailway.query('SELECT * FROM capacitaciones WHERE id = ?', [result.insertId]);
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'post',
+            endPoint: 'crearCapacitacion',
+            accion: 'Crear registro exitoso',
+            detalle: 'Registro creado con exito',
+            datos: { data },
+            tablasIdsAfectados: [{
+                tabla: 'capacitaciones',
+                id: result.insertId?.toString()
+            }],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Registro creado correctamente`,
+            `Se ha guardado el registro con ID ${result.insertId}.`,
+            registroGuardado[0]
+        );
+
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'post',
+            endPoint: 'crearCapacitacion',
+            accion: 'Error al crear registro',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.delete('/eliminarCapacitacion/:id', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+    const { id } = req.params;
+
+    try {
+        if (!id) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'capacitaciones',
+                metodo: 'delete',
+                endPoint: 'eliminarCapacitacion',
+                accion: 'Eliminar registro fallido',
+                detalle: 'El ID del registro es requerido.',
+                datos: { id },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "El ID del registro es requerido.");
+        }
+
+        const [existeRegistro] = await dbRailway.query(
+            'SELECT * FROM capacitaciones WHERE id = ?',
+            [id]
+        );
+
+        if (existeRegistro.length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'capacitaciones',
+                metodo: 'delete',
+                endPoint: 'eliminarCapacitacion',
+                accion: 'Eliminar registro fallido',
+                detalle: 'El registro no existe o ya fue eliminado.',
+                datos: { id },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 404, "El registro no existe o ya fue eliminado.");
+        }
+
+        const registroEliminado = existeRegistro[0];
+
+        const [result] = await dbRailway.query(
+            'DELETE FROM capacitaciones WHERE id = ?',
+            [id]
+        );
+
+        if (result.affectedRows === 0) {
+            throw new Error('No se pudo eliminar el registro.');
+        }
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'delete',
+            endPoint: 'eliminarCapacitacion',
+            accion: 'Eliminar registro exitoso',
+            detalle: `Registro ID ${id} eliminado correctamente`,
+            datos: {
+                id,
+                registroEliminado
+            },
+            tablasIdsAfectados: [{
+                tabla: 'capacitaciones',
+                id: id.toString()
+            }],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Registro eliminado correctamente`,
+            `Se ha eliminado el registro con ID ${id}.`,
+            {
+                id: id,
+                eliminado: true,
+                registro: registroEliminado
+            }
+        );
+
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'delete',
+            endPoint: 'eliminarCapacitacion',
+            accion: 'Error al eliminar registro',
+            detalle: 'Error interno del servidor',
+            datos: {
+                id,
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado al eliminar el registro.", err);
     }
 });
 

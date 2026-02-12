@@ -474,10 +474,32 @@ router.get('/auxiliar', validarToken, async (req, res) => {
 });
 
 router.post('/obtenerArchivos', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario
     const { nameDiseno, nameFacturacion } = req.body;
 
     try {
         const resultados = {};
+
+        if (!nameDiseno) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'post',
+                endPoint: 'obtenerArchivos',
+                accion: 'Consulta archivos fallido',
+                detalle: 'Registro no permitido: Nombre Diseño',
+                datos: { nombreDiseñoProporcionado: nameDiseno },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Registro no permitido: Diseño", null, { "nameDiseno": `Ingrese el nombre del diseño.` });
+        }
 
         if (nameDiseno) {
             const disenoBuffer = await getFileFromDrive(nameDiseno, folderId);
@@ -488,6 +510,27 @@ router.post('/obtenerArchivos', validarToken, async (req, res) => {
                     contentType: getMimeType(nameDiseno)
                 };
             }
+        }
+
+        if (!nameFacturacion) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'post',
+                endPoint: 'obtenerArchivos',
+                accion: 'Consulta archivos fallido',
+                detalle: 'Registro no permitido: Nombre Facturacion',
+                datos: { nombreFacturacionProporcionado: nameFacturacion },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Registro no permitido: Facturacion", null, { "nameFacturacion": `Ingrese el nombre del diseño.` });
         }
 
         if (nameFacturacion) {
@@ -501,6 +544,23 @@ router.post('/obtenerArchivos', validarToken, async (req, res) => {
             }
         }
 
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'post',
+            endPoint: 'obtenerArchivos',
+            accion: 'Consulta archivos exitosa',
+            detalle: `Se consultó ${resultados.length} registros`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
         return sendResponse(
             res,
             200,
@@ -509,6 +569,26 @@ router.post('/obtenerArchivos', validarToken, async (req, res) => {
             resultados
         );
     } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'post',
+            endPoint: 'obtenerArchivos',
+            accion: 'Error al obtener los archivos',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
         return sendError(res, 500, "Error inesperado.", err);
     }
 });
