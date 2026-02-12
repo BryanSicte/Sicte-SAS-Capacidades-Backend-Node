@@ -311,7 +311,6 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
             accion: 'Crear registro exitoso',
             detalle: 'Registro creado con exito',
             datos: { datosParaBD },
-            tablasIdsAfectados: [],
             tablasIdsAfectados: [{
                 tabla: 'registros_capacitaciones',
                 id: result.insertId?.toString()

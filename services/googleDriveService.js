@@ -20,6 +20,40 @@ function getDriveClient() {
     return google.drive({ version: 'v3', auth });
 }
 
+function getMimeType(filename) {
+    const ext = filename.split('.').pop().toLowerCase();
+    const mimeTypes = {
+        // Archivos comprimidos
+        'zip': 'application/zip',
+        'rar': 'application/x-rar-compressed',
+        '7z': 'application/x-7z-compressed',
+
+        // Documentos
+        'pdf': 'application/pdf',
+        'doc': 'application/msword',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'xls': 'application/vnd.ms-excel',
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'ppt': 'application/vnd.ms-powerpoint',
+        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+
+        // Imágenes
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'png': 'image/png',
+        'gif': 'image/gif',
+        'svg': 'image/svg+xml',
+
+        // Texto
+        'txt': 'text/plain',
+        'csv': 'text/csv',
+        'json': 'application/json',
+        'xml': 'application/xml'
+    };
+
+    return mimeTypes[ext] || 'application/octet-stream';
+}
+
 async function uploadFile(filePath, filename, folderId) {
     const fileMetadata = {
         name: filename,
@@ -42,6 +76,53 @@ async function uploadFile(filePath, filename, folderId) {
     return response.data.id;
 }
 
+async function uploadFileToDrive(fileBuffer, filename, folderId) {
+    try {
+        const bufferStream = new require('stream').PassThrough();
+        bufferStream.end(fileBuffer);
+
+        const ext = path.extname(filename).toLowerCase();
+        const mimeType = getMimeType(ext) || 'application/octet-stream';
+
+        const response = await driveService.files.create({
+            requestBody: {
+                name: filename,
+                parents: [folderId],
+                mimeType: mimeType
+            },
+            media: {
+                mimeType: mimeType,
+                body: bufferStream
+            },
+            fields: 'id,name,mimeType,webViewLink'
+        });
+
+        await driveService.permissions.create({
+            fileId: response.data.id,
+            requestBody: {
+                role: 'reader',
+                type: 'anyone'
+            }
+        });
+
+        const fileId = response.data.id;
+        const downloadUrl = `https://drive.google.com/uc?id=${fileId}&export=download`;
+        const webViewLink = response.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
+
+        return {
+            id: fileId,
+            name: filename,
+            mimeType: response.data.mimeType,
+            url: downloadUrl,
+            webViewLink: webViewLink
+        };
+
+    } catch (error) {
+        console.error(`Error subiendo archivo ${filename}:`, error);
+        throw error;
+    }
+}
+
 async function getFileByName(filename, folderId) {
     const searchQuery = `name='${filename}' and '${folderId}' in parents and trashed=false`;
 
@@ -60,6 +141,41 @@ async function getFileByName(filename, folderId) {
     const response = await driveService.files.get({ fileId, alt: 'media' }, { responseType: 'arraybuffer' });
 
     return Buffer.from(response.data);
+}
+
+async function getFileFromDrive(filename, folderId) {
+    try {
+        const searchQuery = `name='${filename.replace(/'/g, "\\'")}' and '${folderId}' in parents and trashed=false`;
+
+        const searchRes = await driveService.files.list({
+            q: searchQuery,
+            fields: 'files(id, name, mimeType, size)',
+            spaces: 'drive',
+            pageSize: 1
+        });
+
+        const file = searchRes.data.files[0];
+        if (!file) {
+            return null;
+        }
+
+        const response = await driveService.files.get(
+            {
+                fileId: file.id,
+                alt: 'media'
+            },
+            {
+                responseType: 'arraybuffer',
+                timeout: 30000
+            }
+        );
+
+        return Buffer.from(response.data);
+
+    } catch (error) {
+        console.error(`❌ Error descargando ${filename}:`, error.message);
+        throw error;
+    }
 }
 
 async function getFileByNameBase64(filename, folderId) {
@@ -219,8 +335,11 @@ async function subirArchivosDeTemp() {
 
 module.exports = {
     getDriveClient,
+    getMimeType,
     uploadFile,
+    uploadFileToDrive,
     getFileByName,
+    getFileFromDrive,
     getFileByNameBase64,
     listarArchivosEnCarpeta,
     obtenerDetallesArchivo,
