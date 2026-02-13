@@ -953,12 +953,56 @@ router.delete('/eliminarCapacitacion/:id', validarToken, async (req, res) => {
     }
 });
 
-router.get('/roles', validarToken, async (req, res) => {
+router.post('/roles', async (req, res) => {
 
     const usuarioToken = req.validarToken?.usuario || null;
 
     try {
-        const [rows] = await dbRailway.query('SELECT * FROM registros_capacitaciones');
+        const data = req.body;
+
+        if (!data || Object.keys(data).length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'capacitaciones',
+                metodo: 'post',
+                endPoint: 'roles',
+                accion: 'Consulta registros fallido',
+                detalle: 'Los datos de usuario son requeridos.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Los datos de usuario son requeridos.");
+        }
+
+        if (!data?.cedula) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'capacitaciones',
+                metodo: 'post',
+                endPoint: 'roles',
+                accion: 'Consulta archivos fallido',
+                detalle: 'Se requiere la cedula para la consulta',
+                datos: { dataProporcionado: data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Se requiere la cedula para la consulta");
+        }
+
+        const [rows] = await dbRailway.query('SELECT * FROM rol_capacitaciones where cedula = ?', [data.cedula]);
 
         await registrarHistorial({
             nombreUsuario: usuarioToken?.nombre || 'No registrado',
@@ -967,7 +1011,7 @@ router.get('/roles', validarToken, async (req, res) => {
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
-            metodo: 'get',
+            metodo: 'post',
             endPoint: 'roles',
             accion: 'Consulta registros exitosa',
             detalle: `Se consultó ${rows.length} registros`,
@@ -992,7 +1036,7 @@ router.get('/roles', validarToken, async (req, res) => {
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
-            metodo: 'get',
+            metodo: 'post',
             endPoint: 'roles',
             accion: 'Error al obtener los registros',
             detalle: 'Error interno del servidor',
