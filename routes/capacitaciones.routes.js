@@ -10,17 +10,17 @@ const { getFileByNameBase64 } = require('../services/googleDriveService');
 
 const folderId = '1HVkPL6fUoTkOMqeVLZfaNskcKGCBQF33';
 
-router.get('/registros', validarToken, async (req, res) => {
+router.get('/registros', async (req, res) => {
 
-    const usuarioToken = req.validarToken.usuario
+    const usuarioToken = req.validarToken?.usuario || null;
 
     try {
         const [rows] = await dbRailway.query('SELECT * FROM registros_capacitaciones');
 
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'No registrado',
-            cedulaUsuario: usuarioToken.cedula || 'No registrado',
-            rolUsuario: usuarioToken.rol || 'No registrado',
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
@@ -43,9 +43,9 @@ router.get('/registros', validarToken, async (req, res) => {
         );
     } catch (err) {
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'Error sistema',
-            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
-            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
@@ -66,17 +66,17 @@ router.get('/registros', validarToken, async (req, res) => {
     }
 });
 
-router.post('/crearRegistro', validarToken, async (req, res) => {
-    const usuarioToken = req.validarToken.usuario
+router.post('/crearRegistro', async (req, res) => {
+    const usuarioToken = req.validarToken?.usuario || null;
 
     try {
         const data = req.body;
 
         if (!data || Object.keys(data).length === 0) {
             await registrarHistorial({
-                nombreUsuario: usuarioToken.nombre || 'No registrado',
-                cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                rolUsuario: usuarioToken.rol || 'No registrado',
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
                 app: 'capacitaciones',
@@ -110,9 +110,9 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
 
         if (!validateRequiredFields(data, requiredFields, res)) {
             await registrarHistorial({
-                nombreUsuario: usuarioToken.nombre || 'No registrado',
-                cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                rolUsuario: usuarioToken.rol || 'No registrado',
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
                 app: 'capacitaciones',
@@ -136,9 +136,9 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
 
             if (dataRows.length === 0) {
                 await registrarHistorial({
-                    nombreUsuario: usuarioToken.nombre || 'No registrado',
-                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                    rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
                     app: 'capacitaciones',
@@ -165,9 +165,9 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
 
             if (capacitacionEnCurso.length === 0) {
                 await registrarHistorial({
-                    nombreUsuario: usuarioToken.nombre || 'No registrado',
-                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                    rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
                     app: 'capacitaciones',
@@ -194,9 +194,9 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
 
             if (dataRows.length === 0) {
                 await registrarHistorial({
-                    nombreUsuario: usuarioToken.nombre || 'No registrado',
-                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                    rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
                     app: 'capacitaciones',
@@ -219,9 +219,9 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
 
             if (dataRows.length === 0) {
                 await registrarHistorial({
-                    nombreUsuario: usuarioToken.nombre || 'No registrado',
-                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                    rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
                     app: 'capacitaciones',
@@ -244,9 +244,9 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
 
             if (dataRows.length === 0) {
                 await registrarHistorial({
-                    nombreUsuario: usuarioToken.nombre || 'No registrado',
-                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                    rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
                     app: 'capacitaciones',
@@ -269,9 +269,9 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
 
             if (dataRows.length === 0) {
                 await registrarHistorial({
-                    nombreUsuario: usuarioToken.nombre || 'No registrado',
-                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                    rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
                     app: 'capacitaciones',
@@ -292,9 +292,9 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
         if (firma) {
             if (!firma.includes('base64,')) {
                 await registrarHistorial({
-                    nombreUsuario: usuarioToken.nombre || 'No registrado',
-                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                    rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
                     app: 'capacitaciones',
@@ -333,9 +333,9 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
         const [registroGuardado] = await dbRailway.query('SELECT * FROM registros_capacitaciones WHERE id = ?', [result.insertId]);
 
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'No registrado',
-            cedulaUsuario: usuarioToken.cedula || 'No registrado',
-            rolUsuario: usuarioToken.rol || 'No registrado',
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
@@ -362,9 +362,9 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
 
     } catch (err) {
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'Error sistema',
-            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
-            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
@@ -386,15 +386,15 @@ router.post('/crearRegistro', validarToken, async (req, res) => {
 });
 
 router.get('/ciudades', validarToken, async (req, res) => {
-    const usuarioToken = req.validarToken.usuario
+    const usuarioToken = req.validarToken?.usuario || null;
 
     try {
         const [rows] = await dbRailway.query('SELECT nombre FROM ciudad');
 
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'No registrado',
-            cedulaUsuario: usuarioToken.cedula || 'No registrado',
-            rolUsuario: usuarioToken.rol || 'No registrado',
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
@@ -417,9 +417,9 @@ router.get('/ciudades', validarToken, async (req, res) => {
         );
     } catch (err) {
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'Error sistema',
-            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
-            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
@@ -440,16 +440,16 @@ router.get('/ciudades', validarToken, async (req, res) => {
     }
 });
 
-router.get('/auxiliar', validarToken, async (req, res) => {
-    const usuarioToken = req.validarToken.usuario
+router.get('/auxiliar', async (req, res) => {
+    const usuarioToken = req.validarToken?.usuario || null;
 
     try {
         const [rows] = await dbRailway.query('SELECT * FROM tabla_aux_capacitaciones');
 
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'No registrado',
-            cedulaUsuario: usuarioToken.cedula || 'No registrado',
-            rolUsuario: usuarioToken.rol || 'No registrado',
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
@@ -472,9 +472,9 @@ router.get('/auxiliar', validarToken, async (req, res) => {
         );
     } catch (err) {
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'Error sistema',
-            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
-            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
@@ -495,15 +495,15 @@ router.get('/auxiliar', validarToken, async (req, res) => {
     }
 });
 
-router.post('/obtenerImagen', validarToken, async (req, res) => {
-    const usuarioToken = req.validarToken.usuario
+router.post('/obtenerImagen', async (req, res) => {
+    const usuarioToken = req.validarToken?.usuario || null;
     const { imageName } = req.body;
 
     if (!imageName) {
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'No registrado',
-            cedulaUsuario: usuarioToken.cedula || 'No registrado',
-            rolUsuario: usuarioToken.rol || 'No registrado',
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'log',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
@@ -525,9 +525,9 @@ router.post('/obtenerImagen', validarToken, async (req, res) => {
 
         if (!imageData) {
             await registrarHistorial({
-                nombreUsuario: usuarioToken.nombre || 'No registrado',
-                cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                rolUsuario: usuarioToken.rol || 'No registrado',
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
                 app: 'capacitaciones',
@@ -546,9 +546,9 @@ router.post('/obtenerImagen', validarToken, async (req, res) => {
 
         if (!imageData.startsWith('data:')) {
             await registrarHistorial({
-                nombreUsuario: usuarioToken.nombre || 'No registrado',
-                cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                rolUsuario: usuarioToken.rol || 'No registrado',
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
                 app: 'capacitaciones',
@@ -566,9 +566,9 @@ router.post('/obtenerImagen', validarToken, async (req, res) => {
         }
 
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'No registrado',
-            cedulaUsuario: usuarioToken.cedula || 'No registrado',
-            rolUsuario: usuarioToken.rol || 'No registrado',
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
@@ -595,9 +595,9 @@ router.post('/obtenerImagen', validarToken, async (req, res) => {
         );
     } catch (err) {
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'Error sistema',
-            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
-            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
@@ -618,17 +618,17 @@ router.post('/obtenerImagen', validarToken, async (req, res) => {
     }
 });
 
-router.get('/capacitaciones', validarToken, async (req, res) => {
+router.get('/capacitaciones', async (req, res) => {
 
-    const usuarioToken = req.validarToken.usuario
+    const usuarioToken = req.validarToken?.usuario || null;
 
     try {
         const [rows] = await dbRailway.query('SELECT * FROM capacitaciones');
 
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'No registrado',
-            cedulaUsuario: usuarioToken.cedula || 'No registrado',
-            rolUsuario: usuarioToken.rol || 'No registrado',
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
@@ -651,9 +651,9 @@ router.get('/capacitaciones', validarToken, async (req, res) => {
         );
     } catch (err) {
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'Error sistema',
-            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
-            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
@@ -675,16 +675,16 @@ router.get('/capacitaciones', validarToken, async (req, res) => {
 });
 
 router.post('/crearCapacitacion', validarToken, async (req, res) => {
-    const usuarioToken = req.validarToken.usuario
+    const usuarioToken = req.validarToken?.usuario || null;
 
     try {
         const data = req.body;
 
         if (!data || Object.keys(data).length === 0) {
             await registrarHistorial({
-                nombreUsuario: usuarioToken.nombre || 'No registrado',
-                cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                rolUsuario: usuarioToken.rol || 'No registrado',
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
                 app: 'capacitaciones',
@@ -716,9 +716,9 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
 
         if (!validateRequiredFields(data, requiredFields, res)) {
             await registrarHistorial({
-                nombreUsuario: usuarioToken.nombre || 'No registrado',
-                cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                rolUsuario: usuarioToken.rol || 'No registrado',
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
                 app: 'capacitaciones',
@@ -742,9 +742,9 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
 
             if (dataRows.length === 0) {
                 await registrarHistorial({
-                    nombreUsuario: usuarioToken.nombre || 'No registrado',
-                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                    rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
                     app: 'capacitaciones',
@@ -777,9 +777,9 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
         const [registroGuardado] = await dbRailway.query('SELECT * FROM capacitaciones WHERE id = ?', [result.insertId]);
 
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'No registrado',
-            cedulaUsuario: usuarioToken.cedula || 'No registrado',
-            rolUsuario: usuarioToken.rol || 'No registrado',
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
@@ -806,9 +806,9 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
 
     } catch (err) {
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'Error sistema',
-            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
-            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
@@ -830,15 +830,15 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
 });
 
 router.delete('/eliminarCapacitacion/:id', validarToken, async (req, res) => {
-    const usuarioToken = req.validarToken.usuario;
+    const usuarioToken = req.validarToken?.usuario || null;;
     const { id } = req.params;
 
     try {
         if (!id) {
             await registrarHistorial({
-                nombreUsuario: usuarioToken.nombre || 'No registrado',
-                cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                rolUsuario: usuarioToken.rol || 'No registrado',
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
                 app: 'capacitaciones',
@@ -862,9 +862,9 @@ router.delete('/eliminarCapacitacion/:id', validarToken, async (req, res) => {
 
         if (existeRegistro.length === 0) {
             await registrarHistorial({
-                nombreUsuario: usuarioToken.nombre || 'No registrado',
-                cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                rolUsuario: usuarioToken.rol || 'No registrado',
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
                 app: 'capacitaciones',
@@ -893,9 +893,9 @@ router.delete('/eliminarCapacitacion/:id', validarToken, async (req, res) => {
         }
 
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'No registrado',
-            cedulaUsuario: usuarioToken.cedula || 'No registrado',
-            rolUsuario: usuarioToken.rol || 'No registrado',
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
@@ -929,9 +929,9 @@ router.delete('/eliminarCapacitacion/:id', validarToken, async (req, res) => {
 
     } catch (err) {
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'Error sistema',
-            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
-            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'capacitaciones',
@@ -950,6 +950,62 @@ router.delete('/eliminarCapacitacion/:id', validarToken, async (req, res) => {
         });
 
         return sendError(res, 500, "Error inesperado al eliminar el registro.", err);
+    }
+});
+
+router.get('/roles', validarToken, async (req, res) => {
+
+    const usuarioToken = req.validarToken?.usuario || null;
+
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM registros_capacitaciones');
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'get',
+            endPoint: 'roles',
+            accion: 'Consulta registros exitosa',
+            detalle: `Se consultó ${rows.length} registros`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron ${rows.length} registros de roles en capacitaciones.`,
+            rows
+        );
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'capacitaciones',
+            metodo: 'get',
+            endPoint: 'roles',
+            accion: 'Error al obtener los registros',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
     }
 });
 

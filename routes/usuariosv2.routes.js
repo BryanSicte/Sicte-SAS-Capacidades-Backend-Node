@@ -890,17 +890,17 @@ router.post('/actualizarContrasena', async (req, res) => {
     }
 });
 
-router.get('/plantaEnLineaCedulaNombreActivos', validarToken, async (req, res) => {
+router.get('/plantaEnLineaCedulaNombreActivos', async (req, res) => {
 
-    const usuarioToken = req.validarToken.usuario
+    const usuarioToken = req.validarToken?.usuario || null;
 
     try {
         const [rows] = await dbRailway.query("SELECT nit, nombre, perfil FROM plantaenlinea WHERE perfil <> 'RETIRADO'");
 
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'No registrado',
-            cedulaUsuario: usuarioToken.cedula || 'No registrado',
-            rolUsuario: usuarioToken.rol || 'No registrado',
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'usuarios',
@@ -925,9 +925,9 @@ router.get('/plantaEnLineaCedulaNombreActivos', validarToken, async (req, res) =
     } catch (err) {
 
         await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'Error sistema',
-            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
-            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'usuarios',
