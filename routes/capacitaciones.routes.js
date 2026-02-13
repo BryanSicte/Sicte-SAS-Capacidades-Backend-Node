@@ -185,7 +185,7 @@ router.post('/crearRegistro', async (req, res) => {
                     userAgent: req.headers['user-agent'] || ''
                 });
 
-                return sendError(res, 400, "Registro no permitido: Nombre de capacitador", null, { "nombreCapacitacion": `La capacitación "${nombreCapacitacion}" no está en curso en este momento.` });
+                return sendError(res, 400, `La capacitación "${nombreCapacitacion}" no está en curso en este momento.`, null, { "nombreCapacitacion": `La capacitación "${nombreCapacitacion}" no está en curso en este momento.` });
             }
         }
 
