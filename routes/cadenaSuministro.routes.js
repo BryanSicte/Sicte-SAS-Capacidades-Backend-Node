@@ -6,6 +6,7 @@ const { sendResponse, sendError } = require('../utils/responseHandler');
 const { validateRequiredFields } = require('../utils/validate');
 const { registrarHistorial, getClientIp, determinarPlataforma } = require('../utils/historial');
 const { uploadFileToDrive, getMimeType, getFileFromDrive } = require('../services/googleDriveService')
+const { getFechaHoraColombia } = require('../utils/formatdate');
 const multer = require('multer');
 const upload = multer();
 const path = require('path');
@@ -159,6 +160,7 @@ router.post('/crearRegistro',
             }
 
             const driveResults = [];
+            const fechaColombia = getFechaHoraColombia()
 
             if (!archivos?.diseno) {
                 await registrarHistorial({
@@ -185,7 +187,7 @@ router.post('/crearRegistro',
                 const disenoFile = archivos.diseno[0];
 
                 const disenoExt = path.extname(disenoFile.originalname);
-                const disenoFileName = `${data.uuidOt}_diseno_${data.fecha}${disenoExt}`;
+                const disenoFileName = `${data.uuidOt}_diseno_${fechaColombia}${disenoExt}`;
 
                 const fileId = await uploadFileToDrive(
                     disenoFile.buffer,
@@ -247,7 +249,7 @@ router.post('/crearRegistro',
                 const facturacionFile = archivos.facturacionEsperada[0];
 
                 const factExt = path.extname(facturacionFile.originalname);
-                const factFileName = `${data.uuidOt}_facturacion_${data.fecha}${factExt}`;
+                const factFileName = `${data.uuidOt}_facturacion_${fechaColombia}${factExt}`;
 
                 const fileId = await uploadFileToDrive(
                     facturacionFile.buffer,
@@ -315,8 +317,10 @@ router.post('/crearRegistro',
                         descripcion,
                         um,
                         cantidad,
-                        observaciones
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        observaciones,
+                        estado,
+                        estadoLogistica
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         nuevoNumeroSolicitud,
                         data.fecha,
@@ -333,7 +337,9 @@ router.post('/crearRegistro',
                         item.descripcion,
                         item.um,
                         item.cantidad,
-                        data.observaciones
+                        data.observaciones,
+                        "Pendiente logistica",
+                        "Pendiente"
                     ]
                 );
 
