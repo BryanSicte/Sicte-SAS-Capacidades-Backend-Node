@@ -599,5 +599,191 @@ router.post('/obtenerArchivos', validarToken, async (req, res) => {
     }
 });
 
+router.put('/logisticaActualizarCantidades', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+
+    try {
+        const { id } = req.params;
+        const data = req.body;
+
+        if (!id || isNaN(id)) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'logisticaActualizarCantidades',
+                accion: 'Deshabilitar proveedor fallido',
+                accion: 'Actualizar cantidades fallido',
+                datos: { idProporcionado: id },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "ID de solicitud inválido o no proporcionado.");
+        }
+
+        if (!data || Object.keys(data).length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'logisticaActualizarCantidades',
+                accion: 'Actualizar cantidades fallido',
+                detalle: 'Los datos del formulario son requeridos.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Los datos del formulario son requeridos.");
+        }
+
+        // const [proveedorExistente] = await dbRailway.query(
+        //     'SELECT * FROM proveedores WHERE id = ? LIMIT 1',
+        //     [id]
+        // );
+
+        // if (proveedorExistente.length === 0) {
+        //     await registrarHistorial({
+        //         nombreUsuario: usuarioToken.nombre || 'No registrado',
+        //         cedulaUsuario: usuarioToken.cedula || 'No registrado',
+        //         rolUsuario: usuarioToken.rol || 'No registrado',
+        //         nivel: 'log',
+        //         plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+        //         app: 'proveedores',
+        //         metodo: 'put',
+        //         endPoint: 'deshabilitarProveedor',
+        //         accion: 'Deshabilitar proveedor fallido',
+        //         detalle: 'Proveedor no encontrado',
+        //         datos: { id },
+        //         tablasIdsAfectados: [],
+        //         ipAddress: getClientIp(req),
+        //         userAgent: req.headers['user-agent'] || ''
+        //     });
+
+        //     return sendError(res, 404, `Proveedor con ID ${id} no encontrado.`);
+        // }
+
+        // if (proveedorExistente[0].estado === false) {
+        //     await registrarHistorial({
+        //         nombreUsuario: usuarioToken.nombre || 'No registrado',
+        //         cedulaUsuario: usuarioToken.cedula || 'No registrado',
+        //         rolUsuario: usuarioToken.rol || 'No registrado',
+        //         nivel: 'log',
+        //         plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+        //         app: 'proveedores',
+        //         metodo: 'put',
+        //         endPoint: 'deshabilitarProveedor',
+        //         accion: 'Deshabilitar proveedor fallido',
+        //         detalle: 'El proveedor ya está deshabilitado',
+        //         datos: {
+        //             id,
+        //             estadoActual: proveedorExistente[0].estado
+        //         },
+        //         tablasIdsAfectados: [],
+        //         ipAddress: getClientIp(req),
+        //         userAgent: req.headers['user-agent'] || ''
+        //     });
+
+        //     return sendError(res, 400, `El proveedor con ID ${id} ya está deshabilitado.`);
+        // }
+
+        // const [result] = await dbRailway.query(
+        //     'UPDATE proveedores SET estado = ? WHERE id = ?',
+        //     [false, id]
+        // );
+
+        // if (result.affectedRows === 0) {
+        //     await registrarHistorial({
+        //         nombreUsuario: usuarioToken.nombre || 'No registrado',
+        //         cedulaUsuario: usuarioToken.cedula || 'No registrado',
+        //         rolUsuario: usuarioToken.rol || 'No registrado',
+        //         nivel: 'log',
+        //         plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+        //         app: 'proveedores',
+        //         metodo: 'put',
+        //         endPoint: 'deshabilitarProveedor',
+        //         accion: 'Deshabilitar proveedor fallido',
+        //         detalle: 'No se pudo deshabilitar el proveedor',
+        //         datos: { id },
+        //         tablasIdsAfectados: [],
+        //         ipAddress: getClientIp(req),
+        //         userAgent: req.headers['user-agent'] || ''
+        //     });
+
+        //     return sendError(res, 500, "No se pudo deshabilitar el proveedor.");
+        // }
+
+        // const [proveedorActualizado] = await dbRailway.query(
+        //     'SELECT * FROM proveedores WHERE id = ?',
+        //     [id]
+        // );
+
+        // await registrarHistorial({
+        //     nombreUsuario: usuarioToken.nombre || 'No registrado',
+        //     cedulaUsuario: usuarioToken.cedula || 'No registrado',
+        //     rolUsuario: usuarioToken.rol || 'No registrado',
+        //     nivel: 'success',
+        //     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+        //     app: 'proveedores',
+        //     metodo: 'put',
+        //     endPoint: 'deshabilitarProveedor',
+        //     accion: 'Deshabilitar proveedor exitoso',
+        //     detalle: 'Proveedor deshabilitado correctamente',
+        //     datos: {
+        //         id,
+        //         proveedorAnterior: proveedorExistente[0],
+        //         proveedorActual: proveedorActualizado[0]
+        //     },
+        //     tablasIdsAfectados: [{
+        //         tabla: 'proveedores',
+        //         id: id.toString()
+        //     }],
+        //     ipAddress: getClientIp(req),
+        //     userAgent: req.headers['user-agent'] || ''
+        // });
+
+        // return sendResponse(
+        //     res,
+        //     200,
+        //     `Proveedor deshabilitado correctamente`,
+        //     `El proveedor "${proveedorExistente[0].nombreProveedor}" ha sido deshabilitado.`,
+        //     proveedorActualizado[0]
+        // );
+
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'put',
+            endPoint: 'logisticaActualizarCantidades',
+            accion: 'Error al actualizar cantidades',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
 
 module.exports = router;
