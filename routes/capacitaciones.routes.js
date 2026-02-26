@@ -991,7 +991,7 @@ router.post('/roles', async (req, res) => {
                 app: 'capacitaciones',
                 metodo: 'post',
                 endPoint: 'roles',
-                accion: 'Consulta archivos fallido',
+                accion: 'Consulta registros fallido',
                 detalle: 'Se requiere la cedula para la consulta',
                 datos: { dataProporcionado: data },
                 tablasIdsAfectados: [],
