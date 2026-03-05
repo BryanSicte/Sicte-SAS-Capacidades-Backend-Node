@@ -669,16 +669,22 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
             let estadoSolicitudRegistro = 'Validar';
             let estadoCompra = 'Validar';
             let estadoAprobacion1 = 'Validar';
+            let estadoAprobacion2 = 'Validar';
+            let estadoAprobacion3 = 'Validar';
             let cantidadRestante = 0;
 
             if (parseFloat(cantidadExistente) === parseFloat(cantidadEditada)) {
                 estadoSolicitudRegistro = 'Pendiente Aprobacion 1';
                 estadoCompra = 'No aplica';
-                estadoAprobacion1 = 'Pendiente'
+                estadoAprobacion1 = 'Pendiente';
+                estadoAprobacion2 = 'No aplica';
+                estadoAprobacion3 = 'No aplica';
             } else if (parseFloat(cantidadEditada) < parseFloat(cantidadExistente)) {
                 estadoSolicitudRegistro = 'Pendiente Compras';
                 estadoCompra = 'Pendiente';
                 estadoAprobacion1 = null;
+                estadoAprobacion2 = null;
+                estadoAprobacion3 = null;
             } else if (parseFloat(cantidadEditada) > parseFloat(cantidadExistente)) {
                 await registrarHistorial({
                     nombreUsuario: usuarioToken.nombre || 'No registrado',
@@ -702,6 +708,8 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                 estadoSolicitudRegistro = 'Pendiente logistica';
                 estadoCompra = null;
                 estadoAprobacion1 = null;
+                estadoAprobacion2 = null;
+                estadoAprobacion3 = null;
             }
 
             cantidadRestante = parseFloat(cantidadExistente) - parseFloat(cantidadEditada);
@@ -716,7 +724,9 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                 estadoSolicitud = ?,  
                 estadoLogistica = ?, 
                 estadoCompra = ? ,
-                estadoAprobacion1 = ?
+                estadoAprobacion1 = ?,
+                estadoAprobacion2 = ?,
+                estadoAprobacion3 = ?
                 WHERE id = ? LIMIT 1`,
                 [
                     fechaColombia,
@@ -728,6 +738,8 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                     'Realizado',
                     estadoCompra,
                     estadoAprobacion1,
+                    estadoAprobacion2,
+                    estadoAprobacion3,
                     id
                 ]
             );
@@ -1203,6 +1215,8 @@ router.put('/comprasGenerarOC', validarToken, async (req, res) => {
                 UPDATE registros_solicitud_cadena_suministro 
                 SET 
                     fechaOrdenCompra = ?,
+                    cedulaUsuarioElaboraCompra = ?,
+                    nombreUsuarioElaboraCompra = ?,
                     ordenCompra = ?,
                     totalOrdenCompra = ?,
                     firmaCompra = ?,
@@ -1211,7 +1225,7 @@ router.put('/comprasGenerarOC', validarToken, async (req, res) => {
                     estadoAprobacion1 = ?
                 WHERE id IN (${placeholders})
                 `,
-                [fechaOrdenCompra, nuevaOrdenCompra, totalOrdenCompra, firma[0].firma, 'Pendiente Aprobacion 1', 'Realizado', 'Pendiente', ...ids]
+                [fechaOrdenCompra, usuarioToken.cedula, usuarioToken.nombre, nuevaOrdenCompra, totalOrdenCompra, firma[0].firma, 'Pendiente Aprobacion 1', 'Realizado', 'Pendiente', ...ids]
             );
 
             await connection.commit();
@@ -1277,6 +1291,625 @@ router.put('/comprasGenerarOC', validarToken, async (req, res) => {
             metodo: 'put',
             endPoint: 'comprasGenerarOC',
             accion: 'Error al generar la orden de compra',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.put('/comprasAprobacion1/:id', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+
+    try {
+        const { id } = req.params;
+        const data = req.body;
+
+        if (!id || isNaN(id)) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasAprobacion1',
+                accion: 'Actualizar aprobacion 1 fallido',
+                detalle: 'ID de solicitud inválido o no proporcionado',
+                datos: { idProporcionado: id },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "ID de solicitud inválido o no proporcionado.");
+        }
+
+        const [solicitudExistente] = await dbRailway.query(
+            'SELECT * FROM registros_solicitud_cadena_suministro WHERE solicitud = ?',
+            [id]
+        );
+
+        if (solicitudExistente.length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasAprobacion1',
+                accion: 'Generar orden de compra fallido',
+                detalle: `Solicitud no encontrada en base de datos.`,
+                datos: { solicitudEnviado: id },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 404, `Solicitud no encontrada en base de datos`);
+        }
+
+        if (!data || Object.keys(data).length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasAprobacion1',
+                accion: 'Actualizar aprobacion 1 fallido',
+                detalle: 'Los datos del formulario son requeridos.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Los datos del formulario son requeridos.");
+        }
+
+        const { contrasena, observaciones, estado } = data;
+
+        if (!estado) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasAprobacion1',
+                accion: 'Actualizar aprobacion 1 fallido',
+                detalle: 'Estado es requerido.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "El estado es obligatorio");
+        }
+
+        if (!contrasena) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasAprobacion1',
+                accion: 'Actualizar aprobacion 1 fallido',
+                detalle: 'Contraseña es requerida.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Campo Obligatorio", null, { "contrasena": `La contraseña es requerida.` });
+        }
+
+        const [firma] = await dbRailway.query(
+            `SELECT * FROM firmas WHERE cedulaUsuario = ?`,
+            [usuarioToken.cedula]
+        );
+
+        if (firma.length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasAprobacion1',
+                accion: 'Actualizar aprobacion 1 fallido',
+                detalle: 'Registro no permitido: Cédula de usuario no tiene firma registrada.',
+                datos: { cedulaUsuarioProporcionado: usuarioToken.cedula },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Registro no permitido: Cédula de usuario no tiene firma registrada.");
+        }
+
+        if (!await bcrypt.compare(contrasena, firma[0].contrasena)) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasAprobacion1',
+                accion: 'Actualizar aprobacion 1 fallido',
+                detalle: 'Registro no permitido: Contraseña actual incorrecta.',
+                datos: { cedulaUsuarioProporcionado: usuarioToken.cedula },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Registro no permitido: Contraseña actual incorrecta.", null, { "contrasena": `La contraseña actual proporcionada no coincide con la registrada.` });
+        }
+
+        const tieneOrdenCompra = solicitudExistente.some(registro =>
+            registro.ordenCompra && registro.ordenCompra.startsWith('OC')
+        );
+
+        const fechaColombia = getFechaHoraColombia();
+        const estadoSolicitud = estado === 'Aprobado' ? tieneOrdenCompra ? 'Pendiente Aprobacion 2' : 'Pendiente Despacho Bodega' : estado;
+
+        const connection = await dbRailway.getConnection();
+        await connection.beginTransaction();
+
+        try {
+            let result;
+
+            if (estado === 'Aprobado') {
+                const [resultSinOrden] = await connection.query(
+                    `
+                        UPDATE registros_solicitud_cadena_suministro 
+                        SET 
+                            fechaAprobacion1 = ?,
+                            cedulaUsuarioAprobacion1 = ?,
+                            nombreUsuarioAprobacion1 = ?,
+                            observacionAprobacion1 = ?,
+                            firmaAprobacion1 = ?,
+                            estadoAprobacion1 = ?,
+                            estadoSolicitud = 'Pendiente Despacho Bodega'
+                        WHERE solicitud = ? 
+                        AND (ordenCompra IS NULL OR ordenCompra = '' OR NOT ordenCompra LIKE 'OC%')
+                    `,
+                    [
+                        fechaColombia,
+                        usuarioToken.cedula,
+                        usuarioToken.nombre,
+                        observaciones || null,
+                        firma[0].firma,
+                        estado,
+                        id
+                    ]
+                );
+
+                const [resultConOrden] = await connection.query(
+                    `
+                        UPDATE registros_solicitud_cadena_suministro 
+                        SET 
+                            fechaAprobacion1 = ?,
+                            cedulaUsuarioAprobacion1 = ?,
+                            nombreUsuarioAprobacion1 = ?,
+                            observacionAprobacion1 = ?,
+                            firmaAprobacion1 = ?,
+                            estadoAprobacion1 = ?,
+                            estadoAprobacion2 = 'Pendiente',
+                            estadoSolicitud = 'Pendiente Aprobacion 2'
+                        WHERE solicitud = ? 
+                        AND ordenCompra LIKE 'OC%'
+                    `,
+                    [
+                        fechaColombia,
+                        usuarioToken.cedula,
+                        usuarioToken.nombre,
+                        observaciones || null,
+                        firma[0].firma,
+                        estado,
+                        id
+                    ]
+                );
+
+                result = {
+                    affectedRows: (resultSinOrden?.affectedRows || 0) + (resultConOrden?.affectedRows || 0)
+                };
+
+            } else {
+                [result] = await connection.query(
+                    `
+                        UPDATE registros_solicitud_cadena_suministro 
+                        SET 
+                            fechaAprobacion1 = ?,
+                            cedulaUsuarioAprobacion1 = ?,
+                            nombreUsuarioAprobacion1 = ?,
+                            observacionAprobacion1 = ?,
+                            firmaAprobacion1 = ?,
+                            estadoAprobacion1 = ?,
+                            estadoSolicitud = ?
+                        WHERE solicitud = ?
+                    `,
+                    [
+                        fechaColombia,
+                        usuarioToken.cedula,
+                        usuarioToken.nombre,
+                        observaciones || null,
+                        firma[0].firma,
+                        estado,
+                        estadoSolicitud,
+                        id
+                    ]
+                );
+            }
+
+            await connection.commit();
+
+            const [registrosActualizados] = await dbRailway.query(
+                `SELECT * FROM registros_solicitud_cadena_suministro WHERE solicitud = ?`,
+                [id]
+            );
+
+            const registrosConOrden = registrosActualizados.filter(r => r.ordenCompra && r.ordenCompra.startsWith('OC'));
+            const registrosSinOrden = registrosActualizados.filter(r => !r.ordenCompra || !r.ordenCompra.startsWith('OC'));
+
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasAprobacion1',
+                accion: 'Actualizar aprobacion 1 exitoso',
+                detalle: `Aprobación 1 actualizada para la solicitud ${id}`,
+                datos: {
+                    solicitud: id,
+                    fechaAprobacion: fechaColombia,
+                    estado: estado,
+                    totalRegistros: registrosActualizados.length,
+                    registrosConOrden: {
+                        cantidad: registrosConOrden.length,
+                        estadoAsignado: 'Pendiente Aprobacion 2',
+                        ids: registrosConOrden.map(r => r.id)
+                    },
+                    registrosSinOrden: {
+                        cantidad: registrosSinOrden.length,
+                        estadoAsignado: 'Pendiente Despacho Bodega',
+                        ids: registrosSinOrden.map(r => r.id)
+                    }
+                },
+                tablasIdsAfectados: registrosActualizados.map(registro => ({
+                    tabla: 'registros_solicitud_cadena_suministro',
+                    id: registro.id.toString()
+                })),
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendResponse(
+                res,
+                200,
+                `Aprobación 1 actualizada correctamente`,
+                `Se actualizó la aprobación 1 para la solicitud ${id}. ${registrosConOrden.length} registro(s) con orden de compra pasaron a "Pendiente Aprobacion 2" y ${registrosSinOrden.length} registro(s) sin orden de compra pasaron a "Pendiente Despacho Bodega".`,
+                {
+                    registrosActualizados: registrosActualizados,
+                    solicitud: id,
+                    totalRegistrosAfectados: result.affectedRows,
+                    detalle: {
+                        registrosConOrden: registrosConOrden.length,
+                        registrosSinOrden: registrosSinOrden.length
+                    }
+                }
+            );
+
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'put',
+            endPoint: 'comprasAprobacion1',
+            accion: 'Error al actualizar aprobación 1',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.put('/comprasAprobacion', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+
+    try {
+        const data = req.body;
+
+        if (!data || Object.keys(data).length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasAprobacion',
+                accion: 'Actualizar aprobacion fallido',
+                detalle: 'Los datos del formulario son requeridos.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Los datos del formulario son requeridos.");
+        }
+
+        const { estado, contrasena, observaciones, ids, aprobacion } = data;
+
+        if (!estado || !contrasena || !ids || !Array.isArray(ids) || ids.length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasAprobacion',
+                accion: `Actualizar aprobacion ${aprobacion} fallido`,
+                detalle: 'Estado, contrasena y array de IDs son requeridos.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Estado, contrasena y array de IDs son requeridos");
+        }
+
+        const [firma] = await dbRailway.query(
+            `SELECT * FROM firmas WHERE cedulaUsuario = ?`,
+            [usuarioToken.cedula]
+        );
+
+        if (firma.length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasAprobacion',
+                accion: `Actualizar aprobacion ${aprobacion} fallido`,
+                detalle: 'Registro no permitido: Cédula de usuario no tiene firma registrada.',
+                datos: { cedulaUsuarioProporcionado: usuarioToken.cedula },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Registro no permitido: Cédula de usuario no tiene firma registrada.");
+        }
+
+        if (!await bcrypt.compare(contrasena, firma[0].contrasena)) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasAprobacion',
+                accion: `Actualizar aprobacion ${aprobacion} fallido`,
+                detalle: 'Registro no permitido: Contraseña actual incorrecta.',
+                datos: { cedulaUsuarioProporcionado: usuarioToken.cedula },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Registro no permitido: Contraseña actual incorrecta.", null, { "contrasena": `La contraseña actual proporcionada no coincide con la registrada.` });
+        }
+
+        const [registrosExistentes] = await dbRailway.query(
+            `SELECT id FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
+            [ids]
+        );
+
+        const idsExistentes = registrosExistentes.map(r => r.id);
+        const idsNoExistentes = ids.filter(id => !idsExistentes.includes(id));
+
+        if (idsNoExistentes.length > 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasAprobacion',
+                accion: `Actualizar aprobacion ${aprobacion} fallido`,
+                detalle: `IDs no encontrados: ${idsNoExistentes.join(', ')}`,
+                datos: { idsEnviados: ids, idsEncontrados: idsExistentes },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 404, `Los siguientes IDs no existen: ${idsNoExistentes.join(', ')}`);
+        }
+
+        const fechaColombia = getFechaHoraColombia();
+        const estadoAprobacion3 = aprobacion === '2' ? estado === 'Aprobado' ? 'Pendiente' : null : estado;
+        const estadoSolicitud = aprobacion === '2' ? estado === 'Aprobado' ? 'Pendiente Aprobacion 3' : estado : estado === 'Aprobado' ? 'Pendiente Tesoreria' : estado;
+
+        const connection = await dbRailway.getConnection();
+        await connection.beginTransaction();
+
+        try {
+            const placeholders = ids.map(() => '?').join(',');
+            let result;
+
+            if (aprobacion === '2') {
+                [result] = await connection.query(
+                    `
+                    UPDATE registros_solicitud_cadena_suministro 
+                    SET 
+                        fechaAprobacion2 = ?,
+                        cedulaUsuarioAprobacion2 = ?,
+                        nombreUsuarioAprobacion2 = ?,
+                        observacionAprobacion2 = ?,
+                        firmaAprobacion2 = ?,
+                        estadoAprobacion2 = ?,
+                        estadoAprobacion3 = ?,
+                        estadoSolicitud = ?
+                    WHERE id IN (${placeholders})
+                `,
+                    [
+                        fechaColombia,
+                        usuarioToken.cedula,
+                        usuarioToken.nombre,
+                        observaciones,
+                        firma[0].firma,
+                        estado,
+                        estadoAprobacion3,
+                        estadoSolicitud,
+                        ...ids
+                    ]
+                );
+            } else if (aprobacion === '3') {
+                [result] = await connection.query(
+                    `
+                    UPDATE registros_solicitud_cadena_suministro 
+                    SET 
+                        fechaAprobacion3 = ?,
+                        cedulaUsuarioAprobacion3 = ?,
+                        nombreUsuarioAprobacion3 = ?,
+                        observacionAprobacion3 = ?,
+                        firmaAprobacion3 = ?,
+                        estadoAprobacion3 = ?,
+                        estadoSolicitud = ?
+                    WHERE id IN (${placeholders})
+                `,
+                    [
+                        fechaColombia,
+                        usuarioToken.cedula,
+                        usuarioToken.nombre,
+                        observaciones,
+                        firma[0].firma,
+                        estadoAprobacion3,
+                        estadoSolicitud,
+                        ...ids
+                    ]
+                );
+            }
+
+            await connection.commit();
+
+            const [registrosActualizados] = await dbRailway.query(
+                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
+                [ids]
+            );
+
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasAprobacion',
+                accion: `Actualizar aprobacion ${aprobacion} exitoso`,
+                detalle: `Aprobación ${aprobacion} actualizada para ${ids.length} registro(s)`,
+                datos: {
+                    idsActualizados: ids,
+                    registrosAfectados: result.affectedRows
+                },
+                tablasIdsAfectados: ids.map(id => ({
+                    tabla: 'registros_solicitud_cadena_suministro',
+                    ids: ids.toString()
+                })),
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendResponse(
+                res,
+                200,
+                `Aprobación ${aprobacion} actualizada correctamente`,
+                `Se actualizó la aprobación ${aprobacion} para ${ids.length} registro(s)`,
+                {
+                    registrosActualizados: registrosActualizados,
+                    idsActualizados: ids
+                }
+            );
+
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'put',
+            endPoint: 'comprasAprobacion',
+            accion: 'Error al actualizar aprobación',
             detalle: 'Error interno del servidor',
             datos: {
                 error: err.message,
