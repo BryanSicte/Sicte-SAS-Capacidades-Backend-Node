@@ -10,6 +10,7 @@ const { getFechaHoraColombia } = require('../utils/formatdate');
 const multer = require('multer');
 const upload = multer();
 const path = require('path');
+const bcrypt = require('bcrypt');
 
 const folderId = '1dJdsXK_WxtvoLmn0Dgcm5uvRA1YYnbuE';
 
@@ -667,14 +668,17 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
             const cantidadExistente = cantidadesExistentesMap[id];
             let estadoSolicitudRegistro = 'Validar';
             let estadoCompra = 'Validar';
+            let estadoAprobacion1 = 'Validar';
             let cantidadRestante = 0;
 
             if (parseFloat(cantidadExistente) === parseFloat(cantidadEditada)) {
                 estadoSolicitudRegistro = 'Pendiente Aprobacion 1';
                 estadoCompra = 'No aplica';
+                estadoAprobacion1 = 'Pendiente'
             } else if (parseFloat(cantidadEditada) < parseFloat(cantidadExistente)) {
                 estadoSolicitudRegistro = 'Pendiente Compras';
                 estadoCompra = 'Pendiente';
+                estadoAprobacion1 = null;
             } else if (parseFloat(cantidadEditada) > parseFloat(cantidadExistente)) {
                 await registrarHistorial({
                     nombreUsuario: usuarioToken.nombre || 'No registrado',
@@ -697,6 +701,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
             } else {
                 estadoSolicitudRegistro = 'Pendiente logistica';
                 estadoCompra = null;
+                estadoAprobacion1 = null;
             }
 
             cantidadRestante = parseFloat(cantidadExistente) - parseFloat(cantidadEditada);
@@ -710,7 +715,8 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                 cantidadRestante = ?,
                 estadoSolicitud = ?,  
                 estadoLogistica = ?, 
-                estadoCompra = ? 
+                estadoCompra = ? ,
+                estadoAprobacion1 = ?
                 WHERE id = ? LIMIT 1`,
                 [
                     fechaColombia,
@@ -721,6 +727,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                     estadoSolicitudRegistro,
                     'Realizado',
                     estadoCompra,
+                    estadoAprobacion1,
                     id
                 ]
             );
@@ -858,14 +865,19 @@ router.put('/comprasActualizarCampos/:id', validarToken, async (req, res) => {
             const {
                 id,
                 centroCostos,
+                nitProveedor,
                 proveedor,
                 descripcionProveedor,
+                umProveedor,
+                cantidadProveedor,
                 formaPago,
                 plazoPagoDias,
                 tipoMoneda,
                 precioAnticipo,
                 precioUnitario,
-                precioTotal,
+                precioTotalSinIva,
+                iva,
+                precioTotalConIva,
                 plazoEntrega,
                 observacionCompra
             } = value;
@@ -873,18 +885,23 @@ router.put('/comprasActualizarCampos/:id', validarToken, async (req, res) => {
             const camposRequeridos = [
                 { nombre: 'id', valor: id },
                 { nombre: 'centroCostos', valor: centroCostos },
+                { nombre: 'nitProveedor', valor: nitProveedor },
                 { nombre: 'proveedor', valor: proveedor },
                 { nombre: 'descripcionProveedor', valor: descripcionProveedor },
+                { nombre: 'umProveedor', valor: umProveedor },
+                { nombre: 'cantidadProveedor', valor: cantidadProveedor },
                 { nombre: 'formaPago', valor: formaPago },
                 { nombre: 'plazoPagoDias', valor: plazoPagoDias },
                 { nombre: 'tipoMoneda', valor: tipoMoneda },
                 { nombre: 'precioAnticipo', valor: precioAnticipo },
                 { nombre: 'precioUnitario', valor: precioUnitario },
-                { nombre: 'precioTotal', valor: precioTotal },
+                { nombre: 'precioTotalSinIva', valor: precioTotalSinIva },
+                { nombre: 'iva', valor: iva },
+                { nombre: 'precioTotalConIva', valor: precioTotalConIva },
                 { nombre: 'plazoEntrega', valor: plazoEntrega }
             ];
 
-            const campoVacio = camposRequeridos.find(campo => !campo.valor);
+            const campoVacio = camposRequeridos.find(campo => !campo.valor || campo.valor === 'No se encontraron registros');
 
             if (campoVacio) {
                 await registrarHistorial({
@@ -913,36 +930,44 @@ router.put('/comprasActualizarCampos/:id', validarToken, async (req, res) => {
                 cedulaUsuarioCompras = ?, 
                 nombreUsuarioCompras = ?, 
                 centroCostos = ?,
+                nitProveedor = ?,
                 proveedor = ?, 
                 descripcionProveedor = ?, 
+                umProveedor = ?,
+                cantidadProveedor = ?,
                 formaPago = ?, 
                 plazoPagoDias = ?, 
                 tipoMoneda = ?,
                 precioAnticipo = ?,
                 precioUnitario = ?,
-                precioTotal = ?,
+                precioTotalSinIva = ?,
+                iva = ?,
+                precioTotalConIva = ?,
                 plazoEntrega = ?,
                 observacionCompra = ?,
-                estadoCompra = ?,
-                estadoSolicitud = ?
+                estadoCompra = ?
                 WHERE id = ? LIMIT 1`,
                 [
                     fechaColombia,
                     usuarioToken.cedula,
                     usuarioToken.nombre,
                     centroCostos,
+                    nitProveedor,
                     proveedor,
                     descripcionProveedor,
+                    umProveedor,
+                    cantidadProveedor,
                     formaPago,
                     plazoPagoDias,
                     tipoMoneda,
                     precioAnticipo,
                     precioUnitario,
-                    precioTotal,
+                    precioTotalSinIva,
+                    iva,
+                    precioTotalConIva,
                     plazoEntrega,
                     observacionCompra,
                     'En Proceso',
-                    'Pendiente Aprobacion 1',
                     id
                 ]
             );
@@ -1003,6 +1028,255 @@ router.put('/comprasActualizarCampos/:id', validarToken, async (req, res) => {
             metodo: 'put',
             endPoint: 'logisticaActualizarCantidades',
             accion: 'Error al actualizar cantidades',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.put('/comprasGenerarOC', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+
+    try {
+        const data = req.body;
+
+        if (!data || Object.keys(data).length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasGenerarOC',
+                accion: 'Generar orden de compra fallido',
+                detalle: 'Los datos del formulario son requeridos.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Los datos del formulario son requeridos.");
+        }
+
+        const { contrasena, fechaOrdenCompra, totalOrdenCompra, ids } = data;
+
+        if (!contrasena || !fechaOrdenCompra || !totalOrdenCompra || !ids || !Array.isArray(ids) || ids.length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasGenerarOC',
+                accion: 'Generar orden de compra fallido',
+                detalle: 'Fecha, total y array de IDs son requeridos.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Contraseña, fecha, total y array de IDs son requeridos");
+        }
+
+        const [firma] = await dbRailway.query(
+            `SELECT * FROM firmas WHERE cedulaUsuario = ?`,
+            [usuarioToken.cedula]
+        );
+
+        if (firma.length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasGenerarOC',
+                accion: 'Generar orden de compra fallido',
+                detalle: 'Registro no permitido: Cédula de usuario no tiene firma registrada.',
+                datos: { cedulaUsuarioProporcionado: usuarioToken.cedula },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Registro no permitido: Cédula de usuario no tiene firma registrada.");
+        }
+
+        if (!await bcrypt.compare(contrasena, firma[0].contrasena)) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasGenerarOC',
+                accion: 'Generar orden de compra fallido',
+                detalle: 'Registro no permitido: Contraseña actual incorrecta.',
+                datos: { cedulaUsuarioProporcionado: usuarioToken.cedula },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Registro no permitido: Contraseña actual incorrecta.", null, { "contrasena": `La contraseña actual proporcionada no coincide con la registrada.` });
+        }
+
+        const [registrosExistentes] = await dbRailway.query(
+            `SELECT id FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
+            [ids]
+        );
+
+        const idsExistentes = registrosExistentes.map(r => r.id);
+        const idsNoExistentes = ids.filter(id => !idsExistentes.includes(id));
+
+        if (idsNoExistentes.length > 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasGenerarOC',
+                accion: 'Generar orden de compra fallido',
+                detalle: `IDs no encontrados: ${idsNoExistentes.join(', ')}`,
+                datos: { idsEnviados: ids, idsEncontrados: idsExistentes },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 404, `Los siguientes IDs no existen: ${idsNoExistentes.join(', ')}`);
+        }
+
+        const fechaColombia = getFechaHoraColombia()
+        const añoActual = parseInt(fechaColombia.split('-')[0]);
+
+        const [ultimaOrden] = await dbRailway.query(`
+            SELECT ordenCompra 
+            FROM registros_solicitud_cadena_suministro 
+            WHERE ordenCompra IS NOT NULL 
+            AND ordenCompra != '' 
+            AND ordenCompra LIKE ?
+            ORDER BY ordenCompra DESC 
+            LIMIT 1
+        `, [`OC - ${añoActual} - %`]);
+
+        let nuevoConsecutivo = 1;
+
+        if (ultimaOrden && ultimaOrden.length > 0) {
+            const ultimoNumero = ultimaOrden[0].ordenCompra.split(' - ')[2];
+            if (ultimoNumero) {
+                nuevoConsecutivo = parseInt(ultimoNumero) + 1;
+            }
+        }
+
+        const consecutivoFormateado = nuevoConsecutivo.toString().padStart(5, '0');
+        const nuevaOrdenCompra = `OC - ${añoActual} - ${consecutivoFormateado}`;
+
+        const connection = await dbRailway.getConnection();
+        await connection.beginTransaction();
+
+        try {
+            const placeholders = ids.map(() => '?').join(',');
+            const [result] = await connection.query(
+                `
+                UPDATE registros_solicitud_cadena_suministro 
+                SET 
+                    fechaOrdenCompra = ?,
+                    ordenCompra = ?,
+                    totalOrdenCompra = ?,
+                    firmaCompra = ?,
+                    estadoSolicitud = ?,
+                    estadoCompra = ?,
+                    estadoAprobacion1 = ?
+                WHERE id IN (${placeholders})
+                `,
+                [fechaOrdenCompra, nuevaOrdenCompra, totalOrdenCompra, firma[0].firma, 'Pendiente Aprobacion 1', 'Realizado', 'Pendiente', ...ids]
+            );
+
+            await connection.commit();
+
+            const [registrosActualizados] = await dbRailway.query(
+                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
+                [ids]
+            );
+
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasGenerarOC',
+                accion: 'Generar orden de compra exitoso',
+                detalle: `Orden de compra ${nuevaOrdenCompra} generada para ${ids.length} registro(s)`,
+                datos: {
+                    ordenCompra: nuevaOrdenCompra,
+                    fechaOrdenCompra,
+                    totalOrdenCompra,
+                    idsActualizados: ids,
+                    registrosAfectados: result.affectedRows
+                },
+                tablasIdsAfectados: ids.map(id => ({
+                    tabla: 'registros_solicitud_cadena_suministro',
+                    id: id.toString()
+                })),
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendResponse(
+                res,
+                200,
+                `Orden de compra generada correctamente`,
+                `Se generó la orden ${nuevaOrdenCompra} para ${result.affectedRows} registro(s).`,
+                {
+                    ordenCompra: nuevaOrdenCompra,
+                    registrosActualizados: registrosActualizados,
+                    idsActualizados: ids
+                }
+            );
+
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'put',
+            endPoint: 'comprasGenerarOC',
+            accion: 'Error al generar la orden de compra',
             detalle: 'Error interno del servidor',
             datos: {
                 error: err.message,
