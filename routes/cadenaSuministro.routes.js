@@ -671,6 +671,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
             let estadoAprobacion1 = 'Validar';
             let estadoAprobacion2 = 'Validar';
             let estadoAprobacion3 = 'Validar';
+            let estadoTesoreria = 'Validar';
             let cantidadRestante = 0;
 
             if (parseFloat(cantidadExistente) === parseFloat(cantidadEditada)) {
@@ -679,12 +680,14 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                 estadoAprobacion1 = 'Pendiente';
                 estadoAprobacion2 = 'No aplica';
                 estadoAprobacion3 = 'No aplica';
+                estadoTesoreria = 'No aplica';
             } else if (parseFloat(cantidadEditada) < parseFloat(cantidadExistente)) {
                 estadoSolicitudRegistro = 'Pendiente Compras';
                 estadoCompra = 'Pendiente';
                 estadoAprobacion1 = null;
                 estadoAprobacion2 = null;
                 estadoAprobacion3 = null;
+                estadoTesoreria = null;
             } else if (parseFloat(cantidadEditada) > parseFloat(cantidadExistente)) {
                 await registrarHistorial({
                     nombreUsuario: usuarioToken.nombre || 'No registrado',
@@ -710,6 +713,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                 estadoAprobacion1 = null;
                 estadoAprobacion2 = null;
                 estadoAprobacion3 = null;
+                estadoTesoreria = null;
             }
 
             cantidadRestante = parseFloat(cantidadExistente) - parseFloat(cantidadEditada);
@@ -726,7 +730,8 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                 estadoCompra = ? ,
                 estadoAprobacion1 = ?,
                 estadoAprobacion2 = ?,
-                estadoAprobacion3 = ?
+                estadoAprobacion3 = ?,
+                estadoTesoreria = ?
                 WHERE id = ? LIMIT 1`,
                 [
                     fechaColombia,
@@ -740,6 +745,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                     estadoAprobacion1,
                     estadoAprobacion2,
                     estadoAprobacion3,
+                    estadoTesoreria,
                     id
                 ]
             );
@@ -1788,6 +1794,7 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
 
         const fechaColombia = getFechaHoraColombia();
         const estadoAprobacion3 = aprobacion === '2' ? estado === 'Aprobado' ? 'Pendiente' : null : estado;
+        const estadoTesoreria = aprobacion === '3' ? estado === 'Aprobado' ? 'Pendiente' : null : null;
         const estadoSolicitud = aprobacion === '2' ? estado === 'Aprobado' ? 'Pendiente Aprobacion 3' : estado : estado === 'Aprobado' ? 'Pendiente Tesoreria' : estado;
 
         const connection = await dbRailway.getConnection();
@@ -1800,18 +1807,18 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
             if (aprobacion === '2') {
                 [result] = await connection.query(
                     `
-                    UPDATE registros_solicitud_cadena_suministro 
-                    SET 
-                        fechaAprobacion2 = ?,
-                        cedulaUsuarioAprobacion2 = ?,
-                        nombreUsuarioAprobacion2 = ?,
-                        observacionAprobacion2 = ?,
-                        firmaAprobacion2 = ?,
-                        estadoAprobacion2 = ?,
-                        estadoAprobacion3 = ?,
-                        estadoSolicitud = ?
-                    WHERE id IN (${placeholders})
-                `,
+                        UPDATE registros_solicitud_cadena_suministro 
+                        SET 
+                            fechaAprobacion2 = ?,
+                            cedulaUsuarioAprobacion2 = ?,
+                            nombreUsuarioAprobacion2 = ?,
+                            observacionAprobacion2 = ?,
+                            firmaAprobacion2 = ?,
+                            estadoAprobacion2 = ?,
+                            estadoAprobacion3 = ?,
+                            estadoSolicitud = ?
+                        WHERE id IN (${placeholders})
+                    `,
                     [
                         fechaColombia,
                         usuarioToken.cedula,
@@ -1835,6 +1842,7 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
                         observacionAprobacion3 = ?,
                         firmaAprobacion3 = ?,
                         estadoAprobacion3 = ?,
+                        estadoTesoreria = ?,
                         estadoSolicitud = ?
                     WHERE id IN (${placeholders})
                 `,
@@ -1845,6 +1853,7 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
                         observaciones,
                         firma[0].firma,
                         estadoAprobacion3,
+                        estadoTesoreria,
                         estadoSolicitud,
                         ...ids
                     ]
@@ -1923,5 +1932,315 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
         return sendError(res, 500, "Error inesperado.", err);
     }
 });
+
+router.put('/despachoMaterial',
+    validarToken,
+    upload.fields([
+        { name: 'pdfs' },
+    ]),
+    async (req, res) => {
+
+        const usuarioToken = req.validarToken.usuario
+
+        try {
+            const dataString = req.body.data;
+            const editadosDespachoMaterial = JSON.parse(dataString);
+            const archivos = req.files;
+
+            if (!editadosDespachoMaterial || Object.keys(editadosDespachoMaterial).length === 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'cadenaSuministro',
+                    metodo: 'put',
+                    endPoint: 'despachoMaterial',
+                    accion: 'Actualizar despacho material fallido',
+                    detalle: 'Los datos del registro son requeridos.',
+                    datos: { dataString },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Los datos del registro son requeridos.");
+            }
+
+            if (!archivos?.pdfs || Object.keys(archivos).length === 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'cadenaSuministro',
+                    metodo: 'put',
+                    endPoint: 'despachoMaterial',
+                    accion: 'Actualizar despacho material fallido',
+                    detalle: 'Los soportes son necesario: PDFs',
+                    datos: { ArchivoProporcionado: archivos },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Los soportes son necesario: PDFs", null, { "pdfs": `Ingrese un archivo .pdf con la salida.` });
+            }
+
+            const idsProyectos = Object.keys(editadosDespachoMaterial).filter(key => key !== 'observaciones');
+
+            if (idsProyectos.length === 0) {
+                return sendError(res, 400, "No hay IDs de proyectos para consultar");
+            }
+
+            const placeholders = idsProyectos.map(() => '?').join(',');
+
+            const [solicitudesExistentes] = await dbRailway.query(
+                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (${placeholders})`,
+                idsProyectos
+            );
+
+            const fechaColombia = getFechaHoraColombia()
+            const driveResults = [];
+
+            if (archivos?.pdfs && Array.isArray(archivos.pdfs) && archivos.pdfs.length > 0) {
+                for (let i = 0; i < archivos.pdfs.length; i++) {
+                    const pdfFile = archivos.pdfs[i];
+                    try {
+
+                        const pdfExt = path.extname(pdfFile.originalname);
+                        const pdfFileName = `${solicitudesExistentes[0].uuidOt}_pdf_${i + 1}_${fechaColombia}${pdfExt}`;
+
+                        const fileId = await uploadFileToDrive(
+                            pdfFile.buffer,
+                            pdfFileName,
+                            folderId
+                        );
+
+                        const result = {
+                            tipo: 'pdf',
+                            nombre: pdfFileName,
+                            id: fileId.id,
+                            url: fileId.url,
+                            webViewLink: fileId.webViewLink,
+                            indice: i,
+                            size: pdfFile.size
+                        }
+
+                        driveResults.push(result);
+
+                        await registrarHistorial({
+                            nombreUsuario: usuarioToken.nombre || 'No registrado',
+                            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                            rolUsuario: usuarioToken.rol || 'No registrado',
+                            nivel: 'success',
+                            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                            app: 'cadenaSuministro',
+                            metodo: 'put',
+                            endPoint: 'despachoMaterial',
+                            accion: 'Cargar PDF exitoso',
+                            detalle: `PDF ${i + 1} de ${archivos.pdfs.length} cargado exitosamente`,
+                            datos: {
+                                pdf: result,
+                                totalPDFs: archivos.pdfs.length,
+                                indice: i + 1
+                            },
+                            tablasIdsAfectados: [],
+                            ipAddress: getClientIp(req),
+                            userAgent: req.headers['user-agent'] || ''
+                        });
+                    } catch (error) {
+                        console.error(`Error procesando PDF ${i + 1}:`, error);
+
+                        await registrarHistorial({
+                            nombreUsuario: usuarioToken.nombre || 'No registrado',
+                            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                            rolUsuario: usuarioToken.rol || 'No registrado',
+                            nivel: 'error',
+                            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                            app: 'cadenaSuministro',
+                            metodo: 'put',
+                            endPoint: 'despachoMaterial',
+                            accion: 'Cargar PDF fallido',
+                            detalle: `Error al cargar PDF ${i + 1}: ${error.message}`,
+                            datos: {
+                                nombreOriginal: pdfFile.originalname,
+                                error: error.message
+                            },
+                            tablasIdsAfectados: [],
+                            ipAddress: getClientIp(req),
+                            userAgent: req.headers['user-agent'] || ''
+                        });
+                    }
+                }
+            }
+
+            const solicitudesMap = {};
+            const nuevosNombres = driveResults.map(pdf => pdf.nombre);
+            solicitudesExistentes.forEach(solicitud => {
+                solicitudesMap[solicitud.id] = solicitud;
+            });
+
+            const connection = await dbRailway.getConnection();
+            await connection.beginTransaction();
+
+            const idsActualizados = [];
+
+            for (id of idsProyectos) {
+                const solicitud = solicitudesMap[id];
+
+                const cantidadSolicitada = parseFloat(solicitud.cantidad);
+                const cantidadDespachadaMaterial = parseFloat(solicitud.cantidadDespachadaMaterial || '0');
+                const cantidadPendienteDespacho = cantidadSolicitada - cantidadDespachadaMaterial;
+                const cantidadEditada = parseFloat(editadosDespachoMaterial[id] || '0')
+
+                if (cantidadEditada === 0) {
+                    continue;
+                }
+
+                if (cantidadPendienteDespacho < cantidadEditada) {
+                    await registrarHistorial({
+                        nombreUsuario: usuarioToken.nombre || 'No registrado',
+                        cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                        rolUsuario: usuarioToken.rol || 'No registrado',
+                        nivel: 'log',
+                        plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                        app: 'cadenaSuministro',
+                        metodo: 'put',
+                        endPoint: 'despachoMaterial',
+                        accion: 'Actualizar despacho material fallido',
+                        detalle: 'La cantidad ingresada es mayor a la restante por despacho.',
+                        datos: { ArchivoProporcionado: archivos },
+                        tablasIdsAfectados: [],
+                        ipAddress: getClientIp(req),
+                        userAgent: req.headers['user-agent'] || ''
+                    });
+
+                    return sendError(res, 400, "La cantidad ingresada es mayor a la restante por despacho.");
+                }
+
+                const cantidadDespachadaNueva = cantidadDespachadaMaterial + cantidadEditada
+                const cantidadRestante = cantidadPendienteDespacho - cantidadEditada;
+                const pdfsExistentes = solicitud.pdfsDespachoMaterial;
+                let pdfsExistentesArray = [];
+
+                if (pdfsExistentes) {
+                    try {
+                        if (typeof pdfsExistentes === 'string') {
+                            pdfsExistentesArray = JSON.parse(pdfsExistentes);
+                        }
+                        else if (Array.isArray(pdfsExistentes)) {
+                            pdfsExistentesArray = pdfsExistentes;
+                        }
+                    } catch (error) {
+                        console.error('Error parseando pdfsExistentes:', error);
+                        pdfsExistentesArray = [];
+                    }
+                }
+
+                const pdfsCombinados = [...pdfsExistentesArray, ...nuevosNombres];
+                const pdfsJsonParaBD = JSON.stringify(pdfsCombinados);
+                const estadoDespachoMaterial = cantidadRestante === 0 ? 'Realizado' : 'Parcial';
+                const estadoSolicitud = cantidadRestante === 0 ? 'Material Despachado' : 'Pendiente Despacho Bodega';
+
+                const [result] = await connection.query(
+                    `
+                        UPDATE registros_solicitud_cadena_suministro 
+                        SET 
+                            fechaDespachoMaterial = ?,
+                            cedulaUsuarioDespachoMaterial = ?,
+                            nombreUsuarioDespachoMaterial = ?,
+                            cantidadDespachadaMaterial = ?,
+                            pdfsDespachoMaterial = ?,
+                            observacionDespachoMaterial = ?,
+                            estadoDespachoMaterial = ?,
+                            estadoSolicitud = ?
+                        WHERE id = ?
+                    `,
+                    [
+                        fechaColombia,
+                        usuarioToken.cedula,
+                        usuarioToken.nombre,
+                        cantidadDespachadaNueva.toString(),
+                        pdfsJsonParaBD,
+                        editadosDespachoMaterial['observaciones'],
+                        estadoDespachoMaterial,
+                        estadoSolicitud,
+                        id
+                    ]
+                );
+
+                idsActualizados.push(id);
+            }
+
+            await connection.commit();
+            connection.release();
+
+            const [registrosActualizados] = await dbRailway.query(
+                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
+                [idsProyectos]
+            );
+
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'despachoMaterial',
+                accion: 'Actualizar despacho material exitoso',
+                detalle: `Despacho de material actualizado para ${idsActualizados.length} registro(s)`,
+                datos: {
+                    idsActualizados: idsActualizados,
+                    registrosAfectados: idsActualizados.length
+                },
+                tablasIdsAfectados: idsActualizados.map(id => ({
+                    tabla: 'registros_solicitud_cadena_suministro',
+                    ids: id.toString()
+                })),
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendResponse(
+                res,
+                200,
+                "Despacho de material actualizado correctamente",
+                `Se actualizó el despacho de material para ${idsActualizados.length} registro(s)`,
+                {
+                    registrosActualizados: registrosActualizados,
+                    idsActualizados: idsActualizados,
+                    pdfsSubidos: driveResults
+                }
+            );
+
+        } catch (err) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'Error sistema',
+                cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+                rolUsuario: usuarioToken.rol || 'Error sistema',
+                nivel: 'error',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'despachoMaterial',
+                accion: 'Actualizar despacho material fallido',
+                detalle: 'Error interno del servidor',
+                datos: {
+                    error: err.message,
+                    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+                },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 500, "Error inesperado.", err);
+        }
+    });
 
 module.exports = router;
