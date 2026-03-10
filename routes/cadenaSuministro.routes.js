@@ -2243,4 +2243,92 @@ router.put('/despachoMaterial',
         }
     });
 
+router.post('/obtenerArchivoPDF', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario
+    const { namePDF } = req.body;
+
+    try {
+        const resultados = {};
+
+        if (!namePDF) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'post',
+                endPoint: 'obtenerArchivoPDF',
+                accion: 'Consulta archivos fallido',
+                detalle: 'Registro no permitido: Nombre PDF',
+                datos: { nombrePDFProporcionado: namePDF },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Registro no permitido: PDF", null, { "namePDF": `Ingrese el nombre del pdf.` });
+        }
+
+        if (namePDF) {
+            const factBuffer = await getFileFromDrive(namePDF, folderId);
+            if (factBuffer) {
+                resultados.pdf = {
+                    nombre: namePDF,
+                    data: factBuffer.toString('base64'),
+                    contentType: getMimeType(namePDF)
+                };
+            }
+        }
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'post',
+            endPoint: 'obtenerArchivoPDF',
+            accion: 'Consulta archivos exitosa',
+            detalle: `Se consultó ${resultados.length} registros`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron los archivos correctamente.`,
+            resultados
+        );
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'post',
+            endPoint: 'obtenerArchivoPDF',
+            accion: 'Error al obtener los archivos',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
 module.exports = router;
