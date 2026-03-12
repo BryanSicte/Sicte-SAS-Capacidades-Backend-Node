@@ -672,6 +672,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
             let estadoAprobacion2 = 'Validar';
             let estadoAprobacion3 = 'Validar';
             let estadoTesoreria = 'Validar';
+            let estadoEntregaProveedor = 'Validar';
             let cantidadRestante = 0;
 
             if (parseFloat(cantidadExistente) === parseFloat(cantidadEditada)) {
@@ -681,6 +682,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                 estadoAprobacion2 = 'No aplica';
                 estadoAprobacion3 = 'No aplica';
                 estadoTesoreria = 'No aplica';
+                estadoEntregaProveedor = 'No aplica';
             } else if (parseFloat(cantidadEditada) < parseFloat(cantidadExistente)) {
                 estadoSolicitudRegistro = 'Pendiente Compras';
                 estadoCompra = 'Pendiente';
@@ -688,6 +690,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                 estadoAprobacion2 = null;
                 estadoAprobacion3 = null;
                 estadoTesoreria = null;
+                estadoEntregaProveedor = null;
             } else if (parseFloat(cantidadEditada) > parseFloat(cantidadExistente)) {
                 await registrarHistorial({
                     nombreUsuario: usuarioToken.nombre || 'No registrado',
@@ -714,6 +717,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                 estadoAprobacion2 = null;
                 estadoAprobacion3 = null;
                 estadoTesoreria = null;
+                estadoEntregaProveedor = null;
             }
 
             cantidadRestante = parseFloat(cantidadExistente) - parseFloat(cantidadEditada);
@@ -731,7 +735,8 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                 estadoAprobacion1 = ?,
                 estadoAprobacion2 = ?,
                 estadoAprobacion3 = ?,
-                estadoTesoreria = ?
+                estadoTesoreria = ?,
+                estadoEntregaProveedor = ?
                 WHERE id = ? LIMIT 1`,
                 [
                     fechaColombia,
@@ -746,6 +751,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                     estadoAprobacion2,
                     estadoAprobacion3,
                     estadoTesoreria,
+                    estadoEntregaProveedor,
                     id
                 ]
             );
@@ -2330,5 +2336,529 @@ router.post('/obtenerArchivoPDF', validarToken, async (req, res) => {
         return sendError(res, 500, "Error inesperado.", err);
     }
 });
+
+router.put('/tesoreria', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+
+    try {
+        const data = req.body;
+
+        if (!data || Object.keys(data).length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'tesoreria',
+                accion: 'Actualizar tesoreria fallido',
+                detalle: 'Los datos del formulario son requeridos.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Los datos del formulario son requeridos.");
+        }
+
+        const { contrasena, observaciones, ids } = data;
+
+        if (!contrasena || !ids || !Array.isArray(ids) || ids.length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'tesoreria',
+                accion: `Actualizar tesoreria fallido`,
+                detalle: 'Contrasena y array de IDs son requeridos.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Contrasena y array de IDs son requeridos");
+        }
+
+        const [firma] = await dbRailway.query(
+            `SELECT * FROM firmas WHERE cedulaUsuario = ?`,
+            [usuarioToken.cedula]
+        );
+
+        if (firma.length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'tesoreria',
+                accion: `Actualizar tesoreria fallido`,
+                detalle: 'Registro no permitido: Cédula de usuario no tiene firma registrada.',
+                datos: { cedulaUsuarioProporcionado: usuarioToken.cedula },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Registro no permitido: Cédula de usuario no tiene firma registrada.");
+        }
+
+        if (!await bcrypt.compare(contrasena, firma[0].contrasena)) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'tesoreria',
+                accion: `Actualizar tesoreria fallido`,
+                detalle: 'Registro no permitido: Contraseña actual incorrecta.',
+                datos: { cedulaUsuarioProporcionado: usuarioToken.cedula },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Registro no permitido: Contraseña actual incorrecta.", null, { "contrasena": `La contraseña actual proporcionada no coincide con la registrada.` });
+        }
+
+        const [registrosExistentes] = await dbRailway.query(
+            `SELECT id FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
+            [ids]
+        );
+
+        const idsExistentes = registrosExistentes.map(r => r.id);
+        const idsNoExistentes = ids.filter(id => !idsExistentes.includes(id));
+
+        if (idsNoExistentes.length > 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'tesoreria',
+                accion: `Actualizar tesoreria fallido`,
+                detalle: `IDs no encontrados: ${idsNoExistentes.join(', ')}`,
+                datos: { idsEnviados: ids, idsEncontrados: idsExistentes },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 404, `Los siguientes IDs no existen: ${idsNoExistentes.join(', ')}`);
+        }
+
+        const fechaColombia = getFechaHoraColombia();
+
+        const connection = await dbRailway.getConnection();
+        await connection.beginTransaction();
+
+        try {
+            const placeholders = ids.map(() => '?').join(',');
+            let result;
+
+            [result] = await connection.query(
+                `
+                        UPDATE registros_solicitud_cadena_suministro 
+                        SET 
+                            fechaTesoreria = ?,
+                            cedulaUsuarioTesoreria = ?,
+                            nombreUsuarioTesoreria = ?,
+                            observacionTesoreria = ?,
+                            firmaTesoreria = ?,
+                            estadoTesoreria = 'Realizado',
+                            estadoEntregaProveedor = 'Pendiente',
+                            estadoSolicitud = 'Pendiente Entrega Proveedor'
+                        WHERE id IN (${placeholders})
+                    `,
+                [
+                    fechaColombia,
+                    usuarioToken.cedula,
+                    usuarioToken.nombre,
+                    observaciones,
+                    firma[0].firma,
+                    ...ids
+                ]
+            );
+
+            await connection.commit();
+
+            const [registrosActualizados] = await dbRailway.query(
+                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
+                [ids]
+            );
+
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'tesoreria',
+                accion: `Actualizar tesoreria exitoso`,
+                detalle: `Se actualizo tesoreria para ${ids.length} registro(s)`,
+                datos: {
+                    idsActualizados: ids,
+                    registrosAfectados: result.affectedRows
+                },
+                tablasIdsAfectados: ids.map(id => ({
+                    tabla: 'registros_solicitud_cadena_suministro',
+                    ids: ids.toString()
+                })),
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendResponse(
+                res,
+                200,
+                `Tesoreria actualizo correctamente`,
+                `Se actualizó tesoreria para ${ids.length} registro(s)`,
+                {
+                    registrosActualizados: registrosActualizados,
+                    idsActualizados: ids
+                }
+            );
+
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'put',
+            endPoint: 'tesoreria',
+            accion: 'Error al actualizar tesoreria',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.put('/entregaProveedor',
+    validarToken,
+    upload.fields([
+        { name: 'pdfs' },
+    ]),
+    async (req, res) => {
+
+        const usuarioToken = req.validarToken.usuario
+
+        try {
+            const dataString = req.body.data;
+            const editadosEntregaProveedor = JSON.parse(dataString);
+            const archivos = req.files;
+
+            if (!editadosEntregaProveedor || Object.keys(editadosEntregaProveedor).length === 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'cadenaSuministro',
+                    metodo: 'put',
+                    endPoint: 'entregaProveedor',
+                    accion: 'Actualizar entrega material por proveedor fallido',
+                    detalle: 'Los datos del registro son requeridos.',
+                    datos: { dataString },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Los datos del registro son requeridos.");
+            }
+
+            if (!archivos?.pdfs || Object.keys(archivos).length === 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'cadenaSuministro',
+                    metodo: 'put',
+                    endPoint: 'entregaProveedor',
+                    accion: 'Actualizar entrega material por proveedor fallido',
+                    detalle: 'Los soportes son necesario: PDFs',
+                    datos: { ArchivoProporcionado: archivos },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Los soportes son necesario: PDFs", null, { "pdfs": `Ingrese un archivo .pdf con la salida.` });
+            }
+
+            const idsProyectos = Object.keys(editadosEntregaProveedor).filter(key => key !== 'observaciones');
+
+            if (idsProyectos.length === 0) {
+                return sendError(res, 400, "No hay IDs de proyectos para consultar");
+            }
+
+            const placeholders = idsProyectos.map(() => '?').join(',');
+
+            const [solicitudesExistentes] = await dbRailway.query(
+                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (${placeholders})`,
+                idsProyectos
+            );
+
+            const fechaColombia = getFechaHoraColombia()
+            const driveResults = [];
+
+            if (archivos?.pdfs && Array.isArray(archivos.pdfs) && archivos.pdfs.length > 0) {
+                for (let i = 0; i < archivos.pdfs.length; i++) {
+                    const pdfFile = archivos.pdfs[i];
+                    try {
+
+                        const pdfExt = path.extname(pdfFile.originalname);
+                        const pdfFileName = `${solicitudesExistentes[0].uuidOt}_pdf_entraga_bodega_${i + 1}_${fechaColombia}${pdfExt}`;
+
+                        const fileId = await uploadFileToDrive(
+                            pdfFile.buffer,
+                            pdfFileName,
+                            folderId
+                        );
+
+                        const result = {
+                            tipo: 'pdf',
+                            nombre: pdfFileName,
+                            id: fileId.id,
+                            url: fileId.url,
+                            webViewLink: fileId.webViewLink,
+                            indice: i,
+                            size: pdfFile.size
+                        }
+
+                        driveResults.push(result);
+
+                        await registrarHistorial({
+                            nombreUsuario: usuarioToken.nombre || 'No registrado',
+                            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                            rolUsuario: usuarioToken.rol || 'No registrado',
+                            nivel: 'success',
+                            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                            app: 'cadenaSuministro',
+                            metodo: 'put',
+                            endPoint: 'entregaProveedor',
+                            accion: 'Cargar PDF exitoso',
+                            detalle: `PDF ${i + 1} de ${archivos.pdfs.length} cargado exitosamente`,
+                            datos: {
+                                pdf: result,
+                                totalPDFs: archivos.pdfs.length,
+                                indice: i + 1
+                            },
+                            tablasIdsAfectados: [],
+                            ipAddress: getClientIp(req),
+                            userAgent: req.headers['user-agent'] || ''
+                        });
+                    } catch (error) {
+                        console.error(`Error procesando PDF ${i + 1}:`, error);
+
+                        await registrarHistorial({
+                            nombreUsuario: usuarioToken.nombre || 'No registrado',
+                            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                            rolUsuario: usuarioToken.rol || 'No registrado',
+                            nivel: 'error',
+                            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                            app: 'cadenaSuministro',
+                            metodo: 'put',
+                            endPoint: 'entregaProveedor',
+                            accion: 'Cargar PDF fallido',
+                            detalle: `Error al cargar PDF ${i + 1}: ${error.message}`,
+                            datos: {
+                                nombreOriginal: pdfFile.originalname,
+                                error: error.message
+                            },
+                            tablasIdsAfectados: [],
+                            ipAddress: getClientIp(req),
+                            userAgent: req.headers['user-agent'] || ''
+                        });
+                    }
+                }
+            }
+
+            const solicitudesMap = {};
+            const nuevosNombres = driveResults.map(pdf => pdf.nombre);
+            solicitudesExistentes.forEach(solicitud => {
+                solicitudesMap[solicitud.id] = solicitud;
+            });
+
+            const connection = await dbRailway.getConnection();
+            await connection.beginTransaction();
+
+            const idsActualizados = [];
+
+            for (id of idsProyectos) {
+                const solicitud = solicitudesMap[id];
+
+                const cantidadSolicitada = parseFloat(solicitud.cantidadProveedor);
+                const cantidadEntregaProveedor = parseFloat(solicitud.cantidadEntregaProveedor || '0');
+                const cantidadPendienteEntrega = cantidadSolicitada - cantidadEntregaProveedor;
+                const cantidadEditada = parseFloat(editadosEntregaProveedor[id] || '0')
+
+                if (cantidadEditada === 0) {
+                    continue;
+                }
+
+                const cantidadEntregaProveedorNueva = cantidadEntregaProveedor + cantidadEditada
+                const cantidadRestante = cantidadPendienteEntrega - cantidadEditada;
+                const pdfsExistentes = solicitud.pdfsEntregaProveedor;
+                let pdfsExistentesArray = [];
+
+                if (pdfsExistentes) {
+                    try {
+                        if (typeof pdfsExistentes === 'string') {
+                            pdfsExistentesArray = JSON.parse(pdfsExistentes);
+                        }
+                        else if (Array.isArray(pdfsExistentes)) {
+                            pdfsExistentesArray = pdfsExistentes;
+                        }
+                    } catch (error) {
+                        console.error('Error parseando pdfsExistentes:', error);
+                        pdfsExistentesArray = [];
+                    }
+                }
+
+                const pdfsCombinados = [...pdfsExistentesArray, ...nuevosNombres];
+                const pdfsJsonParaBD = JSON.stringify(pdfsCombinados);
+                const estadoEntregaProveedor = cantidadRestante === 0 || cantidadRestante < 0 ? 'Realizado' : 'Parcial';
+                const estadoDespachoMaterial = cantidadRestante === 0 || cantidadRestante < 0 ? 'Pendiente' : null;
+                const estadoSolicitud = cantidadRestante === 0 || cantidadRestante < 0 ? 'Pendiente Despacho Bodega' : 'Pendiente Entrega Proveedor';
+
+                const [result] = await connection.query(
+                    `
+                        UPDATE registros_solicitud_cadena_suministro 
+                        SET 
+                            fechaEntregaProveedor = ?,
+                            cedulaUsuarioEntregaProveedor = ?,
+                            nombreUsuarioEntregaProveedor = ?,
+                            cantidadEntregaProveedor = ?,
+                            pdfsEntregaProveedor = ?,
+                            observacionEntregaProveedor = ?,
+                            estadoEntregaProveedor = ?,
+                            estadoDespachoMaterial = ?,
+                            estadoSolicitud = ?
+                        WHERE id = ?
+                    `,
+                    [
+                        fechaColombia,
+                        usuarioToken.cedula,
+                        usuarioToken.nombre,
+                        cantidadEntregaProveedorNueva.toString(),
+                        pdfsJsonParaBD,
+                        editadosEntregaProveedor['observaciones'],
+                        estadoEntregaProveedor,
+                        estadoDespachoMaterial,
+                        estadoSolicitud,
+                        id
+                    ]
+                );
+
+                idsActualizados.push(id);
+            }
+
+            await connection.commit();
+            connection.release();
+
+            const [registrosActualizados] = await dbRailway.query(
+                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
+                [idsProyectos]
+            );
+
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'entregaProveedor',
+                accion: 'Actualizar entrega material por proveedor exitoso',
+                detalle: `Entrega de material por proveedor actualizado para ${idsActualizados.length} registro(s)`,
+                datos: {
+                    idsActualizados: idsActualizados,
+                    registrosAfectados: idsActualizados.length
+                },
+                tablasIdsAfectados: idsActualizados.map(id => ({
+                    tabla: 'registros_solicitud_cadena_suministro',
+                    ids: id.toString()
+                })),
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendResponse(
+                res,
+                200,
+                "Entrega de material por proveedor actualizado correctamente",
+                `Se actualizó la entraga de material por proveedor para ${idsActualizados.length} registro(s)`,
+                {
+                    registrosActualizados: registrosActualizados,
+                    idsActualizados: idsActualizados,
+                    pdfsSubidos: driveResults
+                }
+            );
+
+        } catch (err) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'Error sistema',
+                cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+                rolUsuario: usuarioToken.rol || 'Error sistema',
+                nivel: 'error',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'entregaProveedor',
+                accion: 'Actualizar entrega material por proveedor fallido',
+                detalle: 'Error interno del servidor',
+                datos: {
+                    error: err.message,
+                    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+                },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 500, "Error inesperado.", err);
+        }
+    });
 
 module.exports = router;
