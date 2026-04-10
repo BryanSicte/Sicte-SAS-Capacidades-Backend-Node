@@ -124,11 +124,23 @@ router.post('/registrosKgprodBasico', validarToken, async (req, res) => {
 
         let ciudadBase;
         if (ciudad === 'Bogota') {
-            ciudadBase = ['KGPROD_CORP_BOG', 'KGPROD_RED_BOG']
+            if (area === 'Proyectos' || area === 'Reingenieria') {
+                ciudadBase = ['KGPROD_CORP_BOG', 'KGPROD_RED_BOG']
+            } else if (area === 'Operaciones') {
+                ciudadBase = ['KGPROD_BOG']
+            } else if (area === 'Enel X') {
+                ciudadBase = ['KGPROD_ENEL_X']
+            } else if (area === 'Enel AP') {
+                ciudadBase = ['KGPROD_ENEL_AP']
+            }
         } else if (ciudad === 'Armenia') {
             ciudadBase = ['KGPROD_ARM']
         } else if (ciudad === 'Pereira') {
-            ciudadBase = ['KGPROD_PER_FO-HFC']
+            if (area === 'Proyectos' || area === 'Reingenieria') {
+                ciudadBase = ['KGPROD_PER_FO-HFC']
+            } else if (area === 'Operaciones') {
+                ciudadBase = ['KGPROD_PER']
+            }
         } else if (ciudad === 'Manizales') {
             ciudadBase = ['KGPROD_MZL']
         }

@@ -1770,7 +1770,7 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
         }
 
         const [registrosExistentes] = await dbRailway.query(
-            `SELECT id FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
+            `SELECT id, formaPago FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
             [ids]
         );
 
@@ -1799,9 +1799,10 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
         }
 
         const fechaColombia = getFechaHoraColombia();
-        const estadoAprobacion3 = aprobacion === '2' ? estado === 'Aprobado' ? 'Pendiente' : null : estado;
-        const estadoTesoreria = aprobacion === '3' ? estado === 'Aprobado' ? 'Pendiente' : null : null;
-        const estadoSolicitud = aprobacion === '2' ? estado === 'Aprobado' ? 'Pendiente Aprobacion 3' : estado : estado === 'Aprobado' ? 'Pendiente Tesoreria' : estado;
+        const estadoAprobacion3 = aprobacion === '2' ? (estado === 'Aprobado' ? 'Pendiente' : null) : estado;
+        const estadoTesoreria = aprobacion === '3' ? (estado === 'Aprobado' ? (registrosExistentes[0].formaPago === 'Anticipo' ? 'Pendiente' : 'No Aplica') : null) : null;
+        const estadoSolicitud = aprobacion === '2' ? (estado === 'Aprobado' ? 'Pendiente Aprobacion 3' : estado) : (estado === 'Aprobado' ? (registrosExistentes[0].formaPago === 'Anticipo' ? 'Pendiente Tesoreria' : 'Pendiente Entrega Proveedor') : estado);
+        const estadoEntregaProveedor = estadoSolicitud === 'Pendiente Entrega Proveedor' ? 'Pendiente' : null;
 
         const connection = await dbRailway.getConnection();
         await connection.beginTransaction();
@@ -1849,7 +1850,8 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
                         firmaAprobacion3 = ?,
                         estadoAprobacion3 = ?,
                         estadoTesoreria = ?,
-                        estadoSolicitud = ?
+                        estadoSolicitud = ?,
+                        estadoEntregaProveedor = ?
                     WHERE id IN (${placeholders})
                 `,
                     [
@@ -1861,6 +1863,7 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
                         estadoAprobacion3,
                         estadoTesoreria,
                         estadoSolicitud,
+                        estadoEntregaProveedor,
                         ...ids
                     ]
                 );
