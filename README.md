@@ -5,9 +5,9 @@
 ## Ejecutar proyecto Primera Vez
 ```bash
 git clone https://github.com/BryanSicte/Sicte-SAS-Capacidades-Backend-Node.git
-cd "Sicte-SAS-CCOT-v2"
-npm install --legacy-peer-deps
-npm run start:dev
+cd "Sicte-SAS-Capacidades-Backend-Node"
+npm install
+npm run dev
 ```
 
 
