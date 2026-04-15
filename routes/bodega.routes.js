@@ -147,7 +147,7 @@ router.post('/registrosKgprodBasico', validarToken, async (req, res) => {
 
         const placeholders = ciudadBase.map(() => '?').join(', ');
         const [rows] = await dbRailway.query(
-            `SELECT codigo, descrip, unimed FROM bodega_kgprod WHERE Bodega IN (${placeholders}) and ind_comprado_2 = 'S'`,
+            `SELECT codigo, descrip, unimed FROM bodega_kgprod WHERE Bodega IN (${placeholders})`,
             ciudadBase
         );
 

@@ -735,7 +735,7 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
             return;
         }
 
-        const { cedulaCapacitador } = data;
+        const { cedulaCapacitador, fechaInicio, fechaFin } = data;
 
         if (cedulaCapacitador) {
             const [dataRows] = await dbRailway.query(`SELECT nit FROM plantaenlinea WHERE nit = ?`, [cedulaCapacitador]);
@@ -752,13 +752,64 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
                     endPoint: 'crearCapacitacion',
                     accion: 'Crear registro fallido',
                     detalle: 'Registro no permitido: Cedula',
-                    datos: { cedulaProporcionado: cedula },
+                    datos: { cedulaProporcionado: cedulaCapacitador },
                     tablasIdsAfectados: [],
                     ipAddress: getClientIp(req),
                     userAgent: req.headers['user-agent'] || ''
                 });
 
-                return sendError(res, 400, "Registro no permitido: Cedula", null, { "cedula": `La cedula ${regional} no se encuentra registrado en el sistema.` });
+                return sendError(res, 400, "Registro no permitido: Cedula", null, { "cedulaCapacitador": `La cedula ${regional} no se encuentra registrado en el sistema.` });
+            }
+        }
+
+        if (fechaInicio && fechaFin) {
+            const inicio = new Date(fechaInicio);
+            const fin = new Date(fechaFin);
+
+            if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                    rolUsuario: usuarioToken?.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'capacitaciones',
+                    metodo: 'post',
+                    endPoint: 'crearCapacitacion',
+                    accion: 'Crear registro fallido',
+                    detalle: 'Las fechas proporcionadas no son válidas.',
+                    datos: { fechaInicioProporcionado: fechaInicio, fechaFinProporcionado: fechaFin, },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Formato de fecha inválido", null, {
+                    "fechaInicio": "Las fechas proporcionadas no son válidas."
+                });
+            }
+
+            if (inicio > fin) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                    rolUsuario: usuarioToken?.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'capacitaciones',
+                    metodo: 'post',
+                    endPoint: 'crearCapacitacion',
+                    accion: 'Crear registro fallido',
+                    detalle: 'La fecha de inicio no puede ser mayor a la fecha de fin.',
+                    datos: { fechaInicioProporcionado: fechaInicio, fechaFinProporcionado: fechaFin, },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Rango de fechas inválido", null, {
+                    "fechaInicio": "La fecha de inicio no puede ser mayor a la fecha de fin."
+                });
             }
         }
 
