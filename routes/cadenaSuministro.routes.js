@@ -2704,8 +2704,8 @@ router.put('/tesoreria', validarToken,
                                 pdfsAnticipoTesoreria = ?,
                                 estadoAnticipoTesoreria = 'Realizado',
                                 estadoTesoreria = 'Realizado',
-                                estadoEntregaProveedor = 'Pendiente',
-                                estadoSolicitud = 'Pendiente Entrega Proveedor'
+                                estadoEnvioOrdenCompra = 'Pendiente',
+                                estadoSolicitud = 'Pendiente Envio Orden de Compra'
                             WHERE id IN (${placeholders})
                         `,
                         [
@@ -3369,6 +3369,7 @@ router.put('/contabilidad', validarToken, async (req, res) => {
                         totalPagarContabilidad = ?,
                         observacionContabilidad = ?,
                         estadoContabilidad = 'Realizado',
+                        estadoAprobacionAnticipo3 = 'Pendiente',
                         estadoSolicitud = 'Pendiente Aprobacion 3 Anticipo'
                     WHERE id IN (${placeholders})
                 `,
@@ -3444,6 +3445,330 @@ router.put('/contabilidad', validarToken, async (req, res) => {
             metodo: 'put',
             endPoint: 'contabilidad',
             accion: 'Error al actualizar retenciones',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.put('/contabilidadAprobacion', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+
+    try {
+        const data = req.body;
+
+        if (!data || Object.keys(data).length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'contabilidadAprobacion',
+                accion: 'Actualizar aprobacion fallido',
+                detalle: 'Los datos de aprobacion son requeridos.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Los datos del formulario son requeridos.");
+        }
+
+        const { ids, contrasenaAprobacion, observacionesAprobacion, estado, nivel } = data;
+
+        if (!ids || !contrasenaAprobacion || !estado || !nivel || !Array.isArray(ids) || ids.length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'contabilidadAprobacion',
+                accion: `Actualizar aprobacion ${nivel} fallido`,
+                detalle: 'Los datos de aprobacion son necesarios.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Los datos de retenciones son necesarios.");
+        }
+
+        const [firma] = await dbRailway.query(
+            `SELECT * FROM firmas WHERE cedulaUsuario = ?`,
+            [usuarioToken.cedula]
+        );
+
+        if (firma.length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'contabilidadAprobacion',
+                accion: `Actualizar aprobacion ${nivel} fallido`,
+                detalle: 'Registro no permitido: Cédula de usuario no tiene firma registrada.',
+                datos: { cedulaUsuarioProporcionado: usuarioToken.cedula },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Registro no permitido: Cédula de usuario no tiene firma registrada.");
+        }
+
+        if (!await bcrypt.compare(contrasenaAprobacion, firma[0].contrasena)) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'contabilidadAprobacion',
+                accion: `Actualizar aprobacion ${nivel} fallido`,
+                detalle: 'Registro no permitido: Contraseña actual incorrecta.',
+                datos: { cedulaUsuarioProporcionado: usuarioToken.cedula },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Registro no permitido: Contraseña actual incorrecta.", null, { "contrasenaAprobacion": `La contraseña actual proporcionada no coincide con la registrada.` });
+        }
+
+        const [registrosExistentes] = await dbRailway.query(
+            `SELECT id FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
+            [ids]
+        );
+
+        const idsExistentes = registrosExistentes.map(r => r.id);
+        const idsNoExistentes = ids.filter(id => !idsExistentes.includes(id));
+
+        if (idsNoExistentes.length > 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'contabilidadAprobacion',
+                accion: `Actualizar aprobacion ${nivel} fallido`,
+                detalle: `IDs no encontrados: ${idsNoExistentes.join(', ')}`,
+                datos: { idsEnviados: ids, idsEncontrados: idsExistentes },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 404, `Los siguientes IDs no existen: ${idsNoExistentes.join(', ')}`);
+        }
+
+        let aplicaAprobacion4 = false;
+
+        if (registrosExistentes &&
+            registrosExistentes.length > 0 &&
+            registrosExistentes[0].totalOrdenCompra !== undefined &&
+            registrosExistentes[0].totalOrdenCompra !== null &&
+            registrosExistentes[0].totalOrdenCompra !== '') {
+
+            let totalOrdenCompraNum;
+
+            if (typeof registrosExistentes[0].totalOrdenCompra === 'string') {
+                const cleanedValue = registrosExistentes[0].totalOrdenCompra
+                    .replace(/[$]/g, '')
+                    .replace(/[€]/g, '')
+                    .replace(/[¥]/g, '')
+                    .replace(/,/g, '')
+                    .replace(/\s/g, '')
+                    .trim();
+
+                totalOrdenCompraNum = parseFloat(cleanedValue);
+            } else {
+                totalOrdenCompraNum = parseFloat(registrosExistentes[0].totalOrdenCompra);
+            }
+
+            if (!isNaN(totalOrdenCompraNum) && isFinite(totalOrdenCompraNum)) {
+                aplicaAprobacion4 = totalOrdenCompraNum >= 5000000;
+            } else {
+                aplicaAprobacion4 = false;
+            }
+        } else {
+            console.warn('No hay datos válidos en registrosExistentes[0].totalOrdenCompra');
+        }
+
+        const fechaColombia = getFechaHoraColombia();
+        const estadoAprobacionAnticipo3Temp = nivel === '3' ? estado : null;
+        const estadoAprobacionAnticipo4Temp =
+            nivel === '4' && aplicaAprobacion4 ?
+                estado
+                : (nivel === '3' && aplicaAprobacion4 ?
+                    (estado === 'Aprobado' ? 'Pendiente' : null)
+                    : nivel === '3' && !aplicaAprobacion4 ?
+                        (estado === 'Aprobado' ? 'No Aplica' : null)
+                        : null);
+        const estadoTesoreriaTemp =
+            nivel === '3' && aplicaAprobacion4 ?
+                null
+                : nivel === '3' && !aplicaAprobacion4 ?
+                    (estado === 'Aprobado' ? 'Pendiente' : null)
+                    : nivel === '4' && aplicaAprobacion4 ?
+                        (estado === 'Aprobado' ? 'Pendiente' : null)
+                        : null;
+        const estadoSolicitud =
+            nivel === '3' && aplicaAprobacion4 ?
+                (estado === 'Aprobado' ? 'Pendiente Aprobacion 4 Anticipo' : 'Rechazado')
+                : nivel === '3' && !aplicaAprobacion4 ?
+                    (estado === 'Aprobado' ? 'Pendiente Tesoreria' : 'Rechazado')
+                    : nivel === '4' && aplicaAprobacion4 ?
+                        (estado === 'Aprobado' ? 'Pendiente Tesoreria' : 'Rechazado')
+                        : null;
+
+        const connection = await dbRailway.getConnection();
+        await connection.beginTransaction();
+
+        try {
+            const placeholders = ids.map(() => '?').join(',');
+            let result;
+
+            if (nivel === '3') {
+                [result] = await connection.query(
+                    `
+                        UPDATE registros_solicitud_cadena_suministro 
+                        SET 
+                            fechaAprobacionAnticipo3 = ?,
+                            cedulaUsuarioAprobacionAnticipo3 = ?,
+                            nombreUsuarioAprobacionAnticipo3 = ?,
+                            observacionAprobacionAnticipo3 = ?,
+                            firmaAprobacionAnticipo3 = ?,
+                            estadoAprobacionAnticipo3 = ?,
+                            estadoAprobacionAnticipo4 = ?,
+                            estadoTesoreria = ?,
+                            estadoSolicitud = ?
+                        WHERE id IN (${placeholders})
+                    `,
+                    [
+                        fechaColombia,
+                        usuarioToken.cedula,
+                        usuarioToken.nombre,
+                        observacionesAprobacion,
+                        firma[0].firma,
+                        estadoAprobacionAnticipo3Temp,
+                        estadoAprobacionAnticipo4Temp,
+                        estadoTesoreriaTemp,
+                        estadoSolicitud,
+                        ...ids
+                    ]
+                );
+            } else if (nivel === '4') {
+                [result] = await connection.query(
+                    `
+                    UPDATE registros_solicitud_cadena_suministro 
+                    SET 
+                        fechaAprobacionAnticipo4 = ?,
+                        cedulaUsuarioAprobacionAnticipo4 = ?,
+                        nombreUsuarioAprobacionAnticipo4 = ?,
+                        observacionAprobacionAnticipo4 = ?,
+                        firmaAprobacionAnticipo4 = ?,
+                        estadoAprobacionAnticipo4 = ?,
+                        estadoTesoreria = ?,
+                        estadoSolicitud = ?
+                    WHERE id IN (${placeholders})
+                `,
+                    [
+                        fechaColombia,
+                        usuarioToken.cedula,
+                        usuarioToken.nombre,
+                        observacionesAprobacion,
+                        firma[0].firma,
+                        estadoAprobacionAnticipo4Temp,
+                        estadoTesoreriaTemp,
+                        estadoSolicitud,
+                        ...ids
+                    ]
+                );
+            }
+
+            await connection.commit();
+
+            const [registrosActualizados] = await dbRailway.query(
+                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
+                [ids]
+            );
+
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'contabilidadAprobacion',
+                accion: `Actualizar aprobacion ${nivel} exitoso`,
+                detalle: `Aprobacion actualizada para ${ids.length} registro(s)`,
+                datos: {
+                    idsActualizados: ids,
+                    registrosAfectados: result.affectedRows
+                },
+                tablasIdsAfectados: ids.map(id => ({
+                    tabla: 'registros_solicitud_cadena_suministro',
+                    ids: ids.toString()
+                })),
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendResponse(
+                res,
+                200,
+                `Aprobacion ${nivel} correctamente`,
+                `Se actualizó la aprobacion ${nivel} para ${ids.length} registro(s)`,
+                {
+                    registrosActualizados: registrosActualizados,
+                    idsActualizados: ids
+                }
+            );
+
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'put',
+            endPoint: 'contabilidadAprobacion',
+            accion: 'Error al actualizar aprobacion',
             detalle: 'Error interno del servidor',
             datos: {
                 error: err.message,
