@@ -142,18 +142,11 @@ router.post('/', validarToken, async (req, res) => {
             const fechaInicioSolo = fechaInicio.split(' ')[0];
             const fechaFinSolo = fechaFin.split(' ')[0];
 
-            console.log("BASE:", baseDatos);
-            console.log("TABLA:", tabla);
-            console.log("QUERY:", query);
-            console.log("PARAMS:", params);
-
             query += ` WHERE DATE(\`${campoFecha}\`) BETWEEN ? AND ?`;
             params.push(fechaInicioSolo, fechaFinSolo);
         }
 
         [result] = await db.query(query, params);
-
-        console.log("RESULT:", result);
 
         await registrarHistorial({
             nombreUsuario: usuarioToken.nombre || 'No registrado',
