@@ -29,10 +29,10 @@ app.use((req, res, next) => {
 // }));
 
 app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization','Accept','X-Platform'],
-  credentials: false
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Platform'],
+    credentials: false
 }));
 
 app.options('*', cors());

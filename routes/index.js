@@ -23,6 +23,8 @@ const liquidacionPersonalRoutes = require('./liquidacionPersonal.routes');
 const cadenaSuministroRoutes = require('./cadenaSuministro.routes');
 const proveedoresRoutes = require('./proveedores.routes');
 const firmasRoutes = require('./firmas.routes')
+const exportesRoutes = require('./exportes.routes')
+
 
 router.use('/usuarios', usuariosRoutes);
 router.use('/usuariosv2', usuariosv2Routes);
@@ -46,6 +48,7 @@ router.use('/liquidacionPersonal', liquidacionPersonalRoutes);
 router.use('/cadenaSuministro', cadenaSuministroRoutes);
 router.use('/proveedores', proveedoresRoutes);
 router.use('/firmas', firmasRoutes);
+router.use('/exportes', exportesRoutes);
 
 module.exports = router;
 
