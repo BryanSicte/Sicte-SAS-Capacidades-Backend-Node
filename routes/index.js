@@ -24,6 +24,7 @@ const cadenaSuministroRoutes = require('./cadenaSuministro.routes');
 const proveedoresRoutes = require('./proveedores.routes');
 const firmasRoutes = require('./firmas.routes')
 const exportesRoutes = require('./exportes.routes')
+const inspeccionesRoutes = require('./inspecciones.routes')
 
 
 router.use('/usuarios', usuariosRoutes);
@@ -49,6 +50,7 @@ router.use('/cadenaSuministro', cadenaSuministroRoutes);
 router.use('/proveedores', proveedoresRoutes);
 router.use('/firmas', firmasRoutes);
 router.use('/exportes', exportesRoutes);
+router.use('/inspecciones', inspeccionesRoutes);
 
 module.exports = router;
 

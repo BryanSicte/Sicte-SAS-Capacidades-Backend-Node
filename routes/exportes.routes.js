@@ -132,10 +132,10 @@ router.post('/', validarToken, async (req, res) => {
             rolUsuario: usuarioToken.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'parqueAutomotor',
+            app: 'exportes',
             metodo: 'post',
-            endPoint: 'crearRegistro',
-            accion: 'Error al crear registro',
+            endPoint: 'exportarDatos',
+            accion: 'Error al exportar datos',
             detalle: 'Error interno del servidor',
             datos: {
                 error: err.message,
