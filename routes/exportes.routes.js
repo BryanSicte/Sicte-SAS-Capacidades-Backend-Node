@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const dbf_informes = require('../db/db_railway');
+const dbf_informes = require('../db/dbf_informes');
+const dbf_bodega = require('../db/dbf_bodega');
 const dbAplicativosClaro = require('../db/db_aplicativos_claro');
 const dbf_enel = require('../db/dbf_enel');
 const validarToken = require('../middlewares/validarToken');
@@ -109,7 +110,27 @@ router.post('/', validarToken, async (req, res) => {
                 tabla: "proyectos_r4_hfc",
                 db: dbf_informes,
                 usarFiltroFecha: false
-            }
+            },
+            "KGPROD - Saldo bodega": {
+                tabla: "kgprod",
+                db: dbf_bodega,
+                usarFiltroFecha: false
+            },
+            "LCONSUM - Consumidores": {
+                tabla: "lconsum",
+                db: dbf_bodega,
+                usarFiltroFecha: false
+            },
+            "KGCNPR - Saldo moviles": {
+                tabla: "kgcnpr",
+                db: dbf_bodega,
+                usarFiltroFecha: false
+            },
+            "LPRODUC - Productos": {
+                tabla: "lproduc",
+                db: dbf_bodega,
+                usarFiltroFecha: false
+            },
         };
         const fuente = fuentes[baseDatos];
 
