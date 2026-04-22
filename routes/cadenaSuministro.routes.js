@@ -725,7 +725,8 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                 estadoAnticipoTesoreria = ?,
                 estadoTesoreria = ?,
                 estadoEnvioOrdenCompra = ?,
-                estadoEntregaProveedor = ?
+                estadoEntregaProveedor = ?,
+                estadoAsociacionFactura = ?
                 WHERE id = ? LIMIT 1`,
                 [
                     fechaColombia,
@@ -736,6 +737,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                     estadoSolicitudRegistro,
                     'Realizado',
                     estadoCompra,
+                    estadoAprobacion2,
                     estadoAprobacion2,
                     estadoAprobacion2,
                     estadoAprobacion2,
@@ -2985,6 +2987,7 @@ router.put('/entregaProveedor',
                 const estadoEntregaProveedor = cantidadRestante === 0 || cantidadRestante < 0 ? 'Realizado' : 'Parcial';
                 const estadoDespachoMaterial = cantidadRestante === 0 || cantidadRestante < 0 ? 'Pendiente' : null;
                 const estadoSolicitud = cantidadRestante === 0 || cantidadRestante < 0 ? 'Pendiente Despacho Bodega' : 'Pendiente Entrega Proveedor';
+                const estadoAsociacionFactura = estadoEntregaProveedor === 'Realizado' ? 'Pendiente' : null;
 
                 const [result] = await connection.query(
                     `
@@ -2998,6 +3001,7 @@ router.put('/entregaProveedor',
                             observacionEntregaProveedor = ?,
                             estadoEntregaProveedor = ?,
                             estadoDespachoMaterial = ?,
+                            estadoAsociacionFactura = ?,
                             estadoSolicitud = ?
                         WHERE id = ?
                     `,
@@ -3010,6 +3014,7 @@ router.put('/entregaProveedor',
                         editadosEntregaProveedor['observaciones'],
                         estadoEntregaProveedor,
                         estadoDespachoMaterial,
+                        estadoAsociacionFactura,
                         estadoSolicitud,
                         id
                     ]
@@ -3769,6 +3774,768 @@ router.put('/contabilidadAprobacion', validarToken, async (req, res) => {
             metodo: 'put',
             endPoint: 'contabilidadAprobacion',
             accion: 'Error al actualizar aprobacion',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.get('/registrosFacturas', validarToken, async (req, res) => {
+
+    const usuarioToken = req.validarToken.usuario
+
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM registros_facturas');
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'get',
+            endPoint: 'registrosFacturas',
+            accion: 'Consulta registros facturas exitosa',
+            detalle: `Se consultó ${rows.length} registros`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron ${rows.length} registros de las facturas.`,
+            rows
+        );
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'get',
+            endPoint: 'registrosFacturas',
+            accion: 'Error al obtener los registros',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.post('/cargarFactura',
+    validarToken,
+    upload.fields([
+        { name: 'pdfsFacturas' },
+    ]),
+    async (req, res) => {
+
+        const usuarioToken = req.validarToken.usuario
+
+        try {
+            const dataString = req.body.data;
+            const data = JSON.parse(dataString);
+            const archivos = req.files;
+
+            if (!data || Object.keys(data).length === 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'cadenaSuministro',
+                    metodo: 'post',
+                    endPoint: 'cargarFactura',
+                    accion: 'Cargar factura fallido',
+                    detalle: 'Los datos del registro son requeridos.',
+                    datos: { dataString },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Los datos del registro son requeridos.");
+            }
+
+            if (!archivos?.pdfsFacturas || Object.keys(archivos).length === 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'cadenaSuministro',
+                    metodo: 'post',
+                    endPoint: 'cargarFactura',
+                    accion: 'Cargar factura fallido',
+                    detalle: 'Los soportes son necesario: PDFs',
+                    datos: { ArchivoProporcionado: archivos },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Los soportes son necesario: PDFs", null, { "pdfsFacturas": `Ingrese un archivo .pdf con la salida.` });
+            }
+
+            const { consecutivoFacturas } = data;
+
+            if (!consecutivoFacturas) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'cadenaSuministro',
+                    metodo: 'post',
+                    endPoint: 'cargarFactura',
+                    accion: 'Cargar factura fallido',
+                    detalle: 'El consecutivo de la factura es necesario.',
+                    datos: { data },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "El consecutivo de la factura es necesario.");
+            }
+
+            const [consecutivoExistente] = await dbRailway.query(
+                `SELECT * FROM registros_facturas WHERE consecutivoFacturas = ?`,
+                [consecutivoFacturas]
+            );
+
+            if (consecutivoExistente.length > 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'cadenaSuministro',
+                    metodo: 'post',
+                    endPoint: 'cargarFactura',
+                    accion: 'Cargar factura fallido',
+                    detalle: `El consecutivo ${consecutivoFacturas} ya existe.`,
+                    datos: { data },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, `El consecutivo ${consecutivoFacturas} ya se encuentra registrado.`);
+            }
+
+            const fechaColombia = getFechaHoraColombia()
+            const driveResults = [];
+
+            if (archivos?.pdfsFacturas && Array.isArray(archivos.pdfsFacturas) && archivos.pdfsFacturas.length > 0) {
+                for (let i = 0; i < archivos.pdfsFacturas.length; i++) {
+                    const pdfFile = archivos.pdfsFacturas[i];
+                    try {
+
+                        const pdfExt = path.extname(pdfFile.originalname);
+                        const pdfFileName = `${consecutivoFacturas}_pdf_factura_${i + 1}_${fechaColombia}${pdfExt}`;
+
+                        const fileId = await uploadFileToDrive(
+                            pdfFile.buffer,
+                            pdfFileName,
+                            folderId
+                        );
+
+                        const result = {
+                            tipo: 'pdf',
+                            nombre: pdfFileName,
+                            id: fileId.id,
+                            url: fileId.url,
+                            webViewLink: fileId.webViewLink,
+                            indice: i,
+                            size: pdfFile.size
+                        }
+
+                        driveResults.push(result);
+
+                        await registrarHistorial({
+                            nombreUsuario: usuarioToken.nombre || 'No registrado',
+                            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                            rolUsuario: usuarioToken.rol || 'No registrado',
+                            nivel: 'success',
+                            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                            app: 'cadenaSuministro',
+                            metodo: 'post',
+                            endPoint: 'cargarFactura',
+                            accion: 'Cargar PDF exitoso',
+                            detalle: `PDF ${i + 1} de ${archivos.pdfsFacturas.length} cargado exitosamente`,
+                            datos: {
+                                pdf: result,
+                                totalPDFs: archivos.pdfsFacturas.length,
+                                indice: i + 1
+                            },
+                            tablasIdsAfectados: [],
+                            ipAddress: getClientIp(req),
+                            userAgent: req.headers['user-agent'] || ''
+                        });
+                    } catch (error) {
+                        console.error(`Error procesando PDF ${i + 1}:`, error);
+
+                        await registrarHistorial({
+                            nombreUsuario: usuarioToken.nombre || 'No registrado',
+                            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                            rolUsuario: usuarioToken.rol || 'No registrado',
+                            nivel: 'error',
+                            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                            app: 'cadenaSuministro',
+                            metodo: 'post',
+                            endPoint: 'cargarFactura',
+                            accion: 'Cargar PDF fallido',
+                            detalle: `Error al cargar PDF ${i + 1}: ${error.message}`,
+                            datos: {
+                                nombreOriginal: pdfFile.originalname,
+                                error: error.message
+                            },
+                            tablasIdsAfectados: [],
+                            ipAddress: getClientIp(req),
+                            userAgent: req.headers['user-agent'] || ''
+                        });
+                    }
+                }
+            }
+
+            const nuevosNombres = driveResults.map(pdf => pdf.nombre);
+
+            const connection = await dbRailway.getConnection();
+            await connection.beginTransaction();
+
+            const [result] = await connection.query(
+                `
+                    INSERT INTO registros_facturas 
+                    SET 
+                        fechaFacturas = ?,
+                        cedulaUsuarioFacturas = ?,
+                        nombreUsuarioFacturas = ?,
+                        consecutivoFacturas = ?,
+                        pdfsFacturas = ?
+                `,
+                [
+                    fechaColombia,
+                    usuarioToken.cedula,
+                    usuarioToken.nombre,
+                    consecutivoFacturas,
+                    JSON.stringify(nuevosNombres),
+                ]
+            );
+
+            await connection.commit();
+            connection.release();
+
+            const [registrosActualizados] = await dbRailway.query(
+                `SELECT * FROM registros_facturas WHERE id = ?`,
+                [result.insertId]
+            );
+
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'post',
+                endPoint: 'cargarFactura',
+                accion: 'Cargar factura exitoso',
+                detalle: `Factura cargada exitosamente con el consecutivo ${consecutivoFacturas}.`,
+                datos: {
+                    registrosAfectados: registrosActualizados[0].id
+                },
+                tablasIdsAfectados: [{
+                    tabla: 'registros_facturas',
+                    ids: registrosActualizados[0].id.toString()
+                }],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendResponse(
+                res,
+                200,
+                "Factura cargada exitosamente",
+                `Se cargó la factura con el consecutivo ${consecutivoFacturas}.`,
+                {
+                    registrosActualizados: registrosActualizados,
+                    pdfsSubidos: driveResults
+                }
+            );
+
+        } catch (err) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'Error sistema',
+                cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+                rolUsuario: usuarioToken.rol || 'Error sistema',
+                nivel: 'error',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'post',
+                endPoint: 'cargarFactura',
+                accion: 'Cargar factura fallido',
+                detalle: 'Error interno del servidor',
+                datos: {
+                    error: err.message,
+                    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+                },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 500, "Error inesperado.", err);
+        }
+    });
+
+router.post('/obtenerArchivosFacturas', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario
+    const { pdfsFacturas } = req.body;
+
+    try {
+
+        if (!pdfsFacturas || !Array.isArray(pdfsFacturas) || pdfsFacturas.length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'post',
+                endPoint: 'obtenerArchivosFacturas',
+                accion: 'Obtener archivos fallido',
+                detalle: 'Los datos de los archivos son requeridos.',
+                datos: { pdfsFacturas },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendResponse(
+                res,
+                400,
+                "Solicitud inválida",
+                "Se requiere un array de nombres de PDFs en el campo 'pdfsFacturas'",
+                null
+            );
+        }
+
+        const resultados = {
+            facturas: [],
+            errores: []
+        };
+
+        for (const nombrePDF of pdfsFacturas) {
+            try {
+                const buffer = await getFileFromDrive(nombrePDF, folderId);
+                if (buffer) {
+                    resultados.facturas.push({
+                        nombre: nombrePDF,
+                        data: buffer.toString('base64'),
+                        contentType: getMimeType(nombrePDF)
+                    });
+                } else {
+                    resultados.errores.push({
+                        nombre: nombrePDF,
+                        error: "No se pudo obtener el archivo de Drive"
+                    });
+                }
+            } catch (error) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'Error sistema',
+                    cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+                    rolUsuario: usuarioToken.rol || 'Error sistema',
+                    nivel: 'error',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'cadenaSuministro',
+                    metodo: 'post',
+                    endPoint: 'obtenerArchivosFacturas',
+                    accion: 'Obtener archivos fallido',
+                    detalle: 'Error interno del servidor',
+                    datos: {
+                        error: error.message,
+                        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+                    },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                resultados.errores.push({
+                    nombre: nombrePDF,
+                    error: error.message || "Error desconocido al obtener el archivo"
+                });
+            }
+        }
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'post',
+            endPoint: 'obtenerArchivosFacturas',
+            accion: 'Consulta archivos exitosa',
+            detalle: `Se consultó ${resultados.length} registros`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron los archivos correctamente.`,
+            resultados
+        );
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'post',
+            endPoint: 'obtenerArchivosFacturas',
+            accion: 'Error al obtener los archivos',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.put('/asociarFactura', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario
+    const { ids, consecutivoFacturas } = req.body;
+
+    try {
+
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'asociarFactura',
+                accion: 'Asociar factura fallido',
+                detalle: 'Los datos de los ids son requeridos.',
+                datos: { ids },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendResponse(
+                res,
+                400,
+                "Solicitud inválida",
+                "Se requiere un array de ids en el campo 'ids'",
+                null
+            );
+        }
+
+        if (!consecutivoFacturas || typeof consecutivoFacturas !== 'string' || consecutivoFacturas.trim() === '') {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'asociarFactura',
+                accion: 'Asociar factura fallido',
+                detalle: 'El consecutivo de la factura es requerido.',
+                datos: { ids, consecutivoFacturas },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendResponse(
+                res,
+                400,
+                "Solicitud inválida",
+                "Se requiere un consecutivo de factura en el campo 'consecutivoFacturas'",
+                null
+            );
+        }
+
+        const fechaColombia = getFechaHoraColombia();
+        const consecutivoFacturasFormateado = consecutivoFacturas.trim();
+
+        const [consecutivoAsociado] = await dbRailway.query(
+            `SELECT id FROM registros_solicitud_cadena_suministro WHERE consecutivoAsociacionFactura = ? LIMIT 1`,
+            [consecutivoFacturasFormateado]
+        );
+
+        if (consecutivoAsociado.length > 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'asociarFactura',
+                accion: 'Asociar factura fallido',
+                detalle: `El consecutivo ${consecutivoFacturasFormateado} ya se encuentra asociado en otros registros.`,
+                datos: { ids, consecutivoFacturas: consecutivoFacturasFormateado },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Consecutivo ya asociado: consecutivoFacturas", null, { "consecutivoFacturas": `El consecutivo ${consecutivoFacturasFormateado} ya se encuentra asociado a otros registros en la base de datos.` });
+        }
+
+        const placeholders = ids.map(() => '?').join(',');
+
+        const connection = await dbRailway.getConnection();
+        await connection.beginTransaction();
+
+        const [result] = await connection.query(
+            `
+                UPDATE registros_solicitud_cadena_suministro 
+                SET 
+                    fechaAsociacionFactura = ?,
+                    cedulaUsuarioAsociacionFactura = ?,
+                    nombreUsuarioAsociacionFactura = ?,
+                    consecutivoAsociacionFactura = ?,
+                    estadoAsociacionFactura = 'Realizado'
+                WHERE id IN (${placeholders})
+            `,
+            [
+                fechaColombia,
+                usuarioToken.cedula,
+                usuarioToken.nombre,
+                consecutivoFacturasFormateado,
+                ...ids
+            ]
+        );
+
+        await connection.commit();
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'put',
+            endPoint: 'asociarFactura',
+            accion: 'Asociar factura exitosa',
+            detalle: `Se asoció la factura con el consecutivo ${consecutivoFacturasFormateado} a ${result.affectedRows} registros.`,
+            datos: {
+                ids: ids,
+                consecutivoFacturas: consecutivoFacturasFormateado
+            },
+            tablasIdsAfectados: ids.map(id => ({
+                tabla: 'registros_orden_compra',
+                id: id
+            })),
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            "Factura asociada exitosamente",
+            `Se asoció la factura con el consecutivo ${consecutivoFacturasFormateado} a ${result.affectedRows} registros.`,
+            {
+                registrosActualizados: result.affectedRows,
+                ids: ids,
+                consecutivoFacturas: consecutivoFacturasFormateado
+            }
+        );
+
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'put',
+            endPoint: 'asociarFactura',
+            accion: 'Asociar factura fallido',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.post('/obtenerArchivosAnticiposTesoreria', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario
+    const { pdfsAnticipoTesoreria } = req.body;
+
+    try {
+
+        if (!pdfsAnticipoTesoreria || !Array.isArray(pdfsAnticipoTesoreria) || pdfsAnticipoTesoreria.length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'post',
+                endPoint: 'obtenerArchivosAnticiposTesoreria',
+                accion: 'Obtener archivos fallido',
+                detalle: 'Los datos de los archivos son requeridos.',
+                datos: { pdfsAnticipoTesoreria },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendResponse(
+                res,
+                400,
+                "Solicitud inválida",
+                "Se requiere un array de nombres de PDFs en el campo 'pdfsAnticipoTesoreria'",
+                null
+            );
+        }
+
+        const resultados = {
+            anticiposTesoreria: [],
+            errores: []
+        };
+
+        for (const nombrePDF of pdfsAnticipoTesoreria) {
+            try {
+                const buffer = await getFileFromDrive(nombrePDF, folderId);
+                if (buffer) {
+                    resultados.anticiposTesoreria.push({
+                        nombre: nombrePDF,
+                        data: buffer.toString('base64'),
+                        contentType: getMimeType(nombrePDF)
+                    });
+                } else {
+                    resultados.errores.push({
+                        nombre: nombrePDF,
+                        error: "No se pudo obtener el archivo de Drive"
+                    });
+                }
+            } catch (error) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'Error sistema',
+                    cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+                    rolUsuario: usuarioToken.rol || 'Error sistema',
+                    nivel: 'error',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'cadenaSuministro',
+                    metodo: 'post',
+                    endPoint: 'obtenerArchivosAnticiposTesoreria',
+                    accion: 'Obtener archivos fallido',
+                    detalle: 'Error interno del servidor',
+                    datos: {
+                        error: error.message,
+                        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+                    },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                resultados.errores.push({
+                    nombre: nombrePDF,
+                    error: error.message || "Error desconocido al obtener el archivo"
+                });
+            }
+        }
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'post',
+            endPoint: 'obtenerArchivosAnticiposTesoreria',
+            accion: 'Consulta archivos exitosa',
+            detalle: `Se consultó ${resultados.anticiposTesoreria.length} registros`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron los archivos correctamente.`,
+            resultados
+        );
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'post',
+            endPoint: 'obtenerArchivosAnticiposTesoreria',
+            accion: 'Error al obtener los archivos',
             detalle: 'Error interno del servidor',
             datos: {
                 error: err.message,

@@ -90,7 +90,6 @@ router.post('/', validarToken, async (req, res) => {
                 db: dbAplicativosClaro,
                 campoFecha: "Fecha"
             },
-
             "Enel ingresos": {
                 tabla: "ingresos",
                 db: dbf_enel,
