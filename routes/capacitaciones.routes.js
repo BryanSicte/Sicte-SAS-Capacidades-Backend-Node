@@ -10,6 +10,21 @@ const { getFileByNameBase64 } = require('../services/googleDriveService');
 
 const folderId = '1HVkPL6fUoTkOMqeVLZfaNskcKGCBQF33';
 
+function getDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3;
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) * Math.cos(φ2) *
+        Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
+}
+
 router.get('/registros', async (req, res) => {
 
     const usuarioToken = req.validarToken?.usuario || null;
@@ -105,6 +120,8 @@ router.post('/crearRegistro', async (req, res) => {
             nombre: "Ingrese y seleccione el nombre.",
             nomina: "Ingrese la nomina.",
             telefono: "Ingrese el telefono.",
+            ubicacion: "Ingrese la ubicacion.",
+            token: "Ingrese el token.",
             firma: "Ingrese la firma.",
         };
 
@@ -129,7 +146,7 @@ router.post('/crearRegistro', async (req, res) => {
             return;
         }
 
-        const { nombreCapacitacion, regional, ciudad, area, cedula, firma } = data;
+        const { nombreCapacitacion, regional, ciudad, area, cedula, firma, token, ubicacion } = data;
 
         if (nombreCapacitacion) {
             const [dataRows] = await dbRailway.query(`SELECT nombreCapacitacion FROM capacitaciones WHERE nombreCapacitacion = ?`, [nombreCapacitacion]);
@@ -286,6 +303,69 @@ router.post('/crearRegistro', async (req, res) => {
                 });
 
                 return sendError(res, 400, "Registro no permitido: Cedula", null, { "cedula": `La cedula ${regional} no se encuentra registrado en el sistema.` });
+            }
+        }
+
+        if (token) {
+            const [dataRows] = await dbRailway.query(`SELECT token, ubicacion FROM capacitaciones WHERE token = ?`, [token]);
+
+            if (dataRows.length === 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                    rolUsuario: usuarioToken?.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'capacitaciones',
+                    metodo: 'post',
+                    endPoint: 'crearRegistro',
+                    accion: 'Crear registro fallido',
+                    detalle: 'Registro no permitido: Token',
+                    datos: { tokenProporcionado: token },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Registro no permitido: Token", null, { "token": `El token ${token} no se encuentra registrado en el sistema.` });
+            }
+
+            const ubicacionCapacitacion = dataRows[0].ubicacion;
+            if (ubicacionCapacitacion && ubicacion) {
+                const [latC, lonC] = ubicacionCapacitacion.split(',').map(c => parseFloat(c.trim()));
+                const [latU, lonU] = ubicacion.split(',').map(c => parseFloat(c.trim()));
+
+                if (!isNaN(latC) && !isNaN(lonC) && !isNaN(latU) && !isNaN(lonU)) {
+                    const distance = getDistance(latC, lonC, latU, lonU);
+
+                    if (distance > 80) {
+                        await registrarHistorial({
+                            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                            rolUsuario: usuarioToken?.rol || 'No registrado',
+                            nivel: 'log',
+                            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                            app: 'capacitaciones',
+                            metodo: 'post',
+                            endPoint: 'crearRegistro',
+                            accion: 'Crear registro fallido',
+                            detalle: 'Ubicación fuera de rango',
+                            datos: {
+                                token,
+                                ubicacionUsuario: ubicacion,
+                                ubicacionCapacitacion,
+                                distanciaMetros: distance.toFixed(2)
+                            },
+                            tablasIdsAfectados: [],
+                            ipAddress: getClientIp(req),
+                            userAgent: req.headers['user-agent'] || ''
+                        });
+
+                        return sendError(res, 400, "Ubicación fuera de rango", null, {
+                            "ubicacion": `Usted se encuentra a ${distance.toFixed(2)} metros de la ubicación de la capacitación. Debe estar a menos de 50 metros para registrarse.`
+                        });
+                    }
+                }
             }
         }
 
@@ -711,7 +791,7 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
             numeroHoras: "Ingrese el numero de horas.",
             fechaInicio: "Seleccione la fecha de inicio.",
             fechaFin: "Seleccione la fecha de fin.",
-
+            ubicacion: "Seleccione la ubicación en el mapa.",
         };
 
         if (!validateRequiredFields(data, requiredFields, res)) {
@@ -814,16 +894,18 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
         }
 
         const keys = Object.keys(data);
-        const values = Object.values(data);
-        const placeholders = keys.map(() => '?').join(', ');
-        const campos = keys.join(', ');
+        const values = Object.values(data)
+        const campos = [...keys, 'token'].join(', ');
+        const placeholders = [...keys.map(() => '?'), '?'].join(', ');
+        const token = Math.floor(100000 + Math.random() * 900000).toString()
+        const valoresFinales = [...values, token];
 
         const query = `
             INSERT INTO capacitaciones (${campos})
             VALUES (${placeholders})
         `;
 
-        const [result] = await dbRailway.query(query, values);
+        const [result] = await dbRailway.query(query, valoresFinales);
 
         const [registroGuardado] = await dbRailway.query('SELECT * FROM capacitaciones WHERE id = ?', [result.insertId]);
 
