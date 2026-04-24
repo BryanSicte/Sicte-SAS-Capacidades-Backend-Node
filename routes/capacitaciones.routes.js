@@ -362,7 +362,7 @@ router.post('/crearRegistro', async (req, res) => {
                         });
 
                         return sendError(res, 400, "Ubicación fuera de rango", null, {
-                            "ubicacion": `Usted se encuentra a ${distance.toFixed(2)} metros de la ubicación de la capacitación. Debe estar a menos de 50 metros para registrarse.`
+                            "ubicacion": `Usted se encuentra a ${distance.toFixed(2)} metros de la ubicación de la capacitación. Debe estar a menos de 80 metros para registrarse.`
                         });
                     }
                 }
