@@ -7,6 +7,7 @@ const { validateRequiredFields } = require('../utils/validate');
 const { registrarHistorial, getClientIp, determinarPlataforma } = require('../utils/historial');
 const { handleFirmaUpload } = require('../utils/base64')
 const { getFileByNameBase64 } = require('../services/googleDriveService');
+const bcrypt = require('bcrypt');
 
 const folderId = '1HVkPL6fUoTkOMqeVLZfaNskcKGCBQF33';
 
@@ -282,7 +283,7 @@ router.post('/crearRegistro', async (req, res) => {
         }
 
         if (cedula) {
-            const [dataRows] = await dbRailway.query(`SELECT nit FROM plantaenlinea WHERE nit = ?`, [cedula]);
+            const [dataRows] = await dbRailway.query(`SELECT nit FROM plantaenlinea WHERE nit = ? and perfil <> 'RETIRADO'`, [cedula]);
 
             if (dataRows.length === 0) {
                 await registrarHistorial({
@@ -302,7 +303,33 @@ router.post('/crearRegistro', async (req, res) => {
                     userAgent: req.headers['user-agent'] || ''
                 });
 
-                return sendError(res, 400, "Registro no permitido: Cedula", null, { "cedula": `La cedula ${regional} no se encuentra registrado en el sistema.` });
+                return sendError(res, 400, "Registro no permitido: Cedula", null, { "cedula": `La cedula ${cedula} no se encuentra registrado en el sistema.` });
+            }
+
+            const [existingRows] = await dbRailway.query(
+                `SELECT id FROM registros_capacitaciones WHERE cedula = ? AND token = ? AND nombreCapacitacion = ?`,
+                [cedula, token, nombreCapacitacion]
+            );
+
+            if (existingRows.length > 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                    rolUsuario: usuarioToken?.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'capacitaciones',
+                    metodo: 'post',
+                    endPoint: 'crearRegistro',
+                    accion: 'Crear registro fallido',
+                    detalle: 'Registro duplicado: Cedula ya registrada en esta capacitación',
+                    datos: { cedula, token, nombreCapacitacion },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Registro duplicado", null, { "cedula": `La cédula ${cedula} ya se encuentra registrada para esta capacitación.` });
             }
         }
 
@@ -791,7 +818,9 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
             numeroHoras: "Ingrese el numero de horas.",
             fechaInicio: "Seleccione la fecha de inicio.",
             fechaFin: "Seleccione la fecha de fin.",
+            direccion: "Ingrese la direccion.",
             ubicacion: "Seleccione la ubicación en el mapa.",
+            contrasena: "Ingrese la contraseña de firma.",
         };
 
         if (!validateRequiredFields(data, requiredFields, res)) {
@@ -818,7 +847,7 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
         const { cedulaCapacitador, fechaInicio, fechaFin } = data;
 
         if (cedulaCapacitador) {
-            const [dataRows] = await dbRailway.query(`SELECT nit FROM plantaenlinea WHERE nit = ?`, [cedulaCapacitador]);
+            const [dataRows] = await dbRailway.query(`SELECT nit FROM plantaenlinea WHERE nit = ? and perfil <> 'RETIRADO'`, [cedulaCapacitador]);
 
             if (dataRows.length === 0) {
                 await registrarHistorial({
@@ -893,12 +922,61 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
             }
         }
 
-        const keys = Object.keys(data);
-        const values = Object.values(data)
-        const campos = [...keys, 'token'].join(', ');
-        const placeholders = [...keys.map(() => '?'), '?'].join(', ');
+        const { contrasena, ...restoData } = data;
+
+        const [firma] = await dbRailway.query(
+            `SELECT * FROM firmas WHERE cedulaUsuario = ?`,
+            [usuarioToken.cedula]
+        );
+
+        if (firma.length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'capacitaciones',
+                metodo: 'post',
+                endPoint: 'crearCapacitacion',
+                accion: `Crear registro fallido`,
+                detalle: 'Registro no permitido: Cédula de usuario no tiene firma registrada.',
+                datos: { cedulaUsuarioProporcionado: usuarioToken.cedula },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Registro no permitido: Cédula de usuario no tiene firma registrada.");
+        }
+
+        if (!await bcrypt.compare(contrasena, firma[0].contrasena)) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'capacitaciones',
+                metodo: 'post',
+                endPoint: 'crearCapacitacion',
+                accion: `Crear registro fallido`,
+                detalle: 'Registro no permitido: Contraseña actual incorrecta.',
+                datos: { cedulaUsuarioProporcionado: usuarioToken.cedula },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Registro no permitido: Contraseña actual incorrecta.", null, { "contrasena": `La contraseña actual proporcionada no coincide con la registrada.` });
+        }
+
+        const keys = Object.keys(restoData);
+        const values = Object.values(restoData)
+        const campos = [...keys, 'token', 'firma'].join(', ');
+        const placeholders = [...keys.map(() => '?'), '?', '?'].join(', ');
         const token = Math.floor(100000 + Math.random() * 900000).toString()
-        const valoresFinales = [...values, token];
+        const valoresFinales = [...values, token, firma[0].firma];
 
         const query = `
             INSERT INTO capacitaciones (${campos})
