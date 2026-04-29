@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const dbf_informes = require('../db/dbf_informes');
 const dbf_bodega = require('../db/dbf_bodega');
-const dbAplicativosClaro = require('../db/db_aplicativos_claro');
+const db_aplicativosClaro = require('../db/db_aplicativos_claro');
 const dbf_enel = require('../db/dbf_enel');
 const dbRailway = require('../db/db_railway');
 const validarToken = require('../middlewares/validarToken');
@@ -73,43 +73,33 @@ router.post('/', validarToken, async (req, res) => {
         const fuentes = {
             "WFM Operaciones Centro": {
                 tabla: "wfm_operaciones_centro_actividades",
-                db: dbAplicativosClaro,
-                campoFecha: "Fecha"
-            },
-            "WFM Mantenimiento Centro": {
-                tabla: "wfm_mtto_centro_actividades",
-                db: dbAplicativosClaro,
+                db: db_aplicativosClaro,
                 campoFecha: "Fecha"
             },
             "WFM Operaciones Norte": {
                 tabla: "wfm_operaciones_norte_actividades",
-                db: dbAplicativosClaro,
+                db: db_aplicativosClaro,
+                campoFecha: "Fecha"
+            },
+            "Recurso Centro": {
+                tabla: "recurso_operaciones",
+                db: db_aplicativosClaro,
+                usarFiltroFecha: false
+            },
+            "Recurso Norte": {
+                tabla: "recurso_operaciones_norte",
+                db: db_aplicativosClaro,
+                usarFiltroFecha: false
+            },
+            "WFM Mantenimiento Centro": {
+                tabla: "wfm_mtto_centro_actividades",
+                db: db_aplicativosClaro,
                 campoFecha: "Fecha"
             },
             "WFM Mantenimiento Norte": {
                 tabla: "wfm_mtto_norte_actividades",
-                db: dbAplicativosClaro,
+                db: db_aplicativosClaro,
                 campoFecha: "Fecha"
-            },
-            "Enel ingresos": {
-                tabla: "ingresos",
-                db: dbf_enel,
-                campoFecha: "Fecha Ingreso"
-            },
-            "Enel atendidas": {
-                tabla: "atendidas",
-                db: dbf_enel,
-                campoFecha: "INICIO ACTIVIDAD"
-            },
-            "Saldos Proyectos R4": {
-                tabla: "proyectos_r4",
-                db: dbf_informes,
-                usarFiltroFecha: false
-            },
-            "Saldos Proyectos R4 HFC": {
-                tabla: "proyectos_r4_hfc",
-                db: dbf_informes,
-                usarFiltroFecha: false
             },
             "KGPROD - Saldo bodega": {
                 tabla: "kgprod",
@@ -129,6 +119,26 @@ router.post('/', validarToken, async (req, res) => {
             "LPRODUC - Productos": {
                 tabla: "lproduc",
                 db: dbf_bodega,
+                usarFiltroFecha: false
+            },
+            "Enel ingresos": {
+                tabla: "ingresos",
+                db: dbf_enel,
+                campoFecha: "Fecha Ingreso"
+            },
+            "Enel atendidas": {
+                tabla: "atendidas",
+                db: dbf_enel,
+                campoFecha: "INICIO ACTIVIDAD"
+            },
+            "Saldos Proyectos R4": {
+                tabla: "proyectos_r4",
+                db: dbf_informes,
+                usarFiltroFecha: false
+            },
+            "Saldos Proyectos R4 HFC": {
+                tabla: "proyectos_r4_hfc",
+                db: dbf_informes,
                 usarFiltroFecha: false
             },
         };
