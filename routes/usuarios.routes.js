@@ -401,12 +401,12 @@ router.post('/users', validarToken, async (req, res) => {
         const hashedPassword = await bcrypt.hash(contrasena, saltRounds);
 
         const [result] = await dbRailway.query(
-            'INSERT INTO user (nombre, correo, cedula, rol, telefono, contrasena) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [nombre, correo, cedula, rol, telefono, contrasena]
+            'INSERT INTO user (nombre, correo, cedula, rol, telefono, contrasena) VALUES (?, ?, ?, ?, ?, ?)',
+            [nombre, correo, cedula, rol, telefono, hashedPassword]
         );
 
         const nuevoUsuario = {
-            id,
+            id: result.insertId,
             nombre,
             correo,
             cedula,

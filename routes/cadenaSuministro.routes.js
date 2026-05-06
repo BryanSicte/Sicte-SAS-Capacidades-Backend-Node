@@ -105,16 +105,37 @@ router.post('/crearRegistro',
                 return sendError(res, 400, "Los datos del registro son requeridos.");
             }
 
-            const requiredFields = {
-                fecha: "No se pudo obtener la fecha del registro.",
-                cedulaUsuario: "No se pudo identificar la cedula del usuario.",
-                nombreUsuario: "No se pudo identificar el nombre del usuario.",
-                ciudad: "Ingrese y seleccione una ciudad.",
-                area: "Ingrese y seleccione un area.",
-                uuidOt: "Ingrese un UUID o OT.",
-                nombreProyecto: "Ingrese un nombre del proyecto.",
-                fechaEntregaProyectada: "Ingrese una fecha proyectada.",
-            };
+            const [auxiliarAreaRequiereProyecto] = await dbRailway.query('SELECT areaRequiereProyecto FROM tabla_aux_cadena_de_suministro WHERE areas = ?', [data.area]);
+
+            let requiredFields;
+            if (auxiliarAreaRequiereProyecto[0].areaRequiereProyecto === '1') {
+                requiredFields = {
+                    fecha: "No se pudo obtener la fecha del registro.",
+                    cedulaUsuario: "No se pudo identificar la cedula del usuario.",
+                    nombreUsuario: "No se pudo identificar el nombre del usuario.",
+                    ciudad: "Ingrese y seleccione una ciudad.",
+                    area: "Ingrese y seleccione un area.",
+                    centro_costos: "Ingrese y seleccione un centro de costos.",
+                    nombre_centro_costos: "Ingrese y seleccione un nombre de centro de costos.",
+                    implementacion: "Ingrese y seleccione una implementacion.",
+                    contratista: "Ingrese y seleccione un contratista.",
+                    uuidOt: "Ingrese un UUID o OT.",
+                    nombreProyecto: "Ingrese un nombre del proyecto.",
+                    fechaEntregaProyectada: "Ingrese una fecha proyectada.",
+                };
+            } else {
+                requiredFields = {
+                    fecha: "No se pudo obtener la fecha del registro.",
+                    cedulaUsuario: "No se pudo identificar la cedula del usuario.",
+                    nombreUsuario: "No se pudo identificar el nombre del usuario.",
+                    ciudad: "Ingrese y seleccione una ciudad.",
+                    area: "Ingrese y seleccione un area.",
+                    centro_costos: "Ingrese y seleccione un centro de costos.",
+                    nombre_centro_costos: "Ingrese y seleccione un nombre de centro de costos.",
+                    implementacion: "Ingrese y seleccione una implementacion.",
+                    contratista: "Ingrese y seleccione un contratista.",
+                };
+            }
 
             if (!validateRequiredFields(data, requiredFields, res)) {
                 await registrarHistorial({
@@ -163,128 +184,130 @@ router.post('/crearRegistro',
             const driveResults = [];
             const fechaColombia = getFechaHoraColombia()
 
-            if (!archivos?.diseno) {
-                await registrarHistorial({
-                    nombreUsuario: usuarioToken.nombre || 'No registrado',
-                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                    rolUsuario: usuarioToken.rol || 'No registrado',
-                    nivel: 'log',
-                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                    app: 'cadenaSuministro',
-                    metodo: 'post',
-                    endPoint: 'crearRegistro',
-                    accion: 'Crear registro fallido',
-                    detalle: 'Registro no permitido: Diseño',
-                    datos: { ArchivoProporcionado: archivos },
-                    tablasIdsAfectados: [],
-                    ipAddress: getClientIp(req),
-                    userAgent: req.headers['user-agent'] || ''
-                });
+            if (auxiliarAreaRequiereProyecto[0].areaRequiereProyecto === '1') {
+                if (!archivos?.diseno) {
+                    await registrarHistorial({
+                        nombreUsuario: usuarioToken.nombre || 'No registrado',
+                        cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                        rolUsuario: usuarioToken.rol || 'No registrado',
+                        nivel: 'log',
+                        plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                        app: 'cadenaSuministro',
+                        metodo: 'post',
+                        endPoint: 'crearRegistro',
+                        accion: 'Crear registro fallido',
+                        detalle: 'Registro no permitido: Diseño',
+                        datos: { ArchivoProporcionado: archivos },
+                        tablasIdsAfectados: [],
+                        ipAddress: getClientIp(req),
+                        userAgent: req.headers['user-agent'] || ''
+                    });
 
-                return sendError(res, 400, "Registro no permitido: Diseño", null, { "diseno": `Ingrese un archivo .zip para el diseño.` });
-            }
-
-            if (archivos?.diseno?.[0]) {
-                const disenoFile = archivos.diseno[0];
-
-                const disenoExt = path.extname(disenoFile.originalname);
-                const disenoFileName = `${data.uuidOt}_diseno_${fechaColombia}${disenoExt}`;
-
-                const fileId = await uploadFileToDrive(
-                    disenoFile.buffer,
-                    disenoFileName,
-                    folderId
-                );
-
-                const result = {
-                    tipo: 'diseno',
-                    nombre: disenoFileName,
-                    id: fileId.id,
-                    url: fileId.url,
-                    webViewLink: fileId.webViewLink
+                    return sendError(res, 400, "Registro no permitido: Diseño", null, { "diseno": `Ingrese un archivo .zip para el diseño.` });
                 }
 
-                driveResults.push(result);
+                if (!archivos?.facturacionEsperada) {
+                    await registrarHistorial({
+                        nombreUsuario: usuarioToken.nombre || 'No registrado',
+                        cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                        rolUsuario: usuarioToken.rol || 'No registrado',
+                        nivel: 'log',
+                        plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                        app: 'cadenaSuministro',
+                        metodo: 'post',
+                        endPoint: 'crearRegistro',
+                        accion: 'Crear registro fallido',
+                        detalle: 'Registro no permitido: Facturacion esperada',
+                        datos: { ArchivoProporcionado: archivos },
+                        tablasIdsAfectados: [],
+                        ipAddress: getClientIp(req),
+                        userAgent: req.headers['user-agent'] || ''
+                    });
 
-                await registrarHistorial({
-                    nombreUsuario: usuarioToken.nombre || 'No registrado',
-                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                    rolUsuario: usuarioToken.rol || 'No registrado',
-                    nivel: 'success',
-                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                    app: 'cadenaSuministro',
-                    metodo: 'post',
-                    endPoint: 'crearRegistro',
-                    accion: 'Cargar diseño exitoso',
-                    detalle: 'Registro creado con exito',
-                    datos: { result },
-                    tablasIdsAfectados: [],
-                    tablasIdsAfectados: [],
-                    ipAddress: getClientIp(req),
-                    userAgent: req.headers['user-agent'] || ''
-                });
-            }
-
-            if (!archivos?.facturacionEsperada) {
-                await registrarHistorial({
-                    nombreUsuario: usuarioToken.nombre || 'No registrado',
-                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                    rolUsuario: usuarioToken.rol || 'No registrado',
-                    nivel: 'log',
-                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                    app: 'cadenaSuministro',
-                    metodo: 'post',
-                    endPoint: 'crearRegistro',
-                    accion: 'Crear registro fallido',
-                    detalle: 'Registro no permitido: Facturacion esperada',
-                    datos: { ArchivoProporcionado: archivos },
-                    tablasIdsAfectados: [],
-                    ipAddress: getClientIp(req),
-                    userAgent: req.headers['user-agent'] || ''
-                });
-
-                return sendError(res, 400, "Registro no permitido: Facturacion esperada", null, { "facturacionEsperada": `Ingrese un archivo .zip para el diseño.` });
-            }
-
-            if (archivos?.facturacionEsperada?.[0]) {
-                const facturacionFile = archivos.facturacionEsperada[0];
-
-                const factExt = path.extname(facturacionFile.originalname);
-                const factFileName = `${data.uuidOt}_facturacion_${fechaColombia}${factExt}`;
-
-                const fileId = await uploadFileToDrive(
-                    facturacionFile.buffer,
-                    factFileName,
-                    folderId
-                );
-
-                const result = {
-                    tipo: 'facturacion',
-                    nombre: factFileName,
-                    id: fileId.id,
-                    url: fileId.url,
-                    webViewLink: fileId.webViewLink
+                    return sendError(res, 400, "Registro no permitido: Facturacion esperada", null, { "facturacionEsperada": `Ingrese un archivo .zip para el diseño.` });
                 }
 
-                driveResults.push(result);
+                if (archivos?.diseno?.[0]) {
+                    const disenoFile = archivos.diseno[0];
 
-                await registrarHistorial({
-                    nombreUsuario: usuarioToken.nombre || 'No registrado',
-                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                    rolUsuario: usuarioToken.rol || 'No registrado',
-                    nivel: 'success',
-                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                    app: 'cadenaSuministro',
-                    metodo: 'post',
-                    endPoint: 'crearRegistro',
-                    accion: 'Cargar facturacion exitoso',
-                    detalle: 'Registro creado con exito',
-                    datos: { result },
-                    tablasIdsAfectados: [],
-                    tablasIdsAfectados: [],
-                    ipAddress: getClientIp(req),
-                    userAgent: req.headers['user-agent'] || ''
-                });
+                    const disenoExt = path.extname(disenoFile.originalname);
+                    const disenoFileName = `${data.uuidOt}_diseno_${fechaColombia}${disenoExt}`;
+
+                    const fileId = await uploadFileToDrive(
+                        disenoFile.buffer,
+                        disenoFileName,
+                        folderId
+                    );
+
+                    const result = {
+                        tipo: 'diseno',
+                        nombre: disenoFileName,
+                        id: fileId.id,
+                        url: fileId.url,
+                        webViewLink: fileId.webViewLink
+                    }
+
+                    driveResults.push(result);
+
+                    await registrarHistorial({
+                        nombreUsuario: usuarioToken.nombre || 'No registrado',
+                        cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                        rolUsuario: usuarioToken.rol || 'No registrado',
+                        nivel: 'success',
+                        plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                        app: 'cadenaSuministro',
+                        metodo: 'post',
+                        endPoint: 'crearRegistro',
+                        accion: 'Cargar diseño exitoso',
+                        detalle: 'Registro creado con exito',
+                        datos: { result },
+                        tablasIdsAfectados: [],
+                        tablasIdsAfectados: [],
+                        ipAddress: getClientIp(req),
+                        userAgent: req.headers['user-agent'] || ''
+                    });
+                }
+
+                if (archivos?.facturacionEsperada?.[0]) {
+                    const facturacionFile = archivos.facturacionEsperada[0];
+
+                    const factExt = path.extname(facturacionFile.originalname);
+                    const factFileName = `${data.uuidOt}_facturacion_${fechaColombia}${factExt}`;
+
+                    const fileId = await uploadFileToDrive(
+                        facturacionFile.buffer,
+                        factFileName,
+                        folderId
+                    );
+
+                    const result = {
+                        tipo: 'facturacion',
+                        nombre: factFileName,
+                        id: fileId.id,
+                        url: fileId.url,
+                        webViewLink: fileId.webViewLink
+                    }
+
+                    driveResults.push(result);
+
+                    await registrarHistorial({
+                        nombreUsuario: usuarioToken.nombre || 'No registrado',
+                        cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                        rolUsuario: usuarioToken.rol || 'No registrado',
+                        nivel: 'success',
+                        plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                        app: 'cadenaSuministro',
+                        metodo: 'post',
+                        endPoint: 'crearRegistro',
+                        accion: 'Cargar facturacion exitoso',
+                        detalle: 'Registro creado con exito',
+                        datos: { result },
+                        tablasIdsAfectados: [],
+                        tablasIdsAfectados: [],
+                        ipAddress: getClientIp(req),
+                        userAgent: req.headers['user-agent'] || ''
+                    });
+                }
             }
 
             const disenoResult = driveResults.find(f => f.tipo === 'diseno') || null;
@@ -309,11 +332,16 @@ router.post('/crearRegistro',
                         nombreUsuario,
                         ciudad,
                         area,
+                        centro_costos,
+                        nombre_centro_costos,
+                        implementacion,
+                        contratista,
                         uuidOt,
                         nombreProyecto,
                         fechaEntregaProyectada,
                         diseno,
                         facturacionEsperada,
+                        solicitudItem,
                         codigo,
                         descripcion,
                         um,
@@ -321,7 +349,7 @@ router.post('/crearRegistro',
                         observaciones,
                         estadoSolicitud,
                         estadoAprobacion1
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         nuevoNumeroSolicitud,
                         data.fecha,
@@ -329,11 +357,16 @@ router.post('/crearRegistro',
                         data.nombreUsuario,
                         data.ciudad,
                         data.area,
+                        data.centro_costos,
+                        data.nombre_centro_costos,
+                        data.implementacion,
+                        data.contratista,
                         data.uuidOt,
                         data.nombreProyecto,
                         data.fechaEntregaProyectada,
                         disenoJSON,
                         facturacionJSON,
+                        item.solicitudItem,
                         item.codigo,
                         item.descripcion,
                         item.um,
@@ -466,6 +499,64 @@ router.get('/auxiliar', validarToken, async (req, res) => {
             metodo: 'get',
             endPoint: 'auxiliar',
             accion: 'Error al obtener la tabla auxiliar',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.get('/centroCostos', validarToken, async (req, res) => {
+
+    const usuarioToken = req.validarToken.usuario
+
+    try {
+        const [rows] = await dbRailway.query('SELECT centro_costos_completo, nombre_completo FROM centro_costos');
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'get',
+            endPoint: 'centroCostos',
+            accion: 'Consulta centro de costos exitosa',
+            detalle: `Se consultó ${rows.length} registros`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron registros de los centros de costos.`,
+            rows
+        );
+
+    } catch (err) {
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'get',
+            endPoint: 'centroCostos',
+            accion: 'Error al obtener los centros de costos',
             detalle: 'Error interno del servidor',
             datos: {
                 error: err.message,
