@@ -124,4 +124,41 @@ router.post('/crearSolicitud', async (req, res) => {
     }
 });
 
+router.get('/datosSolicitud', async (req, res) => {
+
+    try {
+
+        const query = `
+            SELECT *
+            FROM registros_solicitud_apoyos
+            ORDER BY id DESC
+        `;
+
+        const [rows] =
+            await dbRailway.query(query);
+
+        return sendResponse(
+            res,
+            200,
+            "Consulta exitosa",
+            `Se obtuvieron ${rows.length} solicitudes.`,
+            rows
+        );
+
+    } catch (err) {
+
+        console.error(
+            "ERROR EN datosSolicitud:",
+            err
+        );
+
+        return sendError(
+            res,
+            500,
+            "Error al obtener solicitudes.",
+            err
+        );
+    }
+});
+
 module.exports = router;
