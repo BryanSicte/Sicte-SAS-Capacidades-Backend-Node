@@ -3,6 +3,7 @@ const router = express.Router();
 const dbf_informes = require('../db/dbf_informes');
 const dbf_bodega = require('../db/dbf_bodega');
 const db_aplicativosClaro = require('../db/db_aplicativos_claro');
+const dbf_wfm_operaciones = require('../db/dbf_wfm_operaciones');
 const dbf_enel = require('../db/dbf_enel');
 const dbRailway = require('../db/db_railway');
 const validarToken = require('../middlewares/validarToken');
@@ -81,6 +82,16 @@ router.post('/', validarToken, async (req, res) => {
                 db: db_aplicativosClaro,
                 campoFecha: "Fecha"
             },
+            "WFM Operaciones Centro - Inventario": {
+                tabla: "wfm_operaciones_centro_inventario_1",
+                db: dbf_wfm_operaciones,
+                campoFecha: "Fecha archivo"
+            },
+            "WFM Operaciones Norte - Inventario": {
+                tabla: "wfm_operaciones_centro_inventario_eje",
+                db: dbf_wfm_operaciones,
+                campoFecha: "Fecha archivo"
+            },
             "Recurso Centro": {
                 tabla: "recurso_operaciones",
                 db: db_aplicativosClaro,
@@ -100,6 +111,16 @@ router.post('/', validarToken, async (req, res) => {
                 tabla: "wfm_mtto_norte_actividades",
                 db: db_aplicativosClaro,
                 campoFecha: "Fecha"
+            },
+            "WFM Mantenimiento Centro - Inventario": {
+                tabla: "wfm_mantenimiento_centro_inventario",
+                db: dbf_wfm_operaciones,
+                campoFecha: "Fecha archivo"
+            },
+            "WFM Mantenimiento Norte - Inventario": {
+                tabla: "wfm_mantenimiento_centro_inventario_eje",
+                db: dbf_wfm_operaciones,
+                campoFecha: "Fecha archivo"
             },
             "KGPROD - Saldo bodega": {
                 tabla: "kgprod",
