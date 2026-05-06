@@ -53,6 +53,8 @@ router.post('/crearSolicitud', async (req, res) => {
 
             ubicacion: data.ubicacion,
 
+            observaciones: data.observaciones,
+
             fecha_creacion: new Date(),
 
             estado: data.estado || "Pendiente"
