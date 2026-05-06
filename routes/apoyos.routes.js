@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const dbRailway = require('../db/db_railway');
-const validarToken = require('../middlewares/validarToken');
 const { sendResponse, sendError } = require('../utils/responseHandler');
 const { validateRequiredFields } = require('../utils/validate');
 const { registrarHistorial, getClientIp, determinarPlataforma } = require('../utils/historial');
@@ -11,24 +10,26 @@ const { registrarHistorial, getClientIp, determinarPlataforma } = require('../ut
  * @desc Crea una nueva solicitud de apoyo
  * @access Private
  */
-router.post('/crearSolicitud', validarToken, async (req, res) => {
-    const usuarioToken = req.validarToken?.usuario || null;
+router.post('/crearSolicitud', async (req, res) => {
+    const data = req.body;
 
     try {
-        const data = req.body;
 
         if (!data || Object.keys(data).length === 0) {
             return sendError(res, 400, "Los datos de la solicitud son requeridos.");
         }
 
         const requiredFields = {
-            tipoApoyo: "El tipo de apoyo es requerido.",
+            tipo_apoyo: "El tipo de apoyo es requerido.",
             cuenta: "La cuenta es requerida.",
-            nroOrden: "El número de orden es requerido.",
-            nombreTecnico: "El nombre del técnico es requerido.",
-            cedulaTecnico: "La cédula del técnico es requerida.",
-            nombreSupervisor: "El nombre del supervisor es requerido.",
-            cedulaSupervisor: "La cédula del supervisor es requerida.",
+            nro_orden: "El número de orden es requerido.",
+
+            nombre_tecnico: "El nombre del técnico es requerido.",
+            cedula_tecnico: "La cédula del técnico es requerida.",
+
+            nombre_supervisor: "El nombre del supervisor es requerido.",
+            cedula_supervisor: "La cédula del supervisor es requerida.",
+
             ubicacion: "La ubicación es requerida."
         };
 
@@ -38,18 +39,23 @@ router.post('/crearSolicitud', validarToken, async (req, res) => {
 
         // Mapeo de campos del frontend a la base de datos
         const datosParaBD = {
-            tipo_apoyo: data.tipoApoyo,
+            tipo_apoyo: data.tipo_apoyo,
             cuenta: data.cuenta,
-            nro_orden: data.nroOrden,
-            nombre_tecnico: data.nombreTecnico,
-            cedula_tecnico: data.cedulaTecnico,
-            nro_telefonico_tecnico: data.nroTelefonico,
-            nombre_supervisor: data.nombreSupervisor,
-            cedula_supervisor: data.cedulaSupervisor,
-            nro_telefonico_supervisor: data.nroTelefonicoSupervisor,
+            nro_orden: data.nro_orden,
+
+            nombre_tecnico: data.nombre_tecnico,
+            cedula_tecnico: data.cedula_tecnico,
+            nro_telefonico_tecnico: data.nro_telefonico_tecnico,
+
+            nombre_supervisor: data.nombre_supervisor,
+            cedula_supervisor: data.cedula_supervisor,
+            nro_telefonico_supervisor: data.nro_telefonico_supervisor,
+
             ubicacion: data.ubicacion,
-            usuario_creacion: usuarioToken ? `${usuarioToken.nombre} (${usuarioToken.cedula})` : 'Sistema',
-            fecha_creacion: new Date()
+
+            fecha_creacion: new Date(),
+
+            estado: data.estado || "Pendiente"
         };
 
         const keys = Object.keys(datosParaBD);
@@ -58,16 +64,16 @@ router.post('/crearSolicitud', validarToken, async (req, res) => {
         const campos = keys.join(', ');
 
         const query = `
-            INSERT INTO solicitudes_apoyo (${campos})
+            INSERT INTO registros_solicitud_apoyos (${campos})
             VALUES (${placeholders})
         `;
 
         const [result] = await dbRailway.query(query, values);
 
         await registrarHistorial({
-            nombreUsuario: usuarioToken?.nombre || 'No registrado',
-            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
-            rolUsuario: usuarioToken?.rol || 'No registrado',
+            nombreUsuario: data.nombre_tecnico,
+            cedulaUsuario: data.cedula_tecnico,
+            rolUsuario: 'Tecnico',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'apoyos',
@@ -77,7 +83,7 @@ router.post('/crearSolicitud', validarToken, async (req, res) => {
             detalle: `Se creó la solicitud con ID ${result.insertId}`,
             datos: { data },
             tablasIdsAfectados: [{
-                tabla: 'solicitudes_apoyo',
+                tabla: 'registros_solicitud_apoyos',
                 id: result.insertId.toString()
             }],
             ipAddress: getClientIp(req),
@@ -96,9 +102,9 @@ router.post('/crearSolicitud', validarToken, async (req, res) => {
         console.error("ERROR EN crearSolicitud:", err);
 
         await registrarHistorial({
-            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
-            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
-            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nombreUsuario: data?.nombre_tecnico || 'Error sistema',
+            cedulaUsuario: data?.cedula_tecnico || 'Error sistema',
+            rolUsuario: 'Tecnico',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'apoyos',
