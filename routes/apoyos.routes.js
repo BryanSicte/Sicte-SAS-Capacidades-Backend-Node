@@ -55,7 +55,7 @@ router.post('/crearSolicitud', async (req, res) => {
 
             observaciones: data.observaciones,
 
-            fecha_creacion: new Date(),
+            fecha_creacion: data.fecha,
 
             estado: data.estado || "Pendiente"
         };
