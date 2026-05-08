@@ -119,6 +119,7 @@ router.post('/crearRegistro',
                     nombre_centro_costos: "Ingrese y seleccione un nombre de centro de costos.",
                     implementacion: "Ingrese y seleccione una implementacion.",
                     contratista: "Ingrese y seleccione un contratista.",
+                    bodega: "Ingrese y seleccione una bodega.",
                     uuidOt: "Ingrese un UUID o OT.",
                     nombreProyecto: "Ingrese un nombre del proyecto.",
                     fechaEntregaProyectada: "Ingrese una fecha proyectada.",
@@ -134,6 +135,7 @@ router.post('/crearRegistro',
                     nombre_centro_costos: "Ingrese y seleccione un nombre de centro de costos.",
                     implementacion: "Ingrese y seleccione una implementacion.",
                     contratista: "Ingrese y seleccione un contratista.",
+                    bodega: "Ingrese y seleccione una bodega.",
                 };
             }
 
@@ -336,6 +338,7 @@ router.post('/crearRegistro',
                         nombre_centro_costos,
                         implementacion,
                         contratista,
+                        bodega,
                         uuidOt,
                         nombreProyecto,
                         fechaEntregaProyectada,
@@ -349,7 +352,7 @@ router.post('/crearRegistro',
                         observaciones,
                         estadoSolicitud,
                         estadoAprobacion1
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         nuevoNumeroSolicitud,
                         data.fecha,
@@ -361,6 +364,7 @@ router.post('/crearRegistro',
                         data.nombre_centro_costos,
                         data.implementacion,
                         data.contratista,
+                        data.bodega,
                         data.uuidOt,
                         data.nombreProyecto,
                         data.fechaEntregaProyectada,
@@ -746,7 +750,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
         }
 
         const fechaColombia = getFechaHoraColombia()
-        const { cantidadesEditadas } = data;
+        const { cantidadesEditadas, bodegasEditadas } = data;
         const idsActualizados = [];
 
         const cantidadesExistentesMap = {};
@@ -760,7 +764,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
             let estadoSolicitudRegistro = 'Validar';
             let estadoCompra = 'Validar';
             let estadoAprobacion2 = 'Validar';
-            let cantidadRestante = 0;
+            let cantidadRestanteLogistica = 0;
 
             if (parseFloat(cantidadExistente) === parseFloat(cantidadEditada)) {
                 estadoSolicitudRegistro = 'Pendiente Despacho Bodega';
@@ -795,7 +799,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                 estadoAprobacion2 = null;
             }
 
-            cantidadRestante = parseFloat(cantidadExistente) - parseFloat(cantidadEditada);
+            cantidadRestanteLogistica = parseFloat(cantidadExistente) - parseFloat(cantidadEditada);
 
             await dbRailway.query(
                 `UPDATE registros_solicitud_cadena_suministro SET 
@@ -803,7 +807,8 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                 cedulaUsuarioLogistica = ?, 
                 nombreUsuarioLogistica = ?, 
                 disponibilidadLogistica = ?, 
-                cantidadRestante = ?,
+                cantidadRestanteLogistica = ?,
+                bodegaConfirmacionLogistica = ?, 
                 estadoSolicitud = ?,  
                 estadoLogistica = ?, 
                 estadoCompra = ? ,
@@ -824,7 +829,8 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                     usuarioToken.cedula,
                     usuarioToken.nombre,
                     cantidadEditada,
-                    cantidadRestante,
+                    cantidadRestanteLogistica,
+                    bodegasEditadas[id] || null,
                     estadoSolicitudRegistro,
                     'Realizado',
                     estadoCompra,
@@ -870,6 +876,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
             datos: {
                 solicitud: id,
                 cantidadesEditadas: cantidadesEditadas,
+                bodegasEditadas: bodegasEditadas,
                 solicitudExistente: solicitudesExistentes,
                 solicitudActual: registrosActualizados
             },
@@ -975,7 +982,6 @@ router.put('/comprasActualizarCampos/:id', validarToken, async (req, res) => {
         for (const [key, value] of Object.entries(editadosCompras)) {
             const {
                 id,
-                centroCostos,
                 nitProveedor,
                 proveedor,
                 descripcionProveedor,
@@ -995,7 +1001,6 @@ router.put('/comprasActualizarCampos/:id', validarToken, async (req, res) => {
 
             const camposRequeridos = [
                 { nombre: 'id', valor: id },
-                { nombre: 'centroCostos', valor: centroCostos },
                 { nombre: 'nitProveedor', valor: nitProveedor },
                 { nombre: 'proveedor', valor: proveedor },
                 { nombre: 'descripcionProveedor', valor: descripcionProveedor },
@@ -1040,7 +1045,6 @@ router.put('/comprasActualizarCampos/:id', validarToken, async (req, res) => {
                 fechaCompra = ?, 
                 cedulaUsuarioCompras = ?, 
                 nombreUsuarioCompras = ?, 
-                centroCostos = ?,
                 nitProveedor = ?,
                 proveedor = ?, 
                 descripcionProveedor = ?, 
@@ -1062,7 +1066,6 @@ router.put('/comprasActualizarCampos/:id', validarToken, async (req, res) => {
                     fechaColombia,
                     usuarioToken.cedula,
                     usuarioToken.nombre,
-                    centroCostos,
                     nitProveedor,
                     proveedor,
                     descripcionProveedor,
@@ -2313,7 +2316,7 @@ router.put('/despachoMaterial',
                 }
 
                 const cantidadDespachadaNueva = cantidadDespachadaMaterial + cantidadEditada
-                const cantidadRestante = cantidadPendienteDespacho - cantidadEditada;
+                const cantidadRestanteLogistica = cantidadPendienteDespacho - cantidadEditada;
                 const pdfsExistentes = solicitud.pdfsDespachoMaterial;
                 let pdfsExistentesArray = [];
 
@@ -2333,8 +2336,8 @@ router.put('/despachoMaterial',
 
                 const pdfsCombinados = [...pdfsExistentesArray, ...nuevosNombres];
                 const pdfsJsonParaBD = JSON.stringify(pdfsCombinados);
-                const estadoDespachoMaterial = cantidadRestante === 0 ? 'Realizado' : 'Parcial';
-                const estadoSolicitud = cantidadRestante === 0 ? 'Material Despachado' : 'Pendiente Despacho Bodega';
+                const estadoDespachoMaterial = cantidadRestanteLogistica === 0 ? 'Realizado' : 'Parcial';
+                const estadoSolicitud = cantidadRestanteLogistica === 0 ? 'Material Despachado' : 'Pendiente Despacho Bodega';
 
                 const [result] = await connection.query(
                     `
@@ -3055,7 +3058,7 @@ router.put('/entregaProveedor',
                 }
 
                 const cantidadEntregaProveedorNueva = cantidadEntregaProveedor + cantidadEditada
-                const cantidadRestante = cantidadPendienteEntrega - cantidadEditada;
+                const cantidadRestanteLogistica = cantidadPendienteEntrega - cantidadEditada;
                 const pdfsExistentes = solicitud.pdfsEntregaProveedor;
                 let pdfsExistentesArray = [];
 
@@ -3075,9 +3078,9 @@ router.put('/entregaProveedor',
 
                 const pdfsCombinados = [...pdfsExistentesArray, ...nuevosNombres];
                 const pdfsJsonParaBD = JSON.stringify(pdfsCombinados);
-                const estadoEntregaProveedor = cantidadRestante === 0 || cantidadRestante < 0 ? 'Realizado' : 'Parcial';
-                const estadoDespachoMaterial = cantidadRestante === 0 || cantidadRestante < 0 ? 'Pendiente' : null;
-                const estadoSolicitud = cantidadRestante === 0 || cantidadRestante < 0 ? 'Pendiente Despacho Bodega' : 'Pendiente Entrega Proveedor';
+                const estadoEntregaProveedor = cantidadRestanteLogistica === 0 || cantidadRestanteLogistica < 0 ? 'Realizado' : 'Parcial';
+                const estadoDespachoMaterial = cantidadRestanteLogistica === 0 || cantidadRestanteLogistica < 0 ? 'Pendiente' : null;
+                const estadoSolicitud = cantidadRestanteLogistica === 0 || cantidadRestanteLogistica < 0 ? 'Pendiente Despacho Bodega' : 'Pendiente Entrega Proveedor';
                 const estadoAsociacionFactura = estadoEntregaProveedor === 'Realizado' ? 'Pendiente' : null;
 
                 const [result] = await connection.query(
