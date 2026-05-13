@@ -724,7 +724,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
         }
 
         const [solicitudesExistentes] = await dbRailway.query(
-            'SELECT id, cantidad FROM registros_solicitud_cadena_suministro WHERE solicitud = ?',
+            'SELECT id, cantidad, bodega FROM registros_solicitud_cadena_suministro WHERE solicitud = ?',
             [id]
         );
 
@@ -756,6 +756,11 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
         const cantidadesExistentesMap = {};
         solicitudesExistentes.forEach(solicitud => {
             cantidadesExistentesMap[solicitud.id] = solicitud.cantidad;
+        });
+
+        const BodegasExistentesMap = {};
+        solicitudesExistentes.forEach(solicitud => {
+            BodegasExistentesMap[solicitud.id] = solicitud.bodega;
         });
 
         for (const [id, cantidadEditada] of Object.entries(cantidadesEditadas)) {
@@ -800,6 +805,8 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
             }
 
             cantidadRestanteLogistica = parseFloat(cantidadExistente) - parseFloat(cantidadEditada);
+            let estadoTrasladoLogistica = bodegasEditadas[id] !== BodegasExistentesMap[id] && parseFloat(cantidadEditada) !== 0 ? 'Pendiente' : 'No aplica';
+            estadoSolicitudRegistro = estadoSolicitudRegistro === 'Pendiente Despacho Bodega' && estadoTrasladoLogistica === 'Pendiente' ? 'Pendiente Traslado Entre Bodegas' : estadoSolicitudRegistro;
 
             await dbRailway.query(
                 `UPDATE registros_solicitud_cadena_suministro SET 
@@ -822,7 +829,8 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                 estadoTesoreria = ?,
                 estadoEnvioOrdenCompra = ?,
                 estadoEntregaProveedor = ?,
-                estadoAsociacionFactura = ?
+                estadoAsociacionFactura = ?,
+                estadoTrasladoLogistica = ?
                 WHERE id = ? LIMIT 1`,
                 [
                     fechaColombia,
@@ -845,6 +853,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                     estadoAprobacion2,
                     estadoAprobacion2,
                     estadoAprobacion2,
+                    estadoTrasladoLogistica,
                     id
                 ]
             );
@@ -2205,7 +2214,7 @@ router.put('/despachoMaterial',
                     try {
 
                         const pdfExt = path.extname(pdfFile.originalname);
-                        const pdfFileName = `${solicitudesExistentes[0].uuidOt}_pdf_${i + 1}_${fechaColombia}${pdfExt}`;
+                        const pdfFileName = `${`${solicitudesExistentes[0].solicitud}_${solicitudesExistentes[0].centro_costos}_${solicitudesExistentes[0].cedulaUsuario}`}_pdf_despacho_material_${i + 1}_${fechaColombia}${pdfExt}`;
 
                         const fileId = await uploadFileToDrive(
                             pdfFile.buffer,
@@ -2968,7 +2977,7 @@ router.put('/entregaProveedor',
                     try {
 
                         const pdfExt = path.extname(pdfFile.originalname);
-                        const pdfFileName = `${solicitudesExistentes[0].uuidOt}_pdf_entraga_bodega_${i + 1}_${fechaColombia}${pdfExt}`;
+                        const pdfFileName = `${`${solicitudesExistentes[0].solicitud}_${solicitudesExistentes[0].centro_costos}_${solicitudesExistentes[0].cedulaUsuario}`}_pdf_entraga_bodega_${i + 1}_${fechaColombia}${pdfExt}`;
 
                         const fileId = await uploadFileToDrive(
                             pdfFile.buffer,
@@ -3725,7 +3734,7 @@ router.put('/contabilidadAprobacion', validarToken, async (req, res) => {
                 : (nivel === '3' && aplicaAprobacion4 ?
                     (estado === 'Aprobado' ? 'Pendiente' : null)
                     : nivel === '3' && !aplicaAprobacion4 ?
-                        (estado === 'Aprobado' ? 'No Aplica' : null)
+                        (estado === 'Aprobado' ? 'No aplica' : null)
                         : null);
         const estadoTesoreriaTemp =
             nivel === '3' && aplicaAprobacion4 ?
