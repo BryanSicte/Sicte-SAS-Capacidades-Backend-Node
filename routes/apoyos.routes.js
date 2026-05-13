@@ -161,4 +161,91 @@ router.get('/datosSolicitud', async (req, res) => {
     }
 });
 
+router.put('/actualizarEstadoSolicitud', async (req, res) => {
+
+    const data = req.body;
+
+    try {
+
+        if (!data.id) {
+            return sendError(
+                res,
+                400,
+                "El ID es requerido."
+            );
+        }
+
+        if (!data.estado) {
+            return sendError(
+                res,
+                400,
+                "El estado es requerido."
+            );
+        }
+
+        const datosActualizar = {
+            estado: data.estado,
+
+            nombre_tecnico_apoyo:
+                data.nombreTecnicoApoyo || null,
+
+            cedula_tecnico_apoyo:
+                data.cedulaTecnicoApoyo || null,
+
+            placa_movil:
+                data.placaMovil || null,
+
+            observaciones_rechazo:
+                data.observaciones || null,
+        };
+
+        // FECHAS AUTOMÁTICAS
+        if (data.estado.toLowerCase() === "tomada") {
+            datosActualizar.fecha_tomada = new Date();
+        }
+
+        if (data.estado.toLowerCase() === "rechazada") {
+            datosActualizar.fecha_rechazada = new Date();
+        }
+
+        const setQuery = Object.keys(datosActualizar)
+            .map(key => `${key} = ?`)
+            .join(', ');
+
+        const values = [
+            ...Object.values(datosActualizar),
+            data.id
+        ];
+
+        const query = `
+            UPDATE registros_solicitud_apoyos
+            SET ${setQuery}
+            WHERE id = ?
+        `;
+
+        await dbRailway.query(query, values);
+
+        return sendResponse(
+            res,
+            200,
+            "Solicitud actualizada correctamente",
+            `Solicitud ${data.id} actualizada a ${data.estado}.`,
+            null
+        );
+
+    } catch (err) {
+
+        console.error(
+            "ERROR actualizarEstadoSolicitud:",
+            err
+        );
+
+        return sendError(
+            res,
+            500,
+            "Error al actualizar solicitud.",
+            err
+        );
+    }
+});
 module.exports = router;
