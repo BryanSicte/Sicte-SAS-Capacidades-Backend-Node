@@ -3089,7 +3089,7 @@ router.put('/entregaProveedor',
                 const pdfsJsonParaBD = JSON.stringify(pdfsCombinados);
                 const estadoEntregaProveedor = cantidadRestanteLogistica === 0 || cantidadRestanteLogistica < 0 ? 'Realizado' : 'Parcial';
                 const estadoDespachoMaterial = cantidadRestanteLogistica === 0 || cantidadRestanteLogistica < 0 ? 'Pendiente' : null;
-                const estadoSolicitud = cantidadRestanteLogistica === 0 || cantidadRestanteLogistica < 0 ? 'Pendiente Despacho Bodega' : 'Pendiente Entrega Proveedor';
+                const estadoSolicitud = cantidadRestanteLogistica === 0 || cantidadRestanteLogistica < 0 ? (solicitud.estadoTrasladoLogistica === 'Pendiente' || solicitud.estadoTrasladoLogistica === 'En Transito' ? 'Pendiente Traslado Entre Bodegas' : 'Pendiente Despacho Bodega') : 'Pendiente Entrega Proveedor';
                 const estadoAsociacionFactura = estadoEntregaProveedor === 'Realizado' ? 'Pendiente' : null;
 
                 const [result] = await connection.query(
@@ -4652,5 +4652,518 @@ router.post('/obtenerArchivosAnticiposTesoreria', validarToken, async (req, res)
         return sendError(res, 500, "Error inesperado.", err);
     }
 });
+
+router.put('/trasladoPendiente',
+    validarToken,
+    upload.array('pdfs'),
+    async (req, res) => {
+        const usuarioToken = req.validarToken.usuario;
+
+        try {
+            const dataString = req.body.data;
+            const archivos = req.files;
+
+            if (!dataString) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'cadenaSuministro',
+                    metodo: 'put',
+                    endPoint: 'trasladoPendiente',
+                    accion: 'Actualizar traslado pendiente fallido',
+                    detalle: 'Los datos del traslado son requeridos.',
+                    datos: { dataString },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Los datos del traslado son requeridos.");
+            }
+
+            const editadosTraslado = JSON.parse(dataString);
+            const { observaciones, solicitudesAfectadas } = editadosTraslado;
+
+            if (!archivos || archivos.length === 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'cadenaSuministro',
+                    metodo: 'put',
+                    endPoint: 'trasladoPendiente',
+                    accion: 'Actualizar traslado pendiente fallido',
+                    detalle: 'Soporte requerido: PDFs',
+                    datos: { archivosProporcionados: archivos },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Soporte requerido: Debe adjuntar al menos un archivo PDF de soporte.", null, { "pdfs": `Ingrese al menos un archivo .pdf de soporte.` });
+            }
+
+            if (!solicitudesAfectadas || !Array.isArray(solicitudesAfectadas) || solicitudesAfectadas.length === 0) {
+                return sendError(res, 400, "No se proporcionaron solicitudes afectadas.");
+            }
+
+            const [solicitudesExistentes] = await dbRailway.query(
+                `SELECT id, codigo, descripcion, disponibilidadLogistica, solicitud FROM registros_solicitud_cadena_suministro WHERE solicitud IN (?) AND estadoTrasladoLogistica = 'Pendiente'`,
+                [solicitudesAfectadas]
+            );
+
+            // Agrupar por llave (codigo|||descripcion) y sumar disponibilidadLogistica
+            const resumenDB = {};
+            solicitudesExistentes.forEach(sol => {
+                const llave = `${sol.codigo}|||${sol.descripcion}`;
+                if (!resumenDB[llave]) {
+                    resumenDB[llave] = {
+                        sumaConfirmada: 0,
+                        ids: [],
+                        codigo: sol.codigo,
+                        descripcion: sol.descripcion
+                    };
+                }
+                resumenDB[llave].sumaConfirmada += parseFloat(sol.disponibilidadLogistica || '0');
+                resumenDB[llave].ids.push(sol.id);
+            });
+
+            // Validar cantidades enviadas contra la suma en DB
+            for (const [llave, cantidadEnviadaStr] of Object.entries(editadosTraslado)) {
+                if (llave === 'observaciones' || llave === 'solicitudesAfectadas' || llave === 'bodegas') continue;
+
+                const cantidadEnviada = parseFloat(cantidadEnviadaStr);
+                const infoDB = resumenDB[llave];
+
+                if (!infoDB) continue;
+
+                const sumaConfirmada = infoDB.sumaConfirmada;
+
+                if (isNaN(cantidadEnviada) || cantidadEnviada < sumaConfirmada) {
+                    await registrarHistorial({
+                        nombreUsuario: usuarioToken.nombre || 'No registrado',
+                        cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                        rolUsuario: usuarioToken.rol || 'No registrado',
+                        nivel: 'log',
+                        plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                        app: 'cadenaSuministro',
+                        metodo: 'put',
+                        endPoint: 'trasladoPendiente',
+                        accion: 'Actualizar traslado pendiente fallido',
+                        detalle: `Cantidad insuficiente para el ítem ${infoDB.codigo}`,
+                        datos: { llave, cantidadEnviada, sumaConfirmada },
+                        tablasIdsAfectados: [],
+                        ipAddress: getClientIp(req),
+                        userAgent: req.headers['user-agent'] || ''
+                    });
+
+                    return sendError(res, 400, `El ítem ${infoDB.codigo} requiere una cantidad mayor o igual a ${sumaConfirmada}.`);
+                }
+            }
+
+            const fechaColombia = getFechaHoraColombia();
+            const driveResults = [];
+
+            // Subir archivos a Google Drive
+            for (let i = 0; i < archivos.length; i++) {
+                const pdfFile = archivos[i];
+                try {
+                    const pdfExt = path.extname(pdfFile.originalname);
+                    const pdfFileName = `Traslado_${editadosTraslado.solicitudesAfectadas}_${editadosTraslado.bodegas}_${i + 1}_${fechaColombia}${pdfExt}`;
+
+                    const fileId = await uploadFileToDrive(
+                        pdfFile.buffer,
+                        pdfFileName,
+                        folderId
+                    );
+
+                    driveResults.push({
+                        tipo: 'pdf',
+                        nombre: pdfFileName,
+                        id: fileId.id,
+                        url: fileId.url,
+                        webViewLink: fileId.webViewLink,
+                        indice: i + 1,
+                        size: pdfFile.size
+                    });
+                } catch (error) {
+                    console.error(`Error procesando PDF ${i + 1}:`, error);
+                }
+            }
+
+            const driveResultsJSON = JSON.stringify(driveResults);
+            const connection = await dbRailway.getConnection();
+            await connection.beginTransaction();
+
+            const idsAActualizar = [];
+            for (const [llave, cantidadEnviadaStr] of Object.entries(editadosTraslado)) {
+                if (llave === 'observaciones' || llave === 'solicitudesAfectadas' || llave === 'bodegas') continue;
+                if (resumenDB[llave]) {
+                    idsAActualizar.push(...resumenDB[llave].ids);
+                }
+            }
+
+            if (idsAActualizar.length === 0) {
+                return sendError(res, 400, "No hay ítems válidos para actualizar.");
+            }
+
+            try {
+                const [maxConsecutivoRows] = await connection.query(
+                    'SELECT MAX(consecutivoTrasladoLogistica) as maxConsecutivo FROM registros_solicitud_cadena_suministro'
+                );
+                const nuevoConsecutivo = Number(maxConsecutivoRows[0].maxConsecutivo || 0) + 1;
+
+                for (const id of idsAActualizar) {
+                    await connection.query(
+                        `UPDATE registros_solicitud_cadena_suministro 
+                         SET 
+                            consecutivoTrasladoLogistica = ?,
+                            fechaTrasladoSalidaLogistica = ?,
+                            cedulaUsuarioTrasladoSalidaLogistica = ?,
+                            nombreUsuarioTrasladoSalidaLogistica = ?,
+                            cantidadTrasladoSalidaLogistica = ?,
+                            pdfsTrasladoSalidaLogistica = ?,
+                            observacionTrasladoSalidaLogistica = ?,
+                            estadoTrasladoLogistica = 'En Transito'
+                         WHERE id = ?`,
+                        [
+                            nuevoConsecutivo,
+                            fechaColombia,
+                            usuarioToken.cedula,
+                            usuarioToken.nombre,
+                            solicitudesExistentes.find((solicitud) => solicitud.id === id).disponibilidadLogistica,
+                            driveResultsJSON,
+                            observaciones || null,
+                            id
+                        ]
+                    );
+                }
+
+                await connection.commit();
+            } catch (error) {
+                await connection.rollback();
+                throw error;
+            } finally {
+                connection.release();
+            }
+
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'trasladoPendiente',
+                accion: 'Actualizar traslado pendiente exitoso',
+                detalle: `Traslado pendiente actualizado para ${solicitudesAfectadas.length} registro(s)`,
+                datos: {
+                    idsActualizados: solicitudesAfectadas,
+                    totalPDFs: driveResults.length
+                },
+                tablasIdsAfectados: solicitudesAfectadas.map(id => ({
+                    tabla: 'registros_solicitud_cadena_suministro',
+                    id: id.toString()
+                })),
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendResponse(
+                res,
+                200,
+                "Traslado actualizado correctamente",
+                `Se ha procesado el traslado para ${solicitudesAfectadas.length} registro(s).`,
+                {
+                    idsActualizados: solicitudesAfectadas,
+                    archivos: driveResults
+                }
+            );
+
+        } catch (err) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'Error sistema',
+                cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+                rolUsuario: usuarioToken.rol || 'Error sistema',
+                nivel: 'error',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'trasladoPendiente',
+                accion: 'Error al actualizar traslado pendiente',
+                detalle: 'Error interno del servidor',
+                datos: {
+                    error: err.message,
+                    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+                },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 500, "Error inesperado.", err);
+        }
+    });
+
+router.put('/trasladoEnTransito',
+    validarToken,
+    upload.array('pdfsEntrada'),
+    async (req, res) => {
+        const usuarioToken = req.validarToken.usuario;
+
+        try {
+            const dataString = req.body.data;
+            const archivos = req.files;
+
+            if (!dataString) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'cadenaSuministro',
+                    metodo: 'put',
+                    endPoint: 'trasladoEnTransito',
+                    accion: 'Actualizar traslado en tránsito fallido',
+                    detalle: 'Los datos del traslado son requeridos.',
+                    datos: { dataString },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Los datos del traslado son requeridos.");
+            }
+
+            const editadosTraslado = JSON.parse(dataString);
+            const { observaciones, solicitudesAfectadas } = editadosTraslado;
+
+            if (!archivos || archivos.length === 0) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'cadenaSuministro',
+                    metodo: 'put',
+                    endPoint: 'trasladoEnTransito',
+                    accion: 'Actualizar traslado en tránsito fallido',
+                    detalle: 'Soporte requerido: PDFs Entrada',
+                    datos: { archivosProporcionados: archivos },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Soporte requerido: Debe adjuntar al menos un archivo PDF de recepción.", null, { "pdfsEntrada": `Ingrese al menos un archivo .pdf de recepción.` });
+            }
+
+            if (!solicitudesAfectadas || !Array.isArray(solicitudesAfectadas) || solicitudesAfectadas.length === 0) {
+                return sendError(res, 400, "No se proporcionaron solicitudes afectadas.");
+            }
+
+            const [solicitudesExistentes] = await dbRailway.query(
+                `SELECT id, codigo, descripcion, cantidadTrasladoSalidaLogistica, solicitud, estadoSolicitud FROM registros_solicitud_cadena_suministro WHERE solicitud IN (?) AND estadoTrasladoLogistica = 'En Transito'`,
+                [solicitudesAfectadas]
+            );
+
+            // Agrupar por llave (codigo|||descripcion) y sumar cantidadTrasladoSalidaLogistica
+            const resumenDB = {};
+            solicitudesExistentes.forEach(sol => {
+                const llave = `${sol.codigo}|||${sol.descripcion}`;
+                if (!resumenDB[llave]) {
+                    resumenDB[llave] = {
+                        sumaEnviada: 0,
+                        ids: [],
+                        codigo: sol.codigo,
+                        descripcion: sol.descripcion
+                    };
+                }
+                resumenDB[llave].sumaEnviada += parseFloat(sol.cantidadTrasladoSalidaLogistica || '0');
+                resumenDB[llave].ids.push(sol.id);
+            });
+
+            // Validar cantidades recibidas contra la suma enviada en DB
+            for (const [llave, cantidadRecibidaStr] of Object.entries(editadosTraslado)) {
+                if (llave === 'observaciones' || llave === 'solicitudesAfectadas' || llave === 'bodegas') continue;
+
+                const cantidadRecibida = parseFloat(cantidadRecibidaStr);
+                const infoDB = resumenDB[llave];
+
+                if (!infoDB) continue;
+
+                const sumaEnviada = infoDB.sumaEnviada;
+
+                if (isNaN(cantidadRecibida) || cantidadRecibida < sumaEnviada) {
+                    await registrarHistorial({
+                        nombreUsuario: usuarioToken.nombre || 'No registrado',
+                        cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                        rolUsuario: usuarioToken.rol || 'No registrado',
+                        nivel: 'log',
+                        plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                        app: 'cadenaSuministro',
+                        metodo: 'put',
+                        endPoint: 'trasladoEnTransito',
+                        accion: 'Actualizar traslado en tránsito fallido',
+                        detalle: `Cantidad insuficiente para el ítem ${infoDB.codigo}`,
+                        datos: { llave, cantidadRecibida, sumaEnviada },
+                        tablasIdsAfectados: [],
+                        ipAddress: getClientIp(req),
+                        userAgent: req.headers['user-agent'] || ''
+                    });
+
+                    return sendError(res, 400, `El ítem ${infoDB.codigo} requiere una cantidad mayor o igual a ${sumaEnviada}.`);
+                }
+            }
+
+            const fechaColombia = getFechaHoraColombia();
+            const driveResults = [];
+
+            // Subir archivos a Google Drive
+            for (let i = 0; i < archivos.length; i++) {
+                const pdfFile = archivos[i];
+                try {
+                    const pdfExt = path.extname(pdfFile.originalname);
+                    const pdfFileName = `Recepcion_Traslado_${editadosTraslado.solicitudesAfectadas}_${editadosTraslado.bodegas}_${i + 1}_${fechaColombia}${pdfExt}`;
+
+                    const fileId = await uploadFileToDrive(
+                        pdfFile.buffer,
+                        pdfFileName,
+                        folderId
+                    );
+
+                    driveResults.push({
+                        tipo: 'pdf',
+                        nombre: pdfFileName,
+                        id: fileId.id,
+                        url: fileId.url,
+                        webViewLink: fileId.webViewLink,
+                        indice: i + 1,
+                        size: pdfFile.size
+                    });
+                } catch (error) {
+                    console.error(`Error procesando PDF ${i + 1}:`, error);
+                }
+            }
+
+            const driveResultsJSON = JSON.stringify(driveResults);
+            const connection = await dbRailway.getConnection();
+            await connection.beginTransaction();
+
+            const idsAActualizar = [];
+            for (const [llave, cantidadRecibidaStr] of Object.entries(editadosTraslado)) {
+                if (llave === 'observaciones' || llave === 'solicitudesAfectadas' || llave === 'bodegas') continue;
+                if (resumenDB[llave]) {
+                    idsAActualizar.push(...resumenDB[llave].ids);
+                }
+            }
+
+            if (idsAActualizar.length === 0) {
+                return sendError(res, 400, "No hay ítems válidos para actualizar.");
+            }
+
+            try {
+                for (const id of idsAActualizar) {
+                    const solicitudData = solicitudesExistentes.find((sol) => sol.id === id);
+                    await connection.query(
+                        `UPDATE registros_solicitud_cadena_suministro 
+                         SET 
+                            fechaTrasladoEntradaLogistica = ?,
+                            cedulaUsuarioTrasladoEntradaLogistica = ?,
+                            nombreUsuarioTrasladoEntradaLogistica = ?,
+                            cantidadTrasladoEntradaLogistica = ?,
+                            pdfsTrasladoEntradaLogistica = ?,
+                            observacionTrasladoEntradaLogistica = ?,
+                            estadoTrasladoLogistica = 'Realizado',
+                            estadoSolicitud = ?
+                         WHERE id = ?`,
+                        [
+                            fechaColombia,
+                            usuarioToken.cedula,
+                            usuarioToken.nombre,
+                            solicitudData.cantidadTrasladoSalidaLogistica,
+                            driveResultsJSON,
+                            observaciones || null,
+                            solicitudData.estadoSolicitud === 'Pendiente Traslado Entre Bodegas' ? 'Pendiente Despacho Bodega' : solicitudData.estadoSolicitud,
+                            id
+                        ]
+                    );
+                }
+
+                await connection.commit();
+            } catch (error) {
+                await connection.rollback();
+                throw error;
+            } finally {
+                connection.release();
+            }
+
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'trasladoEnTransito',
+                accion: 'Actualizar traslado en tránsito exitoso',
+                detalle: `Traslado en tránsito actualizado para ${solicitudesAfectadas.length} registro(s)`,
+                datos: {
+                    idsActualizados: solicitudesAfectadas,
+                    totalPDFs: driveResults.length
+                },
+                tablasIdsAfectados: solicitudesAfectadas.map(id => ({
+                    tabla: 'registros_solicitud_cadena_suministro',
+                    id: id.toString()
+                })),
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendResponse(
+                res,
+                200,
+                "Traslado recibido correctamente",
+                `Se ha procesado la recepción para ${solicitudesAfectadas.length} registro(s).`,
+                {
+                    idsActualizados: solicitudesAfectadas,
+                    archivos: driveResults
+                }
+            );
+
+        } catch (err) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'Error sistema',
+                cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+                rolUsuario: usuarioToken.rol || 'Error sistema',
+                nivel: 'error',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'trasladoEnTransito',
+                accion: 'Error al actualizar traslado en tránsito',
+                detalle: 'Error interno del servidor',
+                datos: {
+                    error: err.message,
+                    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+                },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 500, "Error inesperado.", err);
+        }
+    });
+
 
 module.exports = router;
