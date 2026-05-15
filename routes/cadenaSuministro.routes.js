@@ -4349,11 +4349,10 @@ router.post('/obtenerArchivosFacturas', validarToken, async (req, res) => {
 
 router.put('/asociarFactura', validarToken, async (req, res) => {
     const usuarioToken = req.validarToken.usuario
-    const { ids, consecutivoFacturas } = req.body;
+    const { ordenCompra, consecutivoFacturas } = req.body;
 
     try {
-
-        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        if (!ordenCompra || typeof ordenCompra !== 'string' || ordenCompra.trim() === '') {
             await registrarHistorial({
                 nombreUsuario: usuarioToken.nombre || 'No registrado',
                 cedulaUsuario: usuarioToken.cedula || 'No registrado',
@@ -4364,8 +4363,8 @@ router.put('/asociarFactura', validarToken, async (req, res) => {
                 metodo: 'put',
                 endPoint: 'asociarFactura',
                 accion: 'Asociar factura fallido',
-                detalle: 'Los datos de los ids son requeridos.',
-                datos: { ids },
+                detalle: 'Los datos de la orden de compra es requerida.',
+                datos: { ordenCompra },
                 tablasIdsAfectados: [],
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
@@ -4375,7 +4374,7 @@ router.put('/asociarFactura', validarToken, async (req, res) => {
                 res,
                 400,
                 "Solicitud inválida",
-                "Se requiere un array de ids en el campo 'ids'",
+                "Se requiere la orden de compra",
                 null
             );
         }
@@ -4392,7 +4391,7 @@ router.put('/asociarFactura', validarToken, async (req, res) => {
                 endPoint: 'asociarFactura',
                 accion: 'Asociar factura fallido',
                 detalle: 'El consecutivo de la factura es requerido.',
-                datos: { ids, consecutivoFacturas },
+                datos: { ordenCompra, consecutivoFacturas },
                 tablasIdsAfectados: [],
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
@@ -4427,7 +4426,7 @@ router.put('/asociarFactura', validarToken, async (req, res) => {
                 endPoint: 'asociarFactura',
                 accion: 'Asociar factura fallido',
                 detalle: `El consecutivo ${consecutivoFacturasFormateado} ya se encuentra asociado en otros registros.`,
-                datos: { ids, consecutivoFacturas: consecutivoFacturasFormateado },
+                datos: { ordenCompra, consecutivoFacturas: consecutivoFacturasFormateado },
                 tablasIdsAfectados: [],
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
@@ -4436,6 +4435,33 @@ router.put('/asociarFactura', validarToken, async (req, res) => {
             return sendError(res, 400, "Consecutivo ya asociado: consecutivoFacturas", null, { "consecutivoFacturas": `El consecutivo ${consecutivoFacturasFormateado} ya se encuentra asociado a otros registros en la base de datos.` });
         }
 
+        const [ordenCompraAsociado] = await dbRailway.query(
+            `SELECT id FROM registros_solicitud_cadena_suministro WHERE ordenCompra = ?`,
+            [ordenCompra]
+        );
+
+        if (ordenCompraAsociado.length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'asociarFactura',
+                accion: 'Asociar factura fallido',
+                detalle: `La orden de compra ${ordenCompra} no se encuentra asociada a ningun registro en la base de datos.`,
+                datos: { ordenCompra },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Orden de compra no encontrada: ordenCompra", null, { "ordenCompra": `La orden de compra ${ordenCompra} no se encuentra asociada a ningun registro en la base de datos.` });
+        }
+
+        const ids = ordenCompraAsociado.map(row => row.id);
         const placeholders = ids.map(() => '?').join(',');
 
         const connection = await dbRailway.getConnection();
@@ -4449,7 +4475,7 @@ router.put('/asociarFactura', validarToken, async (req, res) => {
                     cedulaUsuarioAsociacionFactura = ?,
                     nombreUsuarioAsociacionFactura = ?,
                     consecutivoAsociacionFactura = ?,
-                    estadoAsociacionFactura = 'Realizado'
+                    estadoAsociacionFactura = 'En Revision'
                 WHERE id IN (${placeholders})
             `,
             [
@@ -4479,7 +4505,7 @@ router.put('/asociarFactura', validarToken, async (req, res) => {
                 consecutivoFacturas: consecutivoFacturasFormateado
             },
             tablasIdsAfectados: ids.map(id => ({
-                tabla: 'registros_orden_compra',
+                tabla: 'registros_solicitud_cadena_suministro',
                 id: id
             })),
             ipAddress: getClientIp(req),
@@ -4522,6 +4548,193 @@ router.put('/asociarFactura', validarToken, async (req, res) => {
         return sendError(res, 500, "Error inesperado.", err);
     }
 });
+
+router.put('/revisionManual',
+    validarToken,
+    upload.single('pdfRevisionManual'),
+    async (req, res) => {
+        const usuarioToken = req.validarToken.usuario;
+
+        try {
+            const { ids, observaciones } = req.body;
+            const pdfRevisionManual = req.file;
+
+            if (!ids) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'cadenaSuministro',
+                    metodo: 'put',
+                    endPoint: 'revisionManual',
+                    accion: 'Revisión manual fallida',
+                    detalle: 'Los IDs son requeridos.',
+                    datos: { ids },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "Los IDs son requeridos.");
+            }
+
+            if (!pdfRevisionManual) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'cadenaSuministro',
+                    metodo: 'put',
+                    endPoint: 'revisionManual',
+                    accion: 'Revisión manual fallida',
+                    detalle: 'El PDF de revisión es requerido.',
+                    datos: { ids },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendError(res, 400, "El PDF de revisión es requerido.");
+            }
+
+            const parsedIds = JSON.parse(ids);
+            if (!Array.isArray(parsedIds) || parsedIds.length === 0) {
+                return sendError(res, 400, "Formato de IDs inválido.");
+            }
+
+            const [registrosBase] = await dbRailway.query(
+                `SELECT consecutivoAsociacionFactura, ordenCompra FROM registros_solicitud_cadena_suministro WHERE id = ? LIMIT 1`,
+                [parsedIds[0]]
+            );
+
+            if (registrosBase.length === 0) {
+                return sendError(res, 404, "No se encontró el registro base para procesar la revisión.");
+            }
+
+            const { consecutivoAsociacionFactura, ordenCompra } = registrosBase[0];
+            const fechaColombia = getFechaHoraColombia();
+
+            // Subir archivo a Google Drive
+            const pdfExt = path.extname(pdfRevisionManual.originalname);
+            const pdfFileName = `Revision_Factura_${consecutivoAsociacionFactura || 'SIN_CONSECUTIVO'}_${ordenCompra || 'SIN_OC'}_${fechaColombia}${pdfExt}`;
+
+
+            const fileId = await uploadFileToDrive(
+                pdfRevisionManual.buffer,
+                pdfFileName,
+                folderId
+            );
+
+            const driveResult = {
+                tipo: 'pdf',
+                nombre: pdfFileName,
+                id: fileId.id,
+                url: fileId.url,
+                webViewLink: fileId.webViewLink,
+                size: pdfRevisionManual.size
+            };
+
+            const driveResultsJSON = JSON.stringify([driveResult]);
+
+            const connection = await dbRailway.getConnection();
+            await connection.beginTransaction();
+
+            try {
+                const placeholders = parsedIds.map(() => '?').join(',');
+
+                const [result] = await connection.query(
+                    `UPDATE registros_solicitud_cadena_suministro 
+                     SET 
+                        fechaRevisionFactura = ?,
+                        cedulaUsuarioRevisionFactura = ?,
+                        nombreUsuarioRevisionFactura = ?,
+                        pdfsRevisionFactura = ?,
+                        observacionRevisionFactura = ?,
+                        estadoAsociacionFactura = 'Realizado'
+                     WHERE id IN (${placeholders})`,
+                    [
+                        fechaColombia,
+                        usuarioToken.cedula,
+                        usuarioToken.nombre,
+                        driveResultsJSON,
+                        observaciones || null,
+                        ...parsedIds
+                    ]
+                );
+
+                await connection.commit();
+
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                    rolUsuario: usuarioToken.rol || 'No registrado',
+                    nivel: 'success',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'cadenaSuministro',
+                    metodo: 'put',
+                    endPoint: 'revisionManual',
+                    accion: 'Revisión manual exitosa',
+                    detalle: `Se procesó la revisión manual para ${result.affectedRows} registros.`,
+                    datos: {
+                        ids: parsedIds,
+                        archivo: driveResult
+                    },
+                    tablasIdsAfectados: parsedIds.map(id => ({
+                        tabla: 'registros_solicitud_cadena_suministro',
+                        id: id
+                    })),
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return sendResponse(
+                    res,
+                    200,
+                    "Revisión guardada exitosamente",
+                    `Se ha procesado la revisión para ${result.affectedRows} registro(s).`,
+                    {
+                        idsActualizados: parsedIds,
+                        archivo: driveResult
+                    }
+                );
+
+            } catch (error) {
+                await connection.rollback();
+                throw error;
+            } finally {
+                connection.release();
+            }
+
+        } catch (err) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'Error sistema',
+                cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+                rolUsuario: usuarioToken.rol || 'Error sistema',
+                nivel: 'error',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'revisionManual',
+                accion: 'Error en revisión manual',
+                detalle: 'Error interno del servidor',
+                datos: {
+                    error: err.message,
+                    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+                },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 500, "Error inesperado.", err);
+        }
+    }
+);
+
 
 router.post('/obtenerArchivosAnticiposTesoreria', validarToken, async (req, res) => {
     const usuarioToken = req.validarToken.usuario
