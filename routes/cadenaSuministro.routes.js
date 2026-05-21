@@ -1026,7 +1026,7 @@ router.put('/comprasActualizarCampos/:id', validarToken, async (req, res) => {
                 { nombre: 'plazoEntrega', valor: plazoEntrega }
             ];
 
-            const campoVacio = camposRequeridos.find(campo => !campo.valor || campo.valor === 'No se encontraron registros');
+            const campoVacio = camposRequeridos.find(campo => (campo.valor === undefined || campo.valor === null || campo.valor === '') || campo.valor === 'No se encontraron registros');
 
             if (campoVacio) {
                 await registrarHistorial({
@@ -1194,7 +1194,14 @@ router.put('/comprasGenerarOC', validarToken, async (req, res) => {
 
         const { contrasena, fechaOrdenCompra, totalGeneralSinIva, totalIva, totalOrdenCompra, ids } = data;
 
-        if (!contrasena || !fechaOrdenCompra || !totalGeneralSinIva || !totalIva || !totalOrdenCompra || !ids || !Array.isArray(ids) || ids.length === 0) {
+        if (
+            !contrasena || 
+            !fechaOrdenCompra || 
+            totalGeneralSinIva === undefined || totalGeneralSinIva === null || 
+            totalIva === undefined || totalIva === null || 
+            totalOrdenCompra === undefined || totalOrdenCompra === null || 
+            !ids || !Array.isArray(ids) || ids.length === 0
+        ) {
             await registrarHistorial({
                 nombreUsuario: usuarioToken.nombre || 'No registrado',
                 cedulaUsuario: usuarioToken.cedula || 'No registrado',

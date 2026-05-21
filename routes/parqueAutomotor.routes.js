@@ -62,6 +62,71 @@ router.get('/registros', validarToken, async (req, res) => {
     }
 });
 
+router.get('/registrosPorDias/:dias', validarToken, async (req, res) => {
+
+    const usuarioToken = req.validarToken.usuario
+    const { dias } = req.params;
+    const diasNum = parseInt(dias, 10);
+
+    if (isNaN(diasNum)) {
+        return sendError(res, 400, "El parámetro 'dias' debe ser un número válido.");
+    }
+
+    try {
+        const [rows] = await dbRailway.query(
+            "SELECT * FROM registros_parque_automotor WHERE fecha >= DATE_FORMAT(DATE_SUB(NOW(), INTERVAL ? DAY), '%Y-%m-%d %H:%i:%s') ORDER BY fecha DESC",
+            [diasNum]
+        );
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'parqueAutomotor',
+            metodo: 'get',
+            endPoint: 'registros',
+            accion: 'Consulta registros exitosa',
+            detalle: `Se consultó ${rows.length} registros`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron ${rows.length} registros del parque automotor.`,
+            rows
+        );
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'parqueAutomotor',
+            metodo: 'get',
+            endPoint: 'registros',
+            accion: 'Error al obtener los registros',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
 router.post('/crearRegistro', validarToken, async (req, res) => {
 
     const usuarioToken = req.validarToken.usuario
@@ -556,6 +621,106 @@ router.get('/auxiliar', validarToken, async (req, res) => {
             metodo: 'get',
             endPoint: 'auxiliar',
             accion: 'Error al obtener la tabla auxiliar',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.post('/roles', validarToken, async (req, res) => {
+
+    const usuarioToken = req.validarToken?.usuario || null;
+
+    try {
+        const data = req.body;
+
+        if (!data || Object.keys(data).length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'parqueAutomotor',
+                metodo: 'post',
+                endPoint: 'roles',
+                accion: 'Consulta registros fallido',
+                detalle: 'Los datos de usuario son requeridos.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Los datos de usuario son requeridos.");
+        }
+
+        if (!data?.cedula) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'parqueAutomotor',
+                metodo: 'post',
+                endPoint: 'roles',
+                accion: 'Consulta archivos fallido',
+                detalle: 'Se requiere la cedula para la consulta',
+                datos: { dataProporcionado: data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Se requiere la cedula para la consulta");
+        }
+
+        const [rows] = await dbRailway.query('SELECT * FROM rol_parque_automotor where cedula = ?', [data.cedula]);
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'parqueAutomotor',
+            metodo: 'post',
+            endPoint: 'roles',
+            accion: 'Consulta registros exitosa',
+            detalle: `Se consultó ${rows.length} registros`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron ${rows.length} registros de roles en parque automotor.`,
+            rows
+        );
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'parqueAutomotor',
+            metodo: 'post',
+            endPoint: 'roles',
+            accion: 'Error al obtener los registros',
             detalle: 'Error interno del servidor',
             datos: {
                 error: err.message,

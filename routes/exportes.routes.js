@@ -102,6 +102,9 @@ router.post('/', validarToken, async (req, res) => {
                 db: db_aplicativosClaro,
                 usarFiltroFecha: false
             },
+
+
+
             "WFM Mantenimiento Centro": {
                 tabla: "wfm_mtto_centro_actividades",
                 db: db_aplicativosClaro,
@@ -122,6 +125,9 @@ router.post('/', validarToken, async (req, res) => {
                 db: dbf_wfm_operaciones,
                 campoFecha: "Fecha archivo"
             },
+
+
+
             "KGPROD - Saldo bodega": {
                 tabla: "kgprod",
                 db: dbf_bodega,
@@ -142,6 +148,9 @@ router.post('/', validarToken, async (req, res) => {
                 db: dbf_bodega,
                 usarFiltroFecha: false
             },
+
+
+
             "Enel ingresos": {
                 tabla: "ingresos",
                 db: dbf_enel,
@@ -152,6 +161,9 @@ router.post('/', validarToken, async (req, res) => {
                 db: dbf_enel,
                 campoFecha: "INICIO ACTIVIDAD"
             },
+
+
+
             "Saldos Proyectos R4": {
                 tabla: "proyectos_r4",
                 db: dbf_informes,
@@ -161,6 +173,19 @@ router.post('/', validarToken, async (req, res) => {
                 tabla: "proyectos_r4_hfc",
                 db: dbf_informes,
                 usarFiltroFecha: false
+            },
+
+
+
+            "Base de Vehiculos": {
+                tabla: "parque_automotor",
+                db: dbRailway,
+                usarFiltroFecha: false
+            },
+            "Registros": {
+                tabla: "registros_parque_automotor",
+                db: dbRailway,
+                campoFecha: "fecha"
             },
         };
         const fuente = fuentes[baseDatos];
