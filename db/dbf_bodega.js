@@ -6,7 +6,12 @@ const railway = mysql.createPool({
   port: process.env.DBF2_PORT,
   user: process.env.DBF2_USER,
   password: process.env.DBF2_PASSWORD,
-  database: process.env.DBF2_DATABASE
+  database: process.env.DBF2_DATABASE,
+  waitForConnections: true,
+  connectionLimit: 3,
+  maxIdle: 3,
+  idleTimeout: 30000,
+  queueLimit: 0
 });
 
 module.exports = railway;
