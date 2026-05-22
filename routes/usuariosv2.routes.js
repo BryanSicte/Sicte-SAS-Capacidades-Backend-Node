@@ -1097,7 +1097,279 @@ router.post('/ubicacionUsuarios', validarToken, async (req, res) => {
     } catch (err) {
         return sendError(res, 500, "Error inesperado.", err);
     }
+});
 
+router.get('/users', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken?.usuario;
+    try {
+        const [rows] = await dbRailway.query('SELECT id, cedula, correo, nombre, rol, telefono, contrasena FROM user');
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'get',
+            endPoint: 'users',
+            accion: 'Consulta de usuarios exitosa',
+            detalle: `Se obtuvieron ${rows.length} registros de usuarios`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(res, 200, "Consulta exitosa", "Se obtuvieron los usuarios correctamente.", rows);
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'get',
+            endPoint: 'users',
+            accion: 'Error al consultar usuarios',
+            detalle: 'Error interno del servidor',
+            datos: { error: err.message },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado al consultar usuarios", err);
+    }
+});
+
+router.post('/users', validarToken, async (req, res) => {
+    const { nombre, correo, cedula, rol, telefono, contrasena } = req.body;
+    const usuarioToken = req.validarToken?.usuario;
+
+    if (!nombre || !correo || !cedula || !rol || !telefono || !contrasena) {
+        return sendError(res, 400, "Faltan campos obligatorios: nombre, correo, cedula, rol, telefono o contrasena.");
+    }
+
+    try {
+        const [existentes] = await dbRailway.query(
+            'SELECT * FROM user WHERE cedula = ? OR correo = ?',
+            [cedula, correo]
+        );
+
+        if (existentes.length > 0) {
+            const esCedula = existentes.some(u => u.cedula === cedula);
+            const msg = esCedula 
+                ? "Ya existe un usuario registrado con esa cédula." 
+                : "Ya existe un usuario registrado con ese correo electrónico.";
+            return sendError(res, 400, msg);
+        }
+
+        const [result] = await dbRailway.query(
+            'INSERT INTO user (nombre, correo, cedula, rol, telefono, contrasena) VALUES (?, ?, ?, ?, ?, ?)',
+            [nombre, correo, cedula, rol, telefono, contrasena]
+        );
+
+        const nuevoUsuarioId = result.insertId;
+
+        await dbRailway.query(
+            'INSERT IGNORE INTO pages_per_user (cedula) VALUES (?)',
+            [cedula]
+        );
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'post',
+            endPoint: 'users',
+            accion: 'Creación de usuario exitosa',
+            detalle: `Se creó el usuario ${nombre} con cédula ${cedula}`,
+            datos: { nombre, correo, cedula, rol, telefono },
+            tablasIdsAfectados: [{ tabla: 'user', id: nuevoUsuarioId.toString() }],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        const nuevoUsuario = { id: nuevoUsuarioId, nombre, correo, cedula, rol, telefono, contrasena };
+        return sendResponse(res, 201, "Usuario creado", "El usuario ha sido creado exitosamente.", nuevoUsuario);
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'post',
+            endPoint: 'users',
+            accion: 'Error al crear usuario',
+            detalle: 'Error interno del servidor',
+            datos: { error: err.message, body: req.body },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado al crear usuario", err);
+    }
+});
+
+router.put('/users/:id', validarToken, async (req, res) => {
+    const { id } = req.params;
+    const { nombre, correo, cedula, rol, telefono, contrasena } = req.body;
+    const usuarioToken = req.validarToken?.usuario;
+
+    if (!nombre || !correo || !cedula || !rol || !telefono || !contrasena) {
+        return sendError(res, 400, "Faltan campos obligatorios: nombre, correo, cedula, rol, telefono o contrasena.");
+    }
+
+    try {
+        const [existentes] = await dbRailway.query('SELECT * FROM user WHERE id = ?', [id]);
+        if (existentes.length === 0) {
+            return sendError(res, 404, "Usuario no encontrado.");
+        }
+
+        const usuarioOriginal = existentes[0];
+
+        const [duplicados] = await dbRailway.query(
+            'SELECT * FROM user WHERE (cedula = ? OR correo = ?) AND id != ?',
+            [cedula, correo, id]
+        );
+
+        if (duplicados.length > 0) {
+            const esCedula = duplicados.some(u => u.cedula === cedula);
+            const msg = esCedula 
+                ? "Ya existe otro usuario registrado con esa cédula." 
+                : "Ya existe otro usuario registrado con ese correo electrónico.";
+            return sendError(res, 400, msg);
+        }
+
+        await dbRailway.query(
+            'UPDATE user SET nombre = ?, correo = ?, contrasena = ?, cedula = ?, rol = ?, telefono = ? WHERE id = ?',
+            [nombre, correo, contrasena, cedula, rol, telefono, id]
+        );
+
+        if (usuarioOriginal.cedula !== cedula) {
+            const [pages] = await dbRailway.query('SELECT * FROM pages_per_user WHERE cedula = ?', [usuarioOriginal.cedula]);
+            if (pages.length > 0) {
+                await dbRailway.query(
+                    'UPDATE pages_per_user SET cedula = ? WHERE cedula = ?',
+                    [cedula, usuarioOriginal.cedula]
+                );
+            } else {
+                await dbRailway.query(
+                    'INSERT IGNORE INTO pages_per_user (cedula) VALUES (?)',
+                    [cedula]
+                );
+            }
+        }
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'put',
+            endPoint: 'users/:id',
+            accion: 'Actualización de usuario exitosa',
+            detalle: `Se actualizó el usuario ${nombre} con ID ${id}`,
+            datos: { nombre, correo, cedula, rol, telefono },
+            tablasIdsAfectados: [{ tabla: 'user', id: id.toString() }],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        const usuarioActualizado = { id, nombre, correo, cedula, rol, telefono, contrasena };
+        return sendResponse(res, 200, "Usuario actualizado", "El usuario ha sido actualizado exitosamente.", usuarioActualizado);
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'put',
+            endPoint: 'users/:id',
+            accion: 'Error al actualizar usuario',
+            detalle: 'Error interno del servidor',
+            datos: { error: err.message, id, body: req.body },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado al actualizar usuario", err);
+    }
+});
+
+router.delete('/users/:id', validarToken, async (req, res) => {
+    const { id } = req.params;
+    const usuarioToken = req.validarToken?.usuario;
+
+    try {
+        const [existentes] = await dbRailway.query('SELECT * FROM user WHERE id = ?', [id]);
+        if (existentes.length === 0) {
+            return sendError(res, 404, "Usuario no encontrado.");
+        }
+
+        const usuario = existentes[0];
+
+        if (usuario.cedula === usuarioToken?.cedula) {
+            return sendError(res, 400, "No puedes eliminar tu propio usuario.");
+        }
+
+        await dbRailway.query('DELETE FROM user WHERE id = ?', [id]);
+
+        if (usuario.cedula) {
+            await dbRailway.query('DELETE FROM pages_per_user WHERE cedula = ?', [usuario.cedula]);
+        }
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'delete',
+            endPoint: 'users/:id',
+            accion: 'Eliminación de usuario exitosa',
+            detalle: `Se eliminó el usuario ${usuario.nombre} con cédula ${usuario.cedula} e ID ${id}`,
+            datos: { id, cedula: usuario.cedula, nombre: usuario.nombre },
+            tablasIdsAfectados: [{ tabla: 'user', id: id.toString() }],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(res, 200, "Usuario eliminado", "El usuario ha sido eliminado exitosamente.", { id });
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'delete',
+            endPoint: 'users/:id',
+            accion: 'Error al eliminar usuario',
+            detalle: 'Error interno del servidor',
+            datos: { error: err.message, id },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado al eliminar usuario", err);
+    }
 });
 
 module.exports = router;
