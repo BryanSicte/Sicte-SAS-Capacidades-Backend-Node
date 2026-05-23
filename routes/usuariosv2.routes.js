@@ -1160,8 +1160,8 @@ router.post('/users', validarToken, async (req, res) => {
 
         if (existentes.length > 0) {
             const esCedula = existentes.some(u => u.cedula === cedula);
-            const msg = esCedula 
-                ? "Ya existe un usuario registrado con esa cédula." 
+            const msg = esCedula
+                ? "Ya existe un usuario registrado con esa cédula."
                 : "Ya existe un usuario registrado con ese correo electrónico.";
             return sendError(res, 400, msg);
         }
@@ -1243,8 +1243,8 @@ router.put('/users/:id', validarToken, async (req, res) => {
 
         if (duplicados.length > 0) {
             const esCedula = duplicados.some(u => u.cedula === cedula);
-            const msg = esCedula 
-                ? "Ya existe otro usuario registrado con esa cédula." 
+            const msg = esCedula
+                ? "Ya existe otro usuario registrado con esa cédula."
                 : "Ya existe otro usuario registrado con ese correo electrónico.";
             return sendError(res, 400, msg);
         }
@@ -1369,6 +1369,310 @@ router.delete('/users/:id', validarToken, async (req, res) => {
         });
 
         return sendError(res, 500, "Error inesperado al eliminar usuario", err);
+    }
+});
+
+router.get('/pages/schema', validarToken, async (req, res) => {
+    try {
+        const [columns] = await dbRailway.query('SHOW COLUMNS FROM pages_per_user');
+        const pages = columns
+            .map(col => col.Field)
+            .filter(field => field !== 'id' && field !== 'cedula');
+
+        return sendResponse(res, 200, "Esquema de páginas obtenido", "Se obtuvieron las páginas existentes.", pages);
+    } catch (err) {
+        return sendError(res, 500, "Error al obtener esquema de páginas", err);
+    }
+});
+
+router.get('/pages/all', validarToken, async (req, res) => {
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM pages_per_user');
+        return sendResponse(res, 200, "Todos los permisos obtenidos", "Se obtuvieron los permisos de todos los usuarios.", rows);
+    } catch (err) {
+        return sendError(res, 500, "Error al obtener todos los permisos", err);
+    }
+});
+
+router.get('/pages/user/:cedula', validarToken, async (req, res) => {
+    const { cedula } = req.params;
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM pages_per_user WHERE cedula = ?', [cedula]);
+        if (rows.length === 0) {
+            await dbRailway.query('INSERT IGNORE INTO pages_per_user (cedula) VALUES (?)', [cedula]);
+            const [newRows] = await dbRailway.query('SELECT * FROM pages_per_user WHERE cedula = ?', [cedula]);
+            return sendResponse(res, 200, "Páginas del usuario", "Se obtuvieron las páginas asociadas al usuario.", newRows[0] || {});
+        }
+        return sendResponse(res, 200, "Páginas del usuario", "Se obtuvieron las páginas asociadas al usuario.", rows[0]);
+    } catch (err) {
+        return sendError(res, 500, "Error al obtener páginas del usuario", err);
+    }
+});
+
+router.put('/pages/user/:cedula', validarToken, async (req, res) => {
+    const { cedula } = req.params;
+    const fields = req.body;
+    const usuarioToken = req.validarToken?.usuario;
+
+    if (!fields || Object.keys(fields).length === 0) {
+        return sendError(res, 400, "No se proporcionaron campos para actualizar.");
+    }
+
+    try {
+        const [existing] = await dbRailway.query('SELECT * FROM pages_per_user WHERE cedula = ?', [cedula]);
+        if (existing.length === 0) {
+            await dbRailway.query('INSERT IGNORE INTO pages_per_user (cedula) VALUES (?)', [cedula]);
+        }
+
+        const columns = Object.keys(fields);
+        const values = Object.values(fields);
+        const setClause = columns.map(col => `${col} = ?`).join(', ');
+        values.push(cedula);
+
+        const sql = `UPDATE pages_per_user SET ${setClause} WHERE cedula = ?`;
+        await dbRailway.query(sql, values);
+
+        const [updated] = await dbRailway.query('SELECT * FROM pages_per_user WHERE cedula = ?', [cedula]);
+
+        try {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'usuarios',
+                metodo: 'put',
+                endPoint: 'pages/user/:cedula',
+                accion: 'Actualización de permisos de páginas',
+                detalle: `Se actualizaron los permisos para la cédula ${cedula}`,
+                datos: fields,
+                tablasIdsAfectados: [{ tabla: 'pages_per_user', id: updated[0]?.id?.toString() || '0' }],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+        } catch (histErr) { }
+
+        return sendResponse(res, 200, "Permisos actualizados", "Los permisos de páginas se han guardado correctamente.", updated[0]);
+    } catch (err) {
+        return sendError(res, 500, "Error al actualizar permisos de páginas", err);
+    }
+});
+
+router.put('/pages/page-key/bulk', validarToken, async (req, res) => {
+    const { pageKey, value } = req.body;
+    const usuarioToken = req.validarToken?.usuario;
+
+    if (!pageKey || (value !== 0 && value !== 1)) {
+        return sendError(res, 400, "Parámetros inválidos.");
+    }
+
+    try {
+        const sql = `UPDATE pages_per_user SET ${pageKey} = ?`;
+        await dbRailway.query(sql, [value]);
+
+        try {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'usuarios',
+                metodo: 'put',
+                endPoint: 'pages/page-key/bulk',
+                accion: 'Actualización masiva de permisos de página',
+                detalle: `Se actualizó el permiso de la página ${pageKey} a ${value} para todos los usuarios.`,
+                datos: { pageKey, value },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+        } catch (histErr) { }
+
+        return sendResponse(res, 200, "Permisos masivos actualizados", `Se actualizó la página para todos los usuarios.`);
+    } catch (err) {
+        return sendError(res, 500, "Error al actualizar permisos de página masivos", err);
+    }
+});
+
+// --- ENDPOINTS PARA ROLES POR APLICATIVO ---
+
+router.get('/roles/tables', validarToken, async (req, res) => {
+    try {
+        const [rows] = await dbRailway.query("SHOW TABLES LIKE 'rol_%'");
+        const tables = rows.map(row => Object.values(row)[0]);
+        return sendResponse(res, 200, "Tablas de roles obtenidas", "Se obtuvieron las tablas de roles correctamente.", tables);
+    } catch (err) {
+        return sendError(res, 500, "Error al obtener tablas de roles", err);
+    }
+});
+
+async function getPagePermissionColumn(tableName) {
+    const cleanTableName = tableName.replace(/^rol_/i, '');
+    const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '').replace(/s$/, '');
+    const targetNormalized = normalize(cleanTableName);
+
+    try {
+        const [columns] = await dbRailway.query('SHOW COLUMNS FROM pages_per_user');
+        const dbColumns = columns.map(col => col.Field);
+
+        for (const col of dbColumns) {
+            if (col === 'id' || col === 'cedula') continue;
+            const cleanCol = col.replace(/^(aplicativos|facturacion|productividad|indicadores|hseq|puntuacion|operacion|logistica|administracion|parqueAutomotor|gestionHumana)/i, '');
+            if (normalize(cleanCol) === targetNormalized) {
+                return col;
+            }
+        }
+    } catch (err) {
+        console.error("Error al obtener columnas de pages_per_user:", err);
+    }
+
+    // Fallback dinámico si no hay match exacto en DB
+    let camel = cleanTableName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join('');
+    return 'aplicativos' + camel;
+}
+
+router.get('/roles/table/:tableName', validarToken, async (req, res) => {
+    const { tableName } = req.params;
+    const tableNameRegex = /^rol_[a-zA-Z0-9_]+$/;
+    if (!tableNameRegex.test(tableName)) {
+        return sendError(res, 400, "Nombre de tabla inválido.");
+    }
+
+    try {
+        const pageCol = await getPagePermissionColumn(tableName);
+
+        // Verificar si la columna del permiso existe en pages_per_user
+        const [colCheck] = await dbRailway.query(`SHOW COLUMNS FROM pages_per_user LIKE ?`, [pageCol]);
+        let allowedCedulas = [];
+
+        if (colCheck.length > 0) {
+            // Eliminar de la tabla rol_ a aquellos usuarios que no tienen permiso (0, NULL o no tienen registro)
+            const [toDelete] = await dbRailway.query(`
+                SELECT r.cedula 
+                FROM ${tableName} r
+                LEFT JOIN pages_per_user p ON r.cedula = p.cedula
+                WHERE p.cedula IS NULL OR p.${pageCol} = 0 OR p.${pageCol} IS NULL
+            `);
+
+            if (toDelete.length > 0) {
+                const cedulasToDelete = toDelete.map(row => row.cedula).filter(Boolean);
+                if (cedulasToDelete.length > 0) {
+                    await dbRailway.query(`DELETE FROM ${tableName} WHERE cedula IN (?)`, [cedulasToDelete]);
+                }
+            }
+
+            // Obtener cédulas de usuarios con permiso activo (1)
+            const [allowedRows] = await dbRailway.query(`SELECT cedula FROM pages_per_user WHERE ${pageCol} = 1`);
+            allowedCedulas = allowedRows.map(row => String(row.cedula));
+        } else {
+            // Fallback en caso de que la columna de permisos no exista en pages_per_user
+            const [allUsers] = await dbRailway.query(`SELECT cedula FROM user`);
+            allowedCedulas = allUsers.map(row => String(row.cedula));
+        }
+
+        const [columns] = await dbRailway.query(`SHOW COLUMNS FROM ${tableName}`);
+        const modules = columns
+            .map(col => col.Field)
+            .filter(field => field !== 'id' && field !== 'cedula');
+
+        const [rows] = await dbRailway.query(`SELECT * FROM ${tableName}`);
+
+        return sendResponse(res, 200, "Datos de roles obtenidos", "Se obtuvieron columnas y registros correctamente.", {
+            columns: modules,
+            data: rows,
+            allowedCedulas: allowedCedulas
+        });
+    } catch (err) {
+        return sendError(res, 500, `Error al obtener datos de la tabla ${tableName}`, err);
+    }
+});
+
+router.put('/roles/update', validarToken, async (req, res) => {
+    const { tableName, cedula, column, permissions } = req.body;
+    const usuarioToken = req.validarToken?.usuario;
+
+    const tableNameRegex = /^rol_[a-zA-Z0-9_]+$/;
+    const columnNameRegex = /^[a-zA-Z0-9_]+$/;
+
+    if (!tableName || !cedula || !column || !permissions) {
+        return sendError(res, 400, "Faltan campos obligatorios: tableName, cedula, column o permissions.");
+    }
+
+    if (!tableNameRegex.test(tableName)) {
+        return sendError(res, 400, "Nombre de tabla inválido.");
+    }
+
+    if (!columnNameRegex.test(column)) {
+        return sendError(res, 400, "Nombre de columna inválido.");
+    }
+
+    let permissionsObj = permissions;
+    if (typeof permissions === 'string') {
+        try {
+            permissionsObj = JSON.parse(permissions);
+        } catch (e) {
+            permissionsObj = {};
+        }
+    }
+
+    const normalized = {
+        c: String(permissionsObj?.c === "1" || permissionsObj?.c === 1 || permissionsObj?.c === true ? "1" : "0"),
+        r: String(permissionsObj?.r === "1" || permissionsObj?.r === 1 || permissionsObj?.r === true ? "1" : "0"),
+        u: String(permissionsObj?.u === "1" || permissionsObj?.u === 1 || permissionsObj?.u === true ? "1" : "0"),
+        d: String(permissionsObj?.d === "1" || permissionsObj?.d === 1 || permissionsObj?.d === true ? "1" : "0")
+    };
+
+    try {
+        let columnsToUpdate = [column];
+        if (column === 'all') {
+            const [colsResult] = await dbRailway.query(`SHOW COLUMNS FROM ${tableName}`);
+            columnsToUpdate = colsResult
+                .map(col => col.Field)
+                .filter(field => field !== 'id' && field !== 'cedula');
+        }
+
+        if (columnsToUpdate.length === 0) {
+            return sendError(res, 400, "No se encontraron columnas válidas para actualizar.");
+        }
+
+        const [existing] = await dbRailway.query(`SELECT * FROM ${tableName} WHERE cedula = ?`, [cedula]);
+        const permString = JSON.stringify(normalized);
+
+        if (existing.length > 0) {
+            const setClause = columnsToUpdate.map(col => `${col} = ?`).join(', ');
+            const updateValues = [...columnsToUpdate.map(() => permString), cedula];
+            await dbRailway.query(`UPDATE ${tableName} SET ${setClause} WHERE cedula = ?`, updateValues);
+        } else {
+            const columnsList = ['cedula', ...columnsToUpdate].join(', ');
+            const placeholders = ['?', ...columnsToUpdate.map(() => '?')].join(', ');
+            const insertValues = [cedula, ...columnsToUpdate.map(() => permString)];
+            await dbRailway.query(`INSERT INTO ${tableName} (${columnsList}) VALUES (${placeholders})`, insertValues);
+        }
+
+        try {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'usuarios',
+                metodo: 'put',
+                endPoint: 'roles/update',
+                accion: 'Actualización de rol de aplicativo',
+                detalle: `Se actualizó el rol en ${tableName} para la columna ${column} y cédula ${cedula}`,
+                datos: { tableName, cedula, column, permissions: normalized },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+        } catch (histErr) { }
+
+        return sendResponse(res, 200, "Permisos actualizados", "Los permisos de rol del aplicativo se han guardado correctamente.");
+    } catch (err) {
+        return sendError(res, 500, "Error al actualizar los permisos de rol del aplicativo", err);
     }
 });
 

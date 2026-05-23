@@ -156,7 +156,21 @@ router.post('/pagesUser', async (req, res) => {
 
     try {
         const [rows] = await dbRailway.query('SELECT * FROM pages_per_user where cedula = ?', [cedula]);
-        res.status(200).json(rows);
+
+        // Convertir campos BIT(1) (Buffer) a "1" o "0"
+        const converted = rows.map(row => {
+            const result = {};
+            for (const [key, value] of Object.entries(row)) {
+                if (Buffer.isBuffer(value)) {
+                    result[key] = value[0] === 1 ? '1' : '0';
+                } else {
+                    result[key] = value;
+                }
+            }
+            return result;
+        });
+
+        res.status(200).json(converted);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
