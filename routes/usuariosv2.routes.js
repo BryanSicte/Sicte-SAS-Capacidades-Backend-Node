@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const validarToken = require('../middlewares/validarToken');
 const { registrarHistorial, getClientIp, determinarPlataforma } = require('../utils/historial');
+const { syncAllUsers, syncSingleUser } = require('../services/usuarioSyncService');
 
 function generateToken() {
     return crypto.randomBytes(20).toString('hex');
@@ -41,6 +42,25 @@ router.post('/login', async (req, res) => {
         });
 
         return sendError(res, 400, "Campo obligatorio: Correo", null, { "correo": "Ingresa tu correo." });
+    }
+
+    // Sincronizar en caliente el estado del usuario por su correo electrónico antes de verificar
+    try {
+        const excepciones = require('../config/excepcionesHabilitados');
+        await dbRailway.query(`
+            UPDATE user u
+            SET u.habilitado = CASE 
+                WHEN u.correo = ? AND u.cedula IN (?) THEN 1
+                WHEN EXISTS (
+                    SELECT 1 FROM plantaenlinea p 
+                    WHERE p.nit = u.cedula AND p.perfil <> 'RETIRADO'
+                ) THEN 1 
+                ELSE 0 
+            END
+            WHERE u.correo = ?
+        `, [correo, excepciones.length > 0 ? excepciones : ['__NONE__'], correo]);
+    } catch (syncErr) {
+        console.error('Error al sincronizar habilitado en login:', syncErr);
     }
 
     const [users] = await dbRailway.query(
@@ -96,7 +116,35 @@ router.post('/login', async (req, res) => {
             return sendError(res, 400, "No se encontró la cuenta", null, { "correo": "No existe una cuenta asociada a este correo." });
         }
 
-        if (usuario.contrasena !== contrasena) {
+        if (usuario.habilitado === 0 && usuario.correo !== 'invitado@sicte.com' && usuario.cedula !== '0000') {
+            await registrarHistorial({
+                nombreUsuario: usuario.nombre || 'No registrado',
+                cedulaUsuario: usuario.cedula || 'No registrado',
+                rolUsuario: usuario.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'usuarios',
+                metodo: 'post',
+                endPoint: 'login',
+                accion: 'Inicio de sesion fallido',
+                detalle: 'Usuario inhabilitado o retirado de la planta',
+                datos: { correoProporcionado: correo },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 403, "Usuario inhabilitado o retirado de la planta.");
+        }
+
+        let isMatch = false;
+        if (usuario.contrasena && usuario.contrasena.startsWith('$2') && usuario.contrasena.length === 60) {
+            isMatch = await bcrypt.compare(contrasena, usuario.contrasena);
+        } else {
+            isMatch = (usuario.contrasena === contrasena);
+        }
+
+        if (!isMatch) {
             await registrarHistorial({
                 nombreUsuario: usuario.nombre || 'No registrado',
                 cedulaUsuario: usuario.cedula || 'No registrado',
@@ -328,7 +376,16 @@ router.post('/recibir', async (req, res) => {
             return sendError(res, 404, "No se encontró la cuenta", null, { "correo": "No existe una cuenta asociada a este correo electrónico." });
         }
 
-        const mensaje = `Hola,\n\nRecibimos una solicitud para recuperar el acceso a tu cuenta para la pagina del CCOT.\n\nTu contraseña es:\n${usuario.contrasena}\n\nTe recomendamos mantener esta información en un lugar seguro.\n\nSi no realizaste esta solicitud, puedes ignorar este mensaje.`;
+        // Generar una contraseña temporal aleatoria de 8 caracteres
+        const tempPass = Math.random().toString(36).slice(-8);
+        const hashedTempPass = await bcrypt.hash(tempPass, 10);
+
+        await dbRailway.query(
+            'UPDATE user SET contrasena = ? WHERE id = ?',
+            [hashedTempPass, usuario.id]
+        );
+
+        const mensaje = `Hola,\n\nRecibimos una solicitud para recuperar el acceso a tu cuenta para la pagina del CCOT.\n\nTu contraseña temporal es:\n${tempPass}\n\nTe recomendamos iniciar sesión y cambiar tu contraseña inmediatamente.\n\nSi no realizaste esta solicitud, puedes ignorar este mensaje.`;
 
         await sendEmail(usuario.correo, 'CCOT - Recibir Contraseña', mensaje);
 
@@ -768,7 +825,14 @@ router.post('/actualizarContrasena', async (req, res) => {
             return sendError(res, 400, "Usuario no encontrado");
         }
 
-        if (usuario[0].contrasena !== contrasenaActual) {
+        let isActualMatch = false;
+        if (usuario[0].contrasena && usuario[0].contrasena.startsWith('$2') && usuario[0].contrasena.length === 60) {
+            isActualMatch = await bcrypt.compare(contrasenaActual, usuario[0].contrasena);
+        } else {
+            isActualMatch = (usuario[0].contrasena === contrasenaActual);
+        }
+
+        if (!isActualMatch) {
             await registrarHistorial({
                 nombreUsuario: usuario.nombre || 'No registrado',
                 cedulaUsuario: usuario.cedula || 'No registrado',
@@ -789,7 +853,14 @@ router.post('/actualizarContrasena', async (req, res) => {
             return sendError(res, 400, "Contraseña actual incorrecta", null, { "passwordActual": "La contraseña actual no es correcta." });
         }
 
-        if (usuario[0].contrasena === contrasenaNueva) {
+        let isNuevaMatch = false;
+        if (usuario[0].contrasena && usuario[0].contrasena.startsWith('$2') && usuario[0].contrasena.length === 60) {
+            isNuevaMatch = await bcrypt.compare(contrasenaNueva, usuario[0].contrasena);
+        } else {
+            isNuevaMatch = (usuario[0].contrasena === contrasenaNueva);
+        }
+
+        if (isNuevaMatch) {
             await registrarHistorial({
                 nombreUsuario: usuario.nombre || 'No registrado',
                 cedulaUsuario: usuario.cedula || 'No registrado',
@@ -832,9 +903,10 @@ router.post('/actualizarContrasena', async (req, res) => {
             return sendError(res, 400, "Contraseña no válida", null, { passwordNueva: "Debe tener al menos 8 caracteres, una mayúscula, una minúscula y un número." });
         }
 
+        const hashedNueva = await bcrypt.hash(contrasenaNueva, 10);
         await dbRailway.query(
             'UPDATE user SET contrasena = ? WHERE correo = ?',
-            [contrasenaNueva, tokenData[0].email]
+            [hashedNueva, tokenData[0].email]
         );
 
         await registrarHistorial({
@@ -1102,7 +1174,13 @@ router.post('/ubicacionUsuarios', validarToken, async (req, res) => {
 router.get('/users', validarToken, async (req, res) => {
     const usuarioToken = req.validarToken?.usuario;
     try {
-        const [rows] = await dbRailway.query('SELECT id, cedula, correo, nombre, rol, telefono, contrasena FROM user');
+        try {
+            await syncAllUsers();
+        } catch (syncErr) {
+            console.error('Error al sincronizar usuarios en GET /users:', syncErr);
+        }
+
+        const [rows] = await dbRailway.query('SELECT id, cedula, correo, nombre, rol, telefono, contrasena, habilitado FROM user');
 
         await registrarHistorial({
             nombreUsuario: usuarioToken?.nombre || 'No registrado',
@@ -1166,9 +1244,10 @@ router.post('/users', validarToken, async (req, res) => {
             return sendError(res, 400, msg);
         }
 
+        const hashedPassword = await bcrypt.hash(contrasena, 10);
         const [result] = await dbRailway.query(
             'INSERT INTO user (nombre, correo, cedula, rol, telefono, contrasena) VALUES (?, ?, ?, ?, ?, ?)',
-            [nombre, correo, cedula, rol, telefono, contrasena]
+            [nombre, correo, cedula, rol, telefono, hashedPassword]
         );
 
         const nuevoUsuarioId = result.insertId;
@@ -1177,6 +1256,12 @@ router.post('/users', validarToken, async (req, res) => {
             'INSERT IGNORE INTO pages_per_user (cedula) VALUES (?)',
             [cedula]
         );
+
+        try {
+            await syncSingleUser(cedula);
+        } catch (syncErr) {
+            console.error('Error al sincronizar habilitado en POST /users:', syncErr);
+        }
 
         await registrarHistorial({
             nombreUsuario: usuarioToken?.nombre || 'No registrado',
@@ -1249,9 +1334,12 @@ router.put('/users/:id', validarToken, async (req, res) => {
             return sendError(res, 400, msg);
         }
 
+        const isBcrypt = typeof contrasena === 'string' && contrasena.startsWith('$2') && contrasena.length === 60;
+        const passwordToSave = isBcrypt ? contrasena : await bcrypt.hash(contrasena, 10);
+
         await dbRailway.query(
             'UPDATE user SET nombre = ?, correo = ?, contrasena = ?, cedula = ?, rol = ?, telefono = ? WHERE id = ?',
-            [nombre, correo, contrasena, cedula, rol, telefono, id]
+            [nombre, correo, passwordToSave, cedula, rol, telefono, id]
         );
 
         if (usuarioOriginal.cedula !== cedula) {
@@ -1267,6 +1355,12 @@ router.put('/users/:id', validarToken, async (req, res) => {
                     [cedula]
                 );
             }
+        }
+
+        try {
+            await syncSingleUser(cedula);
+        } catch (syncErr) {
+            console.error('Error al sincronizar habilitado en PUT /users/:id:', syncErr);
         }
 
         await registrarHistorial({

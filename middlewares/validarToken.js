@@ -7,7 +7,7 @@ async function validarToken(req, res, next) {
         const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
 
         if (!token) {
-            return sendError(res, 400, "Token requerido, por favor, cierra sesión y vuelve a ingresar para restablecer tu sesión.");
+            return sendError(res, 403, "Token requerido, por favor, cierra sesión y vuelve a ingresar para restablecer tu sesión.");
         }
 
         const [tokenData] = await dbRailway.query(
@@ -16,20 +16,20 @@ async function validarToken(req, res, next) {
         );
 
         if (!tokenData || tokenData.length === 0) {
-            return sendError(res, 400, "Token invalido, por favor, cierra sesión y vuelve a ingresar para restablecer tu sesión.");
+            return sendError(res, 403, "Token invalido, por favor, cierra sesión y vuelve a ingresar para restablecer tu sesión.");
         }
 
         const resetToken = tokenData[0];
 
         if (resetToken.length === 0) {
-            return sendError(res, 400, "Token invalido, por favor, cierra sesión y vuelve a ingresar para restablecer tu sesión.");
+            return sendError(res, 403, "Token invalido, por favor, cierra sesión y vuelve a ingresar para restablecer tu sesión.");
         }
 
         const expiracionUTC = new Date(tokenData.expiryDate);
         const ahoraUTC = new Date();
 
         if (expiracionUTC < ahoraUTC) {
-            return sendError(res, 400, "Token expirado, por favor, cierra sesión y vuelve a ingresar para restablecer tu sesión.");
+            return sendError(res, 403, "Token expirado, por favor, cierra sesión y vuelve a ingresar para restablecer tu sesión.");
         }
 
         const [users] = await dbRailway.query(
@@ -38,6 +38,18 @@ async function validarToken(req, res, next) {
         );
 
         const usuario = users[0];
+
+        if (!usuario) {
+            return sendError(res, 403, "Usuario no encontrado, por favor inicia sesión de nuevo.");
+        }
+
+        const excepciones = require('../config/excepcionesHabilitados');
+        const isGuest = usuario.correo === 'invitado@sicte.com' || usuario.cedula === '0000';
+        const isExcepted = excepciones.includes(usuario.cedula);
+
+        if (usuario.habilitado === 0 && !isGuest && !isExcepted) {
+            return sendError(res, 403, "Usuario inhabilitado o retirado de la planta.");
+        }
 
         req.validarToken = {
             tokenData: tokenData.token,

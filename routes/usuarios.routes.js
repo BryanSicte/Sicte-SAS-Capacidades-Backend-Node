@@ -6,9 +6,16 @@ const { sendResponse, sendError } = require('../utils/responseHandler');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const validarToken = require('../middlewares/validarToken');
+const { syncAllUsers } = require('../services/usuarioSyncService');
 
 router.get('/users', async (req, res) => {
     try {
+        try {
+            await syncAllUsers();
+        } catch (syncErr) {
+            console.error('Error al sincronizar usuarios en GET /users:', syncErr);
+        }
+
         const [rows] = await dbRailway.query('SELECT * FROM user');
 
         return res.status(200).json(rows);
@@ -43,6 +50,25 @@ router.post('/login', async (req, res) => {
     }
 
     try {
+        // Sincronizar en caliente el estado del usuario por su correo electrónico antes de verificar
+        try {
+            const excepciones = require('../config/excepcionesHabilitados');
+            await dbRailway.query(`
+                UPDATE user u
+                SET u.habilitado = CASE 
+                    WHEN u.correo = ? AND u.cedula IN (?) THEN 1
+                    WHEN EXISTS (
+                        SELECT 1 FROM plantaenlinea p 
+                        WHERE p.nit = u.cedula AND p.perfil <> 'RETIRADO'
+                    ) THEN 1 
+                    ELSE 0 
+                END
+                WHERE u.correo = ?
+            `, [correo, excepciones.length > 0 ? excepciones : ['__NONE__'], correo]);
+        } catch (syncErr) {
+            console.error('Error al sincronizar habilitado en login (v1):', syncErr);
+        }
+
         const [rows] = await dbRailway.query(
             'SELECT * FROM user WHERE correo = ?',
             [correo]
@@ -54,7 +80,18 @@ router.post('/login', async (req, res) => {
 
         const usuario = rows[0];
 
-        if (usuario.contrasena !== contrasena) {
+        if (usuario.habilitado === 0 && usuario.correo !== 'invitado@sicte.com' && usuario.cedula !== '0000') {
+            return res.status(403).json({ message: 'Usuario inhabilitado o retirado de la planta' });
+        }
+
+        let isMatch = false;
+        if (usuario.contrasena && usuario.contrasena.startsWith('$2') && usuario.contrasena.length === 60) {
+            isMatch = await bcrypt.compare(contrasena, usuario.contrasena);
+        } else {
+            isMatch = (usuario.contrasena === contrasena);
+        }
+
+        if (!isMatch) {
             return res.status(401).json({ message: 'Contraseña incorrecta' });
         }
 
@@ -79,9 +116,12 @@ router.put('/users/:id', async (req, res) => {
             return res.status(404).json({ message: 'Usuario no encontrado' });
         }
 
+        const isBcrypt = typeof contrasena === 'string' && contrasena.startsWith('$2') && contrasena.length === 60;
+        const passwordToSave = isBcrypt ? contrasena : await bcrypt.hash(contrasena, 10);
+
         await dbRailway.query(
             'UPDATE user SET nombre = ?, correo = ?, contrasena = ?, cedula = ?, rol = ?, telefono = ? WHERE id = ?',
-            [nombre, correo, contrasena, cedula, rol, telefono, id]
+            [nombre, correo, passwordToSave, cedula, rol, telefono, id]
         );
 
         const [updatedUserRows] = await dbRailway.query(
@@ -138,9 +178,10 @@ router.post('/actualizarContrasena', async (req, res) => {
             return res.status(404).json({ message: 'Usuario no encontrado' });
         }
 
+        const hashedPassword = await bcrypt.hash(contrasena, 10);
         await dbRailway.query(
             'UPDATE user SET contrasena = ? WHERE correo = ?',
-            [contrasena, correo]
+            [hashedPassword, correo]
         );
 
         return res.status(200).json({ message: 'Contraseña actualizada correctamente' });

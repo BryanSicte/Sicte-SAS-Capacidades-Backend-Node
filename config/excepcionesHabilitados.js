@@ -1,0 +1,24 @@
+/**
+ * Lista de cédulas exceptuadas del control de planta en línea.
+ * Los usuarios con estas cédulas siempre tendrán el estado 'habilitado' en true (1),
+ * incluso si no existen en plantaenlinea o si su perfil es 'RETIRADO'.
+ */
+module.exports = [
+  "80157328",
+  "Invitado",
+  "PAArmeniaOper",
+  "PAArmeniaPlEx",
+  "PAArmeniaProy",
+  "PAEjeCafeImplem1",
+  "PAEjeCafeImplem2",
+  "PAEnel",
+  "PAFerias",
+  "PAManizalesOper",
+  "PAManizalesPlEx",
+  "PAManizalesProy",
+  "PAPereiraOper",
+  "PAPereiraPlEx",
+  "PAPereiraProy",
+  "PASabana",
+  "PASanCipriano",
+];

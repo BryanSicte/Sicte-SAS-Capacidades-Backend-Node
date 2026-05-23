@@ -1,5 +1,5 @@
 {
-  "name": "sicte-sas-capacidades-backend-node",
+  "name": "sicte-sas-backend-node",
   "version": "1.0.0",
   "main": "app.js",
   "dependencies": {
@@ -14,14 +14,14 @@
     "morgan": "^1.10.1",
     "multer": "^1.4.5-lts.2",
     "mysql2": "^3.14.0",
+    "node-cron": "^4.2.1",
     "nodemailer": "^6.10.0",
     "uuid": "^11.1.0",
     "xlsx": "^0.18.5"
   },
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js",
-    "test-db": "node test-db-connection.js"
+    "dev": "nodemon app.js"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

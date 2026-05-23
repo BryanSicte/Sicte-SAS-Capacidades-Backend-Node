@@ -66,5 +66,9 @@ app.get('/api', (req, res) => {
 
 app.use('/api', routes);
 
+const { initCronJobs } = require('./utils/cronJobs');
+initCronJobs();
+
+
 const PORT = process.env.PORT || 3030;
 app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
