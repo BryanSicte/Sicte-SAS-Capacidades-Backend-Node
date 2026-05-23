@@ -116,13 +116,20 @@ router.put('/users/:id', async (req, res) => {
             return res.status(404).json({ message: 'Usuario no encontrado' });
         }
 
-        const isBcrypt = typeof contrasena === 'string' && contrasena.startsWith('$2') && contrasena.length === 60;
-        const passwordToSave = isBcrypt ? contrasena : await bcrypt.hash(contrasena, 10);
+        if (contrasena && contrasena.trim() !== "") {
+            const isBcrypt = typeof contrasena === 'string' && contrasena.startsWith('$2') && contrasena.length === 60;
+            const passwordToSave = isBcrypt ? contrasena : await bcrypt.hash(contrasena, 10);
 
-        await dbRailway.query(
-            'UPDATE user SET nombre = ?, correo = ?, contrasena = ?, cedula = ?, rol = ?, telefono = ? WHERE id = ?',
-            [nombre, correo, passwordToSave, cedula, rol, telefono, id]
-        );
+            await dbRailway.query(
+                'UPDATE user SET nombre = ?, correo = ?, contrasena = ?, cedula = ?, rol = ?, telefono = ? WHERE id = ?',
+                [nombre, correo, passwordToSave, cedula, rol, telefono, id]
+            );
+        } else {
+            await dbRailway.query(
+                'UPDATE user SET nombre = ?, correo = ?, cedula = ?, rol = ?, telefono = ? WHERE id = ?',
+                [nombre, correo, cedula, rol, telefono, id]
+            );
+        }
 
         const [updatedUserRows] = await dbRailway.query(
             'SELECT * FROM user WHERE id = ?',

@@ -1171,6 +1171,68 @@ router.post('/ubicacionUsuarios', validarToken, async (req, res) => {
     }
 });
 
+router.get('/plantaenlinea', validarToken, async (req, res) => {
+    let page = parseInt(req.query.page) || 1;
+    let limit = parseInt(req.query.limit) || 50;
+    const search = req.query.search || "";
+
+    if (page < 1) page = 1;
+    if (limit < 1 || limit > 200) limit = 50;
+    const offset = (page - 1) * limit;
+
+    try {
+        let countQuery = "SELECT COUNT(*) as total FROM plantaenlinea";
+        let selectQuery = "SELECT * FROM plantaenlinea";
+        const countParams = [];
+        const selectParams = [];
+        const whereClauses = [];
+
+        if (search) {
+            const searchPattern = `%${search}%`;
+            whereClauses.push("(nit LIKE ? OR nombre LIKE ? OR cargo LIKE ? OR ciudad LIKE ?)");
+            countParams.push(searchPattern, searchPattern, searchPattern, searchPattern);
+            selectParams.push(searchPattern, searchPattern, searchPattern, searchPattern);
+        }
+
+        const colFilters = ["nit", "nombre", "ciudad", "cargo", "perfil", "f_ingreso", "f_retiro"];
+        colFilters.forEach(col => {
+            if (req.query[col]) {
+                whereClauses.push(`${col} LIKE ?`);
+                const val = `%${req.query[col]}%`;
+                countParams.push(val);
+                selectParams.push(val);
+            }
+        });
+
+        if (whereClauses.length > 0) {
+            const whereStr = " WHERE " + whereClauses.join(" AND ");
+            countQuery += whereStr;
+            selectQuery += whereStr;
+        }
+
+        selectQuery += " LIMIT ? OFFSET ?";
+        selectParams.push(limit, offset);
+
+        const [countResult] = await dbRailway.query(countQuery, countParams);
+        const total = countResult[0].total;
+
+        const [rows] = await dbRailway.query(selectQuery, selectParams);
+
+        return sendResponse(res, 200, "Consulta exitosa", "Se obtuvo la planta en línea correctamente.", {
+            data: rows,
+            pagination: {
+                total,
+                page,
+                limit,
+                pages: Math.ceil(total / limit)
+            }
+        });
+    } catch (err) {
+        console.error("Error al obtener plantaenlinea:", err);
+        return sendError(res, 500, "Error al obtener planta en línea", err);
+    }
+});
+
 router.get('/users', validarToken, async (req, res) => {
     const usuarioToken = req.validarToken?.usuario;
     try {
@@ -1309,8 +1371,8 @@ router.put('/users/:id', validarToken, async (req, res) => {
     const { nombre, correo, cedula, rol, telefono, contrasena } = req.body;
     const usuarioToken = req.validarToken?.usuario;
 
-    if (!nombre || !correo || !cedula || !rol || !telefono || !contrasena) {
-        return sendError(res, 400, "Faltan campos obligatorios: nombre, correo, cedula, rol, telefono o contrasena.");
+    if (!nombre || !correo || !cedula || !rol || !telefono) {
+        return sendError(res, 400, "Faltan campos obligatorios: nombre, correo, cedula, rol o telefono.");
     }
 
     try {
@@ -1334,13 +1396,20 @@ router.put('/users/:id', validarToken, async (req, res) => {
             return sendError(res, 400, msg);
         }
 
-        const isBcrypt = typeof contrasena === 'string' && contrasena.startsWith('$2') && contrasena.length === 60;
-        const passwordToSave = isBcrypt ? contrasena : await bcrypt.hash(contrasena, 10);
+        if (contrasena && contrasena.trim() !== "") {
+            const isBcrypt = typeof contrasena === 'string' && contrasena.startsWith('$2') && contrasena.length === 60;
+            const passwordToSave = isBcrypt ? contrasena : await bcrypt.hash(contrasena, 10);
 
-        await dbRailway.query(
-            'UPDATE user SET nombre = ?, correo = ?, contrasena = ?, cedula = ?, rol = ?, telefono = ? WHERE id = ?',
-            [nombre, correo, passwordToSave, cedula, rol, telefono, id]
-        );
+            await dbRailway.query(
+                'UPDATE user SET nombre = ?, correo = ?, contrasena = ?, cedula = ?, rol = ?, telefono = ? WHERE id = ?',
+                [nombre, correo, passwordToSave, cedula, rol, telefono, id]
+            );
+        } else {
+            await dbRailway.query(
+                'UPDATE user SET nombre = ?, correo = ?, cedula = ?, rol = ?, telefono = ? WHERE id = ?',
+                [nombre, correo, cedula, rol, telefono, id]
+            );
+        }
 
         if (usuarioOriginal.cedula !== cedula) {
             const [pages] = await dbRailway.query('SELECT * FROM pages_per_user WHERE cedula = ?', [usuarioOriginal.cedula]);
