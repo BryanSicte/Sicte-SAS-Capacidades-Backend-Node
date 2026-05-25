@@ -1177,7 +1177,11 @@ router.get('/plantaenlinea', validarToken, async (req, res) => {
     const search = req.query.search || "";
 
     if (page < 1) page = 1;
-    if (limit < 1 || limit > 200) limit = 50;
+    if (limit === -1 || req.query.limit === 'all' || req.query.limit === '-1') {
+        limit = 100000;
+    } else if (limit < 1 || limit > 200) {
+        limit = 50;
+    }
     const offset = (page - 1) * limit;
 
     try {
