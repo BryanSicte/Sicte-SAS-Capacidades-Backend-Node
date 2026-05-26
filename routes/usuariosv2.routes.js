@@ -1158,6 +1158,24 @@ router.post('/ubicacionUsuarios', validarToken, async (req, res) => {
             syncedIds.push(v[v.length - 1]);
         }
 
+        const usuarioToken = req.validarToken?.usuario;
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'post',
+            endPoint: 'ubicacionUsuarios',
+            accion: 'Sincronización de ubicaciones exitosa',
+            detalle: `Se sincronizaron ${syncedIds.length} registros de ubicación`,
+            datos: { cantidad: syncedIds.length },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
         return sendResponse(
             res,
             200,
@@ -1167,6 +1185,23 @@ router.post('/ubicacionUsuarios', validarToken, async (req, res) => {
         );
 
     } catch (err) {
+        const usuarioToken = req.validarToken?.usuario;
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'post',
+            endPoint: 'ubicacionUsuarios',
+            accion: 'Error al sincronizar ubicaciones',
+            detalle: 'Error interno del servidor',
+            datos: { error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
         return sendError(res, 500, "Error inesperado.", err);
     }
 });
@@ -1222,6 +1257,24 @@ router.get('/plantaenlinea', validarToken, async (req, res) => {
 
         const [rows] = await dbRailway.query(selectQuery, selectParams);
 
+        const usuarioToken = req.validarToken?.usuario;
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'get',
+            endPoint: 'plantaenlinea',
+            accion: 'Consulta planta en línea exitosa',
+            detalle: `Se obtuvieron ${rows.length} registros de planta en línea (pag ${page})`,
+            datos: { page, limit, search },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
         return sendResponse(res, 200, "Consulta exitosa", "Se obtuvo la planta en línea correctamente.", {
             data: rows,
             pagination: {
@@ -1233,6 +1286,23 @@ router.get('/plantaenlinea', validarToken, async (req, res) => {
         });
     } catch (err) {
         console.error("Error al obtener plantaenlinea:", err);
+        const usuarioToken = req.validarToken?.usuario;
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'get',
+            endPoint: 'plantaenlinea',
+            accion: 'Error al obtener planta en línea',
+            detalle: 'Error interno del servidor',
+            datos: { error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
         return sendError(res, 500, "Error al obtener planta en línea", err);
     }
 });
@@ -1540,38 +1610,160 @@ router.delete('/users/:id', validarToken, async (req, res) => {
 });
 
 router.get('/pages/schema', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken?.usuario;
     try {
         const [columns] = await dbRailway.query('SHOW COLUMNS FROM pages_per_user');
         const pages = columns
             .map(col => col.Field)
             .filter(field => field !== 'id' && field !== 'cedula');
 
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'get',
+            endPoint: 'pages/schema',
+            accion: 'Consulta esquema de páginas exitosa',
+            detalle: `Se obtuvieron ${pages.length} columnas de páginas`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
         return sendResponse(res, 200, "Esquema de páginas obtenido", "Se obtuvieron las páginas existentes.", pages);
     } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'get',
+            endPoint: 'pages/schema',
+            accion: 'Error al obtener esquema de páginas',
+            detalle: 'Error interno del servidor',
+            datos: { error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
         return sendError(res, 500, "Error al obtener esquema de páginas", err);
     }
 });
 
 router.get('/pages/all', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken?.usuario;
     try {
         const [rows] = await dbRailway.query('SELECT * FROM pages_per_user');
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'get',
+            endPoint: 'pages/all',
+            accion: 'Consulta de todos los permisos exitosa',
+            detalle: `Se obtuvieron permisos de ${rows.length} usuarios`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
         return sendResponse(res, 200, "Todos los permisos obtenidos", "Se obtuvieron los permisos de todos los usuarios.", rows);
     } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'get',
+            endPoint: 'pages/all',
+            accion: 'Error al obtener todos los permisos',
+            detalle: 'Error interno del servidor',
+            datos: { error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
         return sendError(res, 500, "Error al obtener todos los permisos", err);
     }
 });
 
 router.get('/pages/user/:cedula', validarToken, async (req, res) => {
     const { cedula } = req.params;
+    const usuarioToken = req.validarToken?.usuario;
     try {
         const [rows] = await dbRailway.query('SELECT * FROM pages_per_user WHERE cedula = ?', [cedula]);
         if (rows.length === 0) {
             await dbRailway.query('INSERT IGNORE INTO pages_per_user (cedula) VALUES (?)', [cedula]);
             const [newRows] = await dbRailway.query('SELECT * FROM pages_per_user WHERE cedula = ?', [cedula]);
+
+            await registrarHistorial({
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'usuarios',
+                metodo: 'get',
+                endPoint: 'pages/user/:cedula',
+                accion: 'Consulta páginas de usuario exitosa (nuevo registro creado)',
+                detalle: `Se creó y consultó el registro de páginas para la cédula ${cedula}`,
+                datos: { cedula },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
             return sendResponse(res, 200, "Páginas del usuario", "Se obtuvieron las páginas asociadas al usuario.", newRows[0] || {});
         }
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'get',
+            endPoint: 'pages/user/:cedula',
+            accion: 'Consulta páginas de usuario exitosa',
+            detalle: `Se consultaron los permisos de páginas para la cédula ${cedula}`,
+            datos: { cedula },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
         return sendResponse(res, 200, "Páginas del usuario", "Se obtuvieron las páginas asociadas al usuario.", rows[0]);
     } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'get',
+            endPoint: 'pages/user/:cedula',
+            accion: 'Error al obtener páginas del usuario',
+            detalle: 'Error interno del servidor',
+            datos: { cedula, error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
         return sendError(res, 500, "Error al obtener páginas del usuario", err);
     }
 });
@@ -1622,6 +1814,22 @@ router.put('/pages/user/:cedula', validarToken, async (req, res) => {
 
         return sendResponse(res, 200, "Permisos actualizados", "Los permisos de páginas se han guardado correctamente.", updated[0]);
     } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'put',
+            endPoint: 'pages/user/:cedula',
+            accion: 'Error al actualizar permisos de páginas',
+            detalle: 'Error interno del servidor',
+            datos: { cedula, error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
         return sendError(res, 500, "Error al actualizar permisos de páginas", err);
     }
 });
@@ -1659,6 +1867,22 @@ router.put('/pages/page-key/bulk', validarToken, async (req, res) => {
 
         return sendResponse(res, 200, "Permisos masivos actualizados", `Se actualizó la página para todos los usuarios.`);
     } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'put',
+            endPoint: 'pages/page-key/bulk',
+            accion: 'Error al actualizar permisos masivos de página',
+            detalle: 'Error interno del servidor',
+            datos: { pageKey, value, error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
         return sendError(res, 500, "Error al actualizar permisos de página masivos", err);
     }
 });
@@ -1666,11 +1890,46 @@ router.put('/pages/page-key/bulk', validarToken, async (req, res) => {
 // --- ENDPOINTS PARA ROLES POR APLICATIVO ---
 
 router.get('/roles/tables', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken?.usuario;
     try {
         const [rows] = await dbRailway.query("SHOW TABLES LIKE 'rol_%'");
         const tables = rows.map(row => Object.values(row)[0]);
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'get',
+            endPoint: 'roles/tables',
+            accion: 'Consulta tablas de roles exitosa',
+            detalle: `Se obtuvieron ${tables.length} tablas de roles`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
         return sendResponse(res, 200, "Tablas de roles obtenidas", "Se obtuvieron las tablas de roles correctamente.", tables);
     } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'get',
+            endPoint: 'roles/tables',
+            accion: 'Error al obtener tablas de roles',
+            detalle: 'Error interno del servidor',
+            datos: { error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
         return sendError(res, 500, "Error al obtener tablas de roles", err);
     }
 });
@@ -1746,12 +2005,47 @@ router.get('/roles/table/:tableName', validarToken, async (req, res) => {
 
         const [rows] = await dbRailway.query(`SELECT * FROM ${tableName}`);
 
+        const usuarioToken = req.validarToken?.usuario;
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'get',
+            endPoint: 'roles/table/:tableName',
+            accion: 'Consulta datos de tabla de roles exitosa',
+            detalle: `Se consultó la tabla ${tableName} con ${rows.length} registros`,
+            datos: { tableName },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
         return sendResponse(res, 200, "Datos de roles obtenidos", "Se obtuvieron columnas y registros correctamente.", {
             columns: modules,
             data: rows,
             allowedCedulas: allowedCedulas
         });
     } catch (err) {
+        const usuarioToken = req.validarToken?.usuario;
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'get',
+            endPoint: 'roles/table/:tableName',
+            accion: 'Error al obtener datos de tabla de roles',
+            detalle: 'Error interno del servidor',
+            datos: { tableName, error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
         return sendError(res, 500, `Error al obtener datos de la tabla ${tableName}`, err);
     }
 });
@@ -1839,6 +2133,22 @@ router.put('/roles/update', validarToken, async (req, res) => {
 
         return sendResponse(res, 200, "Permisos actualizados", "Los permisos de rol del aplicativo se han guardado correctamente.");
     } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'put',
+            endPoint: 'roles/update',
+            accion: 'Error al actualizar rol de aplicativo',
+            detalle: 'Error interno del servidor',
+            datos: { tableName, cedula, column, error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
         return sendError(res, 500, "Error al actualizar los permisos de rol del aplicativo", err);
     }
 });

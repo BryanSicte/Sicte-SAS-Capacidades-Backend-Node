@@ -26,6 +26,7 @@ const firmasRoutes = require('./firmas.routes')
 const exportesRoutes = require('./exportes.routes')
 const inspeccionesRoutes = require('./inspecciones.routes')
 const apoyosRoutes = require('./apoyos.routes');
+const controlAvanceRoutes = require('./controlAvance.routes');
 
 
 router.use('/usuarios', usuariosRoutes);
@@ -53,6 +54,6 @@ router.use('/firmas', firmasRoutes);
 router.use('/exportes', exportesRoutes);
 router.use('/inspecciones', inspeccionesRoutes);
 router.use('/apoyos', apoyosRoutes);
+router.use('/controlAvance', controlAvanceRoutes);
 
 module.exports = router;
-

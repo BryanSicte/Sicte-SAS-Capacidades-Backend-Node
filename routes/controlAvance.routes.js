@@ -1,0 +1,755 @@
+const express = require('express');
+const router = express.Router();
+const dbRailway = require('../db/db_railway');
+const validarToken = require('../middlewares/validarToken');
+const { sendResponse, sendError } = require('../utils/responseHandler');
+const { registrarHistorial, getClientIp, determinarPlataforma } = require('../utils/historial');
+
+// Asynchronous DB initialization
+async function initDatabase() {
+    try {
+        console.log("Inicializando base de datos para Control de Avance...");
+
+        // 1. Proyectos
+        await dbRailway.query(`
+            CREATE TABLE IF NOT EXISTS control_avance_proyectos (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nombre_proyecto VARCHAR(255) DEFAULT NULL,
+                ot VARCHAR(100) NOT NULL UNIQUE,
+                fecha_arranque DATE DEFAULT NULL,
+                fecha_cierre_proyectada DATE DEFAULT NULL,
+                estado VARCHAR(50) DEFAULT 'Creado',
+                fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+                usuario_creacion VARCHAR(255) NOT NULL,
+                fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
+                cedula_usuario_creacion VARCHAR(50) DEFAULT NULL,
+                contrato VARCHAR(255) DEFAULT NULL,
+                tipo_proyecto VARCHAR(100) DEFAULT NULL,
+                subproyecto VARCHAR(255) DEFAULT NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        // Check and alter control_avance_proyectos columns
+        const [projectCols] = await dbRailway.query('SHOW COLUMNS FROM control_avance_proyectos');
+        const projectColNames = projectCols.map(col => col.Field);
+
+        await dbRailway.query('ALTER TABLE control_avance_proyectos MODIFY nombre_proyecto VARCHAR(255) NULL');
+        await dbRailway.query('ALTER TABLE control_avance_proyectos MODIFY fecha_arranque DATE NULL');
+        await dbRailway.query('ALTER TABLE control_avance_proyectos MODIFY fecha_cierre_proyectada DATE NULL');
+
+        if (!projectColNames.includes('fecha_registro')) {
+            await dbRailway.query('ALTER TABLE control_avance_proyectos ADD COLUMN fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP');
+        }
+        if (!projectColNames.includes('cedula_usuario_creacion')) {
+            await dbRailway.query('ALTER TABLE control_avance_proyectos ADD COLUMN cedula_usuario_creacion VARCHAR(50) DEFAULT NULL');
+        }
+        if (!projectColNames.includes('contrato')) {
+            await dbRailway.query('ALTER TABLE control_avance_proyectos ADD COLUMN contrato VARCHAR(255) DEFAULT NULL');
+        }
+        if (!projectColNames.includes('tipo_proyecto')) {
+            await dbRailway.query('ALTER TABLE control_avance_proyectos ADD COLUMN tipo_proyecto VARCHAR(100) DEFAULT NULL');
+        }
+        if (!projectColNames.includes('subproyecto')) {
+            await dbRailway.query('ALTER TABLE control_avance_proyectos ADD COLUMN subproyecto VARCHAR(255) DEFAULT NULL');
+        }
+
+        // 2. Items del proyecto
+        await dbRailway.query(`
+            CREATE TABLE IF NOT EXISTS control_avance_items (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                proyecto_id INT NOT NULL,
+                tipo VARCHAR(50) NOT NULL, -- 'Mano de obra' o 'Material'
+                codigo VARCHAR(100) NOT NULL,
+                descripcion TEXT NOT NULL,
+                unidad_medida VARCHAR(50) NOT NULL,
+                cantidad_presupuestada DECIMAL(12, 2) NOT NULL,
+                cantidad_ejecutada DECIMAL(12, 2) DEFAULT 0.00,
+                valor_unidad DECIMAL(12, 2) DEFAULT 0.00,
+                valor_total DECIMAL(12, 2) DEFAULT 0.00,
+                estado VARCHAR(50) DEFAULT 'Creado',
+                FOREIGN KEY (proyecto_id) REFERENCES control_avance_proyectos(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        // Check and alter control_avance_items columns
+        const [itemCols] = await dbRailway.query('SHOW COLUMNS FROM control_avance_items');
+        const itemColNames = itemCols.map(col => col.Field);
+
+        if (!itemColNames.includes('valor_unidad')) {
+            await dbRailway.query('ALTER TABLE control_avance_items ADD COLUMN valor_unidad DECIMAL(12, 2) DEFAULT 0.00');
+        }
+        if (!itemColNames.includes('valor_total')) {
+            await dbRailway.query('ALTER TABLE control_avance_items ADD COLUMN valor_total DECIMAL(12, 2) DEFAULT 0.00');
+        }
+        if (!itemColNames.includes('estado')) {
+            await dbRailway.query('ALTER TABLE control_avance_items ADD COLUMN estado VARCHAR(50) DEFAULT "Creado"');
+        }
+
+        // 3. Histórico de estados
+        await dbRailway.query(`
+            CREATE TABLE IF NOT EXISTS control_avance_historico_estados (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                proyecto_id INT NOT NULL,
+                estado_anterior VARCHAR(50),
+                estado_nuevo VARCHAR(50) NOT NULL,
+                observacion TEXT,
+                fecha_cambio DATETIME DEFAULT CURRENT_TIMESTAMP,
+                usuario_cambio VARCHAR(255) NOT NULL,
+                FOREIGN KEY (proyecto_id) REFERENCES control_avance_proyectos(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        // 4. Avances de los técnicos
+        await dbRailway.query(`
+            CREATE TABLE IF NOT EXISTS control_avance_avances (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                proyecto_id INT NOT NULL,
+                item_id INT NOT NULL,
+                nombre_tecnico VARCHAR(255) NOT NULL,
+                cedula_tecnico VARCHAR(50) NOT NULL,
+                cantidad_avance DECIMAL(12, 2) NOT NULL,
+                observacion TEXT,
+                fecha_avance DATETIME DEFAULT CURRENT_TIMESTAMP,
+                usuario_registro VARCHAR(255) NOT NULL,
+                cedula_usuario_registro VARCHAR(50) DEFAULT NULL,
+                FOREIGN KEY (item_id) REFERENCES control_avance_items(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        // Check and alter control_avance_avances columns
+        const [avanceCols] = await dbRailway.query('SHOW COLUMNS FROM control_avance_avances');
+        const avanceColNames = avanceCols.map(col => col.Field);
+
+        if (!avanceColNames.includes('cedula_usuario_registro')) {
+            await dbRailway.query('ALTER TABLE control_avance_avances ADD COLUMN cedula_usuario_registro VARCHAR(50) DEFAULT NULL');
+        }
+
+        // 6. Tabla Auxiliar para Contratos y Tipo Proyecto
+        await dbRailway.query(`
+            CREATE TABLE IF NOT EXISTS tabla_aux_control_avance (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                contrato VARCHAR(255) NOT NULL,
+                tipoProyecto VARCHAR(100) DEFAULT NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        // Seed data if empty
+        const [existingAux] = await dbRailway.query('SELECT COUNT(*) as count FROM tabla_aux_control_avance');
+        if (existingAux[0].count === 0) {
+            await dbRailway.query(`
+                INSERT INTO tabla_aux_control_avance (contrato, tipoProyecto) VALUES
+                ('JA10123037 / JA10123045', 'B2B'),
+                ('JA10123400', 'B2C'),
+                ('JA10176840', 'B2Y'),
+                ('JA10176906', NULL),
+                ('JA10182234', NULL)
+            `);
+            console.log("Datos de prueba sembrados en tabla_aux_control_avance.");
+        }
+
+        // 7. Agregar aplicativosControlAvance a pages_per_user
+        const [columns] = await dbRailway.query('SHOW COLUMNS FROM pages_per_user');
+        const columnNames = columns.map(col => col.Field);
+        if (!columnNames.includes('aplicativosControlAvance')) {
+            await dbRailway.query('ALTER TABLE pages_per_user ADD COLUMN aplicativosControlAvance TINYINT(1) DEFAULT 0');
+            console.log("Columna 'aplicativosControlAvance' agregada con éxito a 'pages_per_user'.");
+        }
+
+        console.log("Base de datos para Control de Avance inicializada correctamente.");
+    } catch (err) {
+        console.error("Error inicializando base de datos para Control de Avance:", err);
+    }
+}
+
+// Run DB init
+initDatabase();
+
+// --- ENDPOINTS ---
+
+// 1. Obtener lista de proyectos con progreso calculado y filtros
+router.get('/proyectos', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+    try {
+        const { estado, busqueda } = req.query;
+        let query = `
+            SELECT p.*,
+                COALESCE(
+                    (SELECT SUM(cantidad_ejecutada) / NULLIF(SUM(cantidad_presupuestada), 0) * 100 
+                     FROM control_avance_items 
+                     WHERE proyecto_id = p.id), 
+                    0
+                ) as progreso
+            FROM control_avance_proyectos p
+        `;
+        const params = [];
+        const whereClauses = [];
+
+        if (estado && estado !== 'Todos') {
+            whereClauses.push('p.estado = ?');
+            params.push(estado);
+        }
+
+        if (busqueda && busqueda.trim() !== '') {
+            whereClauses.push('(p.nombre_proyecto LIKE ? OR p.ot LIKE ?)');
+            const searchPattern = `%${busqueda}%`;
+            params.push(searchPattern, searchPattern);
+        }
+
+        if (whereClauses.length > 0) {
+            query += ' WHERE ' + whereClauses.join(' AND ');
+        }
+
+        query += ' ORDER BY p.fecha_creacion DESC';
+
+        const [rows] = await dbRailway.query(query, params);
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'get',
+            endPoint: 'proyectos',
+            accion: 'Consulta lista de proyectos exitosa',
+            detalle: `Se consultaron ${rows.length} proyectos${estado && estado !== 'Todos' ? ` con estado '${estado}'` : ''}`,
+            datos: { estado, busqueda },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(res, 200, "Proyectos obtenidos", "Se listaron los proyectos correctamente.", rows);
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'get',
+            endPoint: 'proyectos',
+            accion: 'Error al obtener lista de proyectos',
+            detalle: 'Error interno del servidor',
+            datos: { error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+        return sendError(res, 500, "Error al obtener proyectos", err);
+    }
+});
+
+// 2. Obtener un proyecto en específico con items, historial y avances
+router.get('/proyectos/:id', validarToken, async (req, res) => {
+    const { id } = req.params;
+    const usuarioToken = req.validarToken.usuario;
+    try {
+        // Detalle del proyecto
+        const [projects] = await dbRailway.query(`
+            SELECT p.*,
+                COALESCE(
+                    (SELECT SUM(cantidad_ejecutada) / NULLIF(SUM(cantidad_presupuestada), 0) * 100 
+                     FROM control_avance_items 
+                     WHERE proyecto_id = p.id), 
+                    0
+                ) as progreso
+            FROM control_avance_proyectos p
+            WHERE p.id = ?
+        `, [id]);
+
+        if (projects.length === 0) {
+            return sendError(res, 404, "Proyecto no encontrado.");
+        }
+
+        const proyecto = projects[0];
+
+        // Items del proyecto
+        const [items] = await dbRailway.query('SELECT * FROM control_avance_items WHERE proyecto_id = ?', [id]);
+
+        // Historial de estados
+        const [historial] = await dbRailway.query('SELECT * FROM control_avance_historico_estados WHERE proyecto_id = ? ORDER BY fecha_cambio DESC', [id]);
+
+        // Avances de obra
+        const [avances] = await dbRailway.query(`
+            SELECT a.*, i.codigo, i.descripcion, i.unidad_medida, i.tipo
+            FROM control_avance_avances a
+            JOIN control_avance_items i ON a.item_id = i.id
+            WHERE a.proyecto_id = ?
+            ORDER BY a.fecha_avance DESC
+        `, [id]);
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'get',
+            endPoint: 'proyectos/:id',
+            accion: 'Consulta detalle de proyecto exitosa',
+            detalle: `Se consultó el detalle del proyecto '${proyecto.nombre_proyecto}' (OT: ${proyecto.ot})`,
+            datos: { proyectoId: id },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(res, 200, "Detalle del proyecto obtenido", "Se cargó la información del proyecto.", {
+            proyecto,
+            items,
+            historial,
+            avances
+        });
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'get',
+            endPoint: 'proyectos/:id',
+            accion: 'Error al obtener detalle de proyecto',
+            detalle: 'Error interno del servidor',
+            datos: { proyectoId: id, error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+        return sendError(res, 500, "Error al obtener detalles del proyecto", err);
+    }
+});
+
+// 3. Crear proyecto con sus items presupuestados
+router.post('/crearProyecto', validarToken, async (req, res) => {
+    const { 
+        nombre_proyecto, 
+        ot, 
+        fecha_arranque, 
+        fecha_cierre_proyectada, 
+        contrato, 
+        tipo_proyecto, 
+        subproyecto, 
+        fecha_registro,
+        items 
+    } = req.body;
+    const usuarioToken = req.validarToken.usuario;
+
+    if (!ot || !contrato || !tipo_proyecto || !items || !Array.isArray(items) || items.length === 0) {
+        return sendError(res, 400, "Faltan campos obligatorios (contrato, OP/OT, tipo de proyecto) o el listado de ítems está vacío.");
+    }
+
+    const connection = await dbRailway.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // Verificar si la OT ya existe
+        const [existing] = await connection.query('SELECT id FROM control_avance_proyectos WHERE ot = ?', [ot]);
+        if (existing.length > 0) {
+            await connection.rollback();
+            return sendError(res, 400, "La OT ya se encuentra registrada en otro proyecto.");
+        }
+
+        // Insertar proyecto
+        const [projectResult] = await connection.query(`
+            INSERT INTO control_avance_proyectos (
+                nombre_proyecto, ot, fecha_arranque, fecha_cierre_proyectada, estado, 
+                usuario_creacion, cedula_usuario_creacion, contrato, tipo_proyecto, subproyecto, fecha_registro
+            ) VALUES (?, ?, ?, ?, 'Creado', ?, ?, ?, ?, ?, ?)
+        `, [
+            nombre_proyecto || contrato,
+            ot,
+            fecha_arranque || null,
+            fecha_cierre_proyectada || null,
+            usuarioToken.nombre,
+            usuarioToken.cedula,
+            contrato,
+            tipo_proyecto,
+            subproyecto || null,
+            fecha_registro || new Date()
+        ]);
+
+        const proyectoId = projectResult.insertId;
+
+        // Insertar items
+        for (const item of items) {
+            if (!item.codigo || !item.descripcion || !item.unidad_medida || item.cantidad_presupuestada === undefined) {
+                throw new Error("Ítem inválido en la lista de materiales/mano de obra.");
+            }
+            const valorUnidad = parseFloat(item.valor_unidad) || 0;
+            const valorTotal = parseFloat(item.valor_total) || (parseFloat(item.cantidad_presupuestada) * valorUnidad);
+            const itemEstado = item.estado || 'Creado';
+            const itemTipo = item.tipo || 'Mano de obra';
+
+            await connection.query(`
+                INSERT INTO control_avance_items (
+                    proyecto_id, tipo, codigo, descripcion, unidad_medida, 
+                    cantidad_presupuestada, valor_unidad, valor_total, estado
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
+                proyectoId,
+                itemTipo,
+                item.codigo,
+                item.descripcion,
+                item.unidad_medida,
+                item.cantidad_presupuestada,
+                valorUnidad,
+                valorTotal,
+                itemEstado
+            ]);
+        }
+
+        // Registrar estado inicial en el histórico
+        await connection.query(`
+            INSERT INTO control_avance_historico_estados (proyecto_id, estado_anterior, estado_nuevo, observacion, usuario_cambio)
+            VALUES (?, NULL, 'Creado', 'Registro inicial del proyecto', ?)
+        `, [proyectoId, usuarioToken.nombre]);
+
+        await connection.commit();
+
+        // Registrar en historial general
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre,
+            cedulaUsuario: usuarioToken.cedula,
+            rolUsuario: usuarioToken.rol,
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'post',
+            endPoint: 'crearProyecto',
+            accion: 'Creación de proyecto exitosa',
+            detalle: `Se creó el proyecto con OT ${ot} y contrato ${contrato}`,
+            datos: { contrato, ot },
+            tablasIdsAfectados: [{ tabla: 'control_avance_proyectos', id: proyectoId.toString() }],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(res, 201, "Proyecto creado", "El proyecto ha sido registrado con sus respectivos ítems.", { proyectoId });
+
+    } catch (err) {
+        await connection.rollback();
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'post',
+            endPoint: 'crearProyecto',
+            accion: 'Error al crear proyecto',
+            detalle: 'Error interno del servidor',
+            datos: { ot, contrato, error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+        return sendError(res, 500, "Error interno al crear el proyecto", err);
+    } finally {
+        connection.release();
+    }
+});
+
+// 4. Cambiar de estado
+router.put('/proyectos/:id/estado', validarToken, async (req, res) => {
+    const { id } = req.params;
+    const { estado_nuevo, observacion } = req.body;
+    const usuarioToken = req.validarToken.usuario;
+
+    if (!estado_nuevo || !observacion || observacion.trim() === '') {
+        return sendError(res, 400, "El nuevo estado y la observación son campos obligatorios.");
+    }
+
+    const connection = await dbRailway.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // Obtener estado anterior
+        const [projects] = await connection.query('SELECT estado, nombre_proyecto FROM control_avance_proyectos WHERE id = ?', [id]);
+        if (projects.length === 0) {
+            await connection.rollback();
+            return sendError(res, 404, "Proyecto no encontrado.");
+        }
+
+        const proyecto = projects[0];
+        const estadoAnterior = proyecto.estado;
+
+        // Actualizar estado del proyecto
+        await connection.query('UPDATE control_avance_proyectos SET estado = ? WHERE id = ?', [estado_nuevo, id]);
+
+        // Insertar en histórico
+        await connection.query(`
+            INSERT INTO control_avance_historico_estados (proyecto_id, estado_anterior, estado_nuevo, observacion, usuario_cambio)
+            VALUES (?, ?, ?, ?, ?)
+        `, [id, estadoAnterior, estado_nuevo, observacion, usuarioToken.nombre]);
+
+        await connection.commit();
+
+        // Registrar en historial general
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre,
+            cedulaUsuario: usuarioToken.cedula,
+            rolUsuario: usuarioToken.rol,
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'put',
+            endPoint: 'proyectos/:id/estado',
+            accion: 'Cambio de estado de proyecto exitoso',
+            detalle: `Proyecto ${proyecto.nombre_proyecto} cambió de '${estadoAnterior}' a '${estado_nuevo}'`,
+            datos: { id, estadoAnterior, estado_nuevo, observacion },
+            tablasIdsAfectados: [{ tabla: 'control_avance_proyectos', id: id.toString() }],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(res, 200, "Estado actualizado", `El estado del proyecto cambió a '${estado_nuevo}' con éxito.`);
+
+    } catch (err) {
+        await connection.rollback();
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'put',
+            endPoint: 'proyectos/:id/estado',
+            accion: 'Error al cambiar estado del proyecto',
+            detalle: 'Error interno del servidor',
+            datos: { proyectoId: id, estado_nuevo, error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+        return sendError(res, 500, "Error al cambiar de estado", err);
+    } finally {
+        connection.release();
+    }
+});
+
+// 5. Registrar avance de obra (solo cuando está en ejecución)
+router.post('/proyectos/:id/avances', validarToken, async (req, res) => {
+    const { id } = req.params;
+    const body = req.body;
+    const usuarioToken = req.validarToken.usuario;
+
+    // Support both an array of advances and a single advance object
+    const advances = Array.isArray(body) ? body : [body];
+
+    if (advances.length === 0) {
+        return sendError(res, 400, "Debe enviar al menos un avance para registrar.");
+    }
+
+    // Validate all advances in the array first
+    for (const av of advances) {
+        const { item_id, nombre_tecnico, cedula_tecnico, cantidad_avance } = av;
+        if (!item_id || !nombre_tecnico || !cedula_tecnico || cantidad_avance === undefined) {
+            return sendError(res, 400, "Faltan campos obligatorios para registrar alguno de los avances.");
+        }
+
+        const avanceNum = parseFloat(cantidad_avance);
+        if (isNaN(avanceNum) || avanceNum <= 0) {
+            return sendError(res, 400, "La cantidad del avance debe ser un número positivo.");
+        }
+    }
+
+    const connection = await dbRailway.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // Verificar que el proyecto esté "En ejecucion"
+        const [projects] = await connection.query('SELECT estado FROM control_avance_proyectos WHERE id = ?', [id]);
+        if (projects.length === 0) {
+            await connection.rollback();
+            return sendError(res, 404, "Proyecto no encontrado.");
+        }
+
+        if (projects[0].estado !== 'En ejecucion') {
+            await connection.rollback();
+            return sendError(res, 400, "Solo se pueden registrar avances en proyectos que se encuentren en estado 'En ejecucion'.");
+        }
+
+        for (const av of advances) {
+            const { item_id, nombre_tecnico, cedula_tecnico, cantidad_avance, observacion, fecha_registro } = av;
+            const avanceNum = parseFloat(cantidad_avance);
+
+            // Verificar el item y calcular el límite
+            const [items] = await connection.query('SELECT * FROM control_avance_items WHERE id = ? AND proyecto_id = ?', [item_id, id]);
+            if (items.length === 0) {
+                await connection.rollback();
+                return sendError(res, 404, `El ítem con ID ${item_id} no pertenece a este proyecto.`);
+            }
+
+            const item = items[0];
+            const nuevaCantidadEjecutada = parseFloat(item.cantidad_ejecutada) + avanceNum;
+
+            // Actualizar la cantidad ejecutada acumulada del item
+            await connection.query('UPDATE control_avance_items SET cantidad_ejecutada = ? WHERE id = ?', [nuevaCantidadEjecutada, item_id]);
+
+            // Insertar en la tabla de avances
+            await connection.query(`
+                INSERT INTO control_avance_avances (
+                    proyecto_id, item_id, nombre_tecnico, cedula_tecnico, cantidad_avance, 
+                    observacion, usuario_registro, cedula_usuario_registro, fecha_avance
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
+                id, 
+                item_id, 
+                nombre_tecnico, 
+                cedula_tecnico, 
+                avanceNum, 
+                observacion || '', 
+                usuarioToken.nombre,
+                usuarioToken.cedula,
+                fecha_registro || new Date()
+            ]);
+        }
+
+        await connection.commit();
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'post',
+            endPoint: 'proyectos/:id/avances',
+            accion: 'Registro de avances de obra exitoso',
+            detalle: `Se registraron ${advances.length} avance(s) para el proyecto ID ${id}`,
+            datos: { proyectoId: id, cantidadAvances: advances.length },
+            tablasIdsAfectados: [{ tabla: 'control_avance_avances', id: id.toString() }],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(res, 201, "Avances registrados", "Los avances se han guardado y sumado al acumulado de los ítems correspondientes.");
+    } catch (err) {
+        await connection.rollback();
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'post',
+            endPoint: 'proyectos/:id/avances',
+            accion: 'Error al registrar avances de obra',
+            detalle: 'Error interno del servidor',
+            datos: { proyectoId: id, error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+        return sendError(res, 500, "Error al registrar avances", err);
+    } finally {
+        connection.release();
+    }
+});
+
+// 6. Obtener lista de técnicos activos desde plantaenlinea
+router.get('/tecnicos', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+    try {
+        const [rows] = await dbRailway.query(`
+            SELECT DISTINCT nit as cedula, nombre 
+            FROM plantaenlinea 
+            WHERE perfil != 'RETIRADO' AND nombre IS NOT NULL AND nombre != ''
+            ORDER BY nombre ASC
+        `);
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'get',
+            endPoint: 'tecnicos',
+            accion: 'Consulta lista de técnicos exitosa',
+            detalle: `Se consultaron ${rows.length} técnicos activos`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(res, 200, "Técnicos obtenidos", "Se listó el personal activo.", rows);
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'get',
+            endPoint: 'tecnicos',
+            accion: 'Error al obtener lista de técnicos',
+            detalle: 'Error interno del servidor',
+            datos: { error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+        return sendError(res, 500, "Error al obtener técnicos", err);
+    }
+});
+
+// 7. Obtener lista de contratos y tipo de proyectos desde tabla_aux_control_avance
+router.get('/auxiliar', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM tabla_aux_control_avance ORDER BY id ASC');
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'get',
+            endPoint: 'auxiliar',
+            accion: 'Consulta datos auxiliares exitosa',
+            detalle: `Se consultaron ${rows.length} registros auxiliares (contratos/tipos de proyecto)`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(res, 200, "Datos auxiliares obtenidos", "Se listaron los datos auxiliares correctamente.", rows);
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'get',
+            endPoint: 'auxiliar',
+            accion: 'Error al obtener datos auxiliares',
+            detalle: 'Error interno del servidor',
+            datos: { error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+        return sendError(res, 500, "Error al obtener datos auxiliares", err);
+    }
+});
+
+module.exports = router;
