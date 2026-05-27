@@ -31,7 +31,7 @@ router.get('/registros', async (req, res) => {
     const usuarioToken = req.validarToken?.usuario || null;
 
     try {
-        const [rows] = await dbRailway.query('SELECT * FROM registros_capacitaciones');
+        const [rows] = await dbRailway.query('SELECT * FROM registros_asistencias');
 
         await registrarHistorial({
             nombreUsuario: usuarioToken?.nombre || 'No registrado',
@@ -39,7 +39,7 @@ router.get('/registros', async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'get',
             endPoint: 'registros',
             accion: 'Consulta registros exitosa',
@@ -54,7 +54,7 @@ router.get('/registros', async (req, res) => {
             res,
             200,
             `Consulta exitosa`,
-            `Se obtuvieron ${rows.length} registros de capacitaciones.`,
+            `Se obtuvieron ${rows.length} registros de asistencias.`,
             rows
         );
     } catch (err) {
@@ -64,7 +64,7 @@ router.get('/registros', async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'get',
             endPoint: 'registros',
             accion: 'Error al obtener los registros',
@@ -95,7 +95,7 @@ router.post('/crearRegistro', async (req, res) => {
                 rolUsuario: usuarioToken?.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                app: 'capacitaciones',
+                app: 'asistencias',
                 metodo: 'post',
                 endPoint: 'crearRegistro',
                 accion: 'Crear registro fallido',
@@ -133,7 +133,7 @@ router.post('/crearRegistro', async (req, res) => {
                 rolUsuario: usuarioToken?.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                app: 'capacitaciones',
+                app: 'asistencias',
                 metodo: 'post',
                 endPoint: 'crearRegistro',
                 accion: 'Crear registro fallido',
@@ -150,7 +150,7 @@ router.post('/crearRegistro', async (req, res) => {
         const { nombreCapacitacion, regional, ciudad, area, cedula, firma, token, ubicacion } = data;
 
         if (nombreCapacitacion) {
-            const [dataRows] = await dbRailway.query(`SELECT nombreCapacitacion FROM capacitaciones WHERE nombreCapacitacion = ?`, [nombreCapacitacion]);
+            const [dataRows] = await dbRailway.query(`SELECT nombreCapacitacion FROM formaciones_asistencias WHERE nombreCapacitacion = ?`, [nombreCapacitacion]);
 
             if (dataRows.length === 0) {
                 await registrarHistorial({
@@ -159,7 +159,7 @@ router.post('/crearRegistro', async (req, res) => {
                     rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                    app: 'capacitaciones',
+                    app: 'asistencias',
                     metodo: 'post',
                     endPoint: 'crearRegistro',
                     accion: 'Crear registro fallido',
@@ -177,38 +177,38 @@ router.post('/crearRegistro', async (req, res) => {
             const opcionesZonaHoraria = { timeZone: 'America/Bogota' };
             const ahoraColombia = new Date(ahora.toLocaleString('en-US', opcionesZonaHoraria));
 
-            const [capacitacionEnCurso] = await dbRailway.query(`
-                SELECT id, nombreCapacitacion, fechaInicio, fechaFin, cedulaCapacitador, nombreCapacitador FROM capacitaciones WHERE nombreCapacitacion = ? AND ? BETWEEN fechaInicio AND fechaFin LIMIT 1
+            const [formacionesEnCurso] = await dbRailway.query(`
+                SELECT id, nombreCapacitacion, fechaInicio, fechaFin, cedulaCapacitador, nombreCapacitador FROM formaciones_asistencias WHERE nombreCapacitacion = ? AND ? BETWEEN fechaInicio AND fechaFin LIMIT 1
             `, [nombreCapacitacion, ahoraColombia]);
 
-            if (capacitacionEnCurso.length === 0) {
+            if (formacionesEnCurso.length === 0) {
                 await registrarHistorial({
                     nombreUsuario: usuarioToken?.nombre || 'No registrado',
                     cedulaUsuario: usuarioToken?.cedula || 'No registrado',
                     rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                    app: 'capacitaciones',
+                    app: 'asistencias',
                     metodo: 'post',
                     endPoint: 'crearRegistro',
                     accion: 'Crear registro fallido',
-                    detalle: 'La capacitacion no esta en curso',
+                    detalle: 'La formacion no esta en curso',
                     datos: {
                         horaActualColombia: ahoraColombia,
                         nombreCapacitacionSolicitado: nombreCapacitacion,
-                        mensaje: 'No hay una sesión activa de esta capacitación en este momento'
+                        mensaje: 'No hay una sesion activa de esta formacion en este momento'
                     },
                     tablasIdsAfectados: [],
                     ipAddress: getClientIp(req),
                     userAgent: req.headers['user-agent'] || ''
                 });
 
-                return sendError(res, 400, `La capacitación "${nombreCapacitacion}" no está en curso en este momento.`, null, { "nombreCapacitacion": `La capacitación "${nombreCapacitacion}" no está en curso en este momento.` });
+                return sendError(res, 400, `La formacion "${nombreCapacitacion}" no está en curso en este momento.`, null, { "nombreCapacitacion": `La formacion "${nombreCapacitacion}" no está en curso en este momento.` });
             }
         }
 
         if (regional) {
-            const [dataRows] = await dbRailway.query(`SELECT regional FROM tabla_aux_capacitaciones WHERE regional = ?`, [regional]);
+            const [dataRows] = await dbRailway.query(`SELECT regional FROM tabla_aux_asistencias WHERE regional = ?`, [regional]);
 
             if (dataRows.length === 0) {
                 await registrarHistorial({
@@ -217,7 +217,7 @@ router.post('/crearRegistro', async (req, res) => {
                     rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                    app: 'capacitaciones',
+                    app: 'asistencias',
                     metodo: 'post',
                     endPoint: 'crearRegistro',
                     accion: 'Crear registro fallido',
@@ -233,7 +233,7 @@ router.post('/crearRegistro', async (req, res) => {
         }
 
         if (ciudad) {
-            const [dataRows] = await dbRailway.query(`SELECT ciudad FROM tabla_aux_capacitaciones WHERE ciudad = ?`, [ciudad]);
+            const [dataRows] = await dbRailway.query(`SELECT ciudad FROM tabla_aux_asistencias WHERE ciudad = ?`, [ciudad]);
 
             if (dataRows.length === 0) {
                 await registrarHistorial({
@@ -242,7 +242,7 @@ router.post('/crearRegistro', async (req, res) => {
                     rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                    app: 'capacitaciones',
+                    app: 'asistencias',
                     metodo: 'post',
                     endPoint: 'crearRegistro',
                     accion: 'Crear registro fallido',
@@ -258,7 +258,7 @@ router.post('/crearRegistro', async (req, res) => {
         }
 
         if (area) {
-            const [dataRows] = await dbRailway.query(`SELECT area FROM tabla_aux_capacitaciones WHERE area = ?`, [area]);
+            const [dataRows] = await dbRailway.query(`SELECT area FROM tabla_aux_asistencias WHERE area = ?`, [area]);
 
             if (dataRows.length === 0) {
                 await registrarHistorial({
@@ -267,7 +267,7 @@ router.post('/crearRegistro', async (req, res) => {
                     rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                    app: 'capacitaciones',
+                    app: 'asistencias',
                     metodo: 'post',
                     endPoint: 'crearRegistro',
                     accion: 'Crear registro fallido',
@@ -292,7 +292,7 @@ router.post('/crearRegistro', async (req, res) => {
                     rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                    app: 'capacitaciones',
+                    app: 'asistencias',
                     metodo: 'post',
                     endPoint: 'crearRegistro',
                     accion: 'Crear registro fallido',
@@ -307,7 +307,7 @@ router.post('/crearRegistro', async (req, res) => {
             }
 
             const [existingRows] = await dbRailway.query(
-                `SELECT id FROM registros_capacitaciones WHERE cedula = ? AND token = ? AND nombreCapacitacion = ?`,
+                `SELECT id FROM registros_asistencias WHERE cedula = ? AND token = ? AND nombreCapacitacion = ?`,
                 [cedula, token, nombreCapacitacion]
             );
 
@@ -318,23 +318,23 @@ router.post('/crearRegistro', async (req, res) => {
                     rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                    app: 'capacitaciones',
+                    app: 'asistencias',
                     metodo: 'post',
                     endPoint: 'crearRegistro',
                     accion: 'Crear registro fallido',
-                    detalle: 'Registro duplicado: Cedula ya registrada en esta capacitación',
+                    detalle: 'Registro duplicado: Cedula ya registrada en esta formacion',
                     datos: { cedula, token, nombreCapacitacion },
                     tablasIdsAfectados: [],
                     ipAddress: getClientIp(req),
                     userAgent: req.headers['user-agent'] || ''
                 });
 
-                return sendError(res, 400, "Registro duplicado", null, { "cedula": `La cédula ${cedula} ya se encuentra registrada para esta capacitación.` });
+                return sendError(res, 400, "Registro duplicado", null, { "cedula": `La cédula ${cedula} ya se encuentra registrada para esta formacion.` });
             }
         }
 
         if (token) {
-            const [dataRows] = await dbRailway.query(`SELECT token, ubicacion FROM capacitaciones WHERE token = ?`, [token]);
+            const [dataRows] = await dbRailway.query(`SELECT token, ubicacion FROM formaciones_asistencias WHERE token = ?`, [token]);
 
             if (dataRows.length === 0) {
                 await registrarHistorial({
@@ -343,7 +343,7 @@ router.post('/crearRegistro', async (req, res) => {
                     rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                    app: 'capacitaciones',
+                    app: 'asistencias',
                     metodo: 'post',
                     endPoint: 'crearRegistro',
                     accion: 'Crear registro fallido',
@@ -365,14 +365,14 @@ router.post('/crearRegistro', async (req, res) => {
                 if (!isNaN(latC) && !isNaN(lonC) && !isNaN(latU) && !isNaN(lonU)) {
                     const distance = getDistance(latC, lonC, latU, lonU);
 
-                    if (distance > 80) {
+                    if (distance > 100) {
                         await registrarHistorial({
                             nombreUsuario: usuarioToken?.nombre || 'No registrado',
                             cedulaUsuario: usuarioToken?.cedula || 'No registrado',
                             rolUsuario: usuarioToken?.rol || 'No registrado',
                             nivel: 'log',
                             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                            app: 'capacitaciones',
+                            app: 'asistencias',
                             metodo: 'post',
                             endPoint: 'crearRegistro',
                             accion: 'Crear registro fallido',
@@ -389,7 +389,7 @@ router.post('/crearRegistro', async (req, res) => {
                         });
 
                         return sendError(res, 400, "Ubicación fuera de rango", null, {
-                            "ubicacion": `Usted se encuentra a ${distance.toFixed(2)} metros de la ubicación de la capacitación. Debe estar a menos de 80 metros para registrarse.`
+                            "ubicacion": `Usted se encuentra a ${distance.toFixed(2)} metros de la ubicación de la formacion. Debe estar a menos de 100 metros para registrarse.`
                         });
                     }
                 }
@@ -404,7 +404,7 @@ router.post('/crearRegistro', async (req, res) => {
                     rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                    app: 'capacitaciones',
+                    app: 'asistencias',
                     metodo: 'post',
                     endPoint: 'crearRegistro',
                     accion: 'Crear registro fallido',
@@ -431,13 +431,13 @@ router.post('/crearRegistro', async (req, res) => {
         const campos = keys.join(', ');
 
         const query = `
-            INSERT INTO registros_capacitaciones (${campos})
+            INSERT INTO registros_asistencias (${campos})
             VALUES (${placeholders})
         `;
 
         const [result] = await dbRailway.query(query, values);
 
-        const [registroGuardado] = await dbRailway.query('SELECT * FROM registros_capacitaciones WHERE id = ?', [result.insertId]);
+        const [registroGuardado] = await dbRailway.query('SELECT * FROM registros_asistencias WHERE id = ?', [result.insertId]);
 
         await registrarHistorial({
             nombreUsuario: usuarioToken?.nombre || 'No registrado',
@@ -445,14 +445,14 @@ router.post('/crearRegistro', async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'post',
             endPoint: 'crearRegistro',
             accion: 'Crear registro exitoso',
             detalle: 'Registro creado con exito',
             datos: { datosParaBD },
             tablasIdsAfectados: [{
-                tabla: 'registros_capacitaciones',
+                tabla: 'registros_asistencias',
                 id: result.insertId?.toString()
             }],
             ipAddress: getClientIp(req),
@@ -474,7 +474,7 @@ router.post('/crearRegistro', async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'post',
             endPoint: 'crearRegistro',
             accion: 'Error al crear registro',
@@ -504,7 +504,7 @@ router.get('/ciudades', validarToken, async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'get',
             endPoint: 'ciudades',
             accion: 'Consulta base exitosa',
@@ -529,7 +529,7 @@ router.get('/ciudades', validarToken, async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'get',
             endPoint: 'ciudades',
             accion: 'Error al obtener la base',
@@ -551,7 +551,7 @@ router.get('/auxiliar', async (req, res) => {
     const usuarioToken = req.validarToken?.usuario || null;
 
     try {
-        const [rows] = await dbRailway.query('SELECT * FROM tabla_aux_capacitaciones');
+        const [rows] = await dbRailway.query('SELECT * FROM tabla_aux_asistencias');
 
         await registrarHistorial({
             nombreUsuario: usuarioToken?.nombre || 'No registrado',
@@ -559,7 +559,7 @@ router.get('/auxiliar', async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'get',
             endPoint: 'auxiliar',
             accion: 'Consulta base exitosa',
@@ -574,7 +574,7 @@ router.get('/auxiliar', async (req, res) => {
             res,
             200,
             `Consulta exitosa`,
-            `Se obtuvieron ${rows.length} registros de la tabla auxiliar de capacitaciones.`,
+            `Se obtuvieron ${rows.length} registros de la tabla auxiliar de asistencias.`,
             rows
         );
     } catch (err) {
@@ -584,7 +584,7 @@ router.get('/auxiliar', async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'get',
             endPoint: 'auxiliar',
             accion: 'Error al obtener la base',
@@ -613,7 +613,7 @@ router.post('/obtenerImagen', async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'log',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'post',
             endPoint: 'obtenerImagen',
             accion: 'Obtencion de imagen fallido',
@@ -637,7 +637,7 @@ router.post('/obtenerImagen', async (req, res) => {
                 rolUsuario: usuarioToken?.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                app: 'capacitaciones',
+                app: 'asistencias',
                 metodo: 'post',
                 endPoint: 'obtenerImagen',
                 accion: 'Obtencion de imagen fallido',
@@ -658,7 +658,7 @@ router.post('/obtenerImagen', async (req, res) => {
                 rolUsuario: usuarioToken?.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                app: 'capacitaciones',
+                app: 'asistencias',
                 metodo: 'post',
                 endPoint: 'obtenerImagen',
                 accion: 'Obtencion de imagen fallido',
@@ -678,7 +678,7 @@ router.post('/obtenerImagen', async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'post',
             endPoint: 'obtenerImagen',
             accion: 'Consulta imagen exitosa',
@@ -707,7 +707,7 @@ router.post('/obtenerImagen', async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'post',
             endPoint: 'obtenerImagen',
             accion: 'Error al obtener la imagen',
@@ -725,12 +725,12 @@ router.post('/obtenerImagen', async (req, res) => {
     }
 });
 
-router.get('/capacitaciones', async (req, res) => {
+router.get('/formaciones', async (req, res) => {
 
     const usuarioToken = req.validarToken?.usuario || null;
 
     try {
-        const [rows] = await dbRailway.query('SELECT * FROM capacitaciones');
+        const [rows] = await dbRailway.query('SELECT * FROM formaciones_asistencias');
 
         await registrarHistorial({
             nombreUsuario: usuarioToken?.nombre || 'No registrado',
@@ -738,9 +738,9 @@ router.get('/capacitaciones', async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'get',
-            endPoint: 'capacitaciones',
+            endPoint: 'formaciones',
             accion: 'Consulta registros exitosa',
             detalle: `Se consultó ${rows.length} registros`,
             datos: {},
@@ -753,7 +753,7 @@ router.get('/capacitaciones', async (req, res) => {
             res,
             200,
             `Consulta exitosa`,
-            `Se obtuvieron ${rows.length} capacitaciones.`,
+            `Se obtuvieron ${rows.length} formaciones.`,
             rows
         );
     } catch (err) {
@@ -763,9 +763,9 @@ router.get('/capacitaciones', async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'get',
-            endPoint: 'capacitaciones',
+            endPoint: 'formaciones',
             accion: 'Error al obtener los registros',
             detalle: 'Error interno del servidor',
             datos: {
@@ -781,7 +781,7 @@ router.get('/capacitaciones', async (req, res) => {
     }
 });
 
-router.post('/crearCapacitacion', validarToken, async (req, res) => {
+router.post('/crearFormacion', validarToken, async (req, res) => {
     const usuarioToken = req.validarToken?.usuario || null;
 
     try {
@@ -794,9 +794,9 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
                 rolUsuario: usuarioToken?.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                app: 'capacitaciones',
+                app: 'asistencias',
                 metodo: 'post',
-                endPoint: 'crearCapacitacion',
+                endPoint: 'crearFormacion',
                 accion: 'Crear registro fallido',
                 detalle: 'Los datos del registro son requeridos.',
                 datos: { data },
@@ -830,9 +830,9 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
                 rolUsuario: usuarioToken?.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                app: 'capacitaciones',
+                app: 'asistencias',
                 metodo: 'post',
-                endPoint: 'crearCapacitacion',
+                endPoint: 'crearFormacion',
                 accion: 'Crear registro fallido',
                 detalle: 'Falta campos obligatorios por diligenciar.',
                 datos: { data },
@@ -856,9 +856,9 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
                     rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                    app: 'capacitaciones',
+                    app: 'asistencias',
                     metodo: 'post',
-                    endPoint: 'crearCapacitacion',
+                    endPoint: 'crearFormacion',
                     accion: 'Crear registro fallido',
                     detalle: 'Registro no permitido: Cedula',
                     datos: { cedulaProporcionado: cedulaCapacitador },
@@ -882,9 +882,9 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
                     rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                    app: 'capacitaciones',
+                    app: 'asistencias',
                     metodo: 'post',
-                    endPoint: 'crearCapacitacion',
+                    endPoint: 'crearFormacion',
                     accion: 'Crear registro fallido',
                     detalle: 'Las fechas proporcionadas no son válidas.',
                     datos: { fechaInicioProporcionado: fechaInicio, fechaFinProporcionado: fechaFin, },
@@ -905,9 +905,9 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
                     rolUsuario: usuarioToken?.rol || 'No registrado',
                     nivel: 'log',
                     plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                    app: 'capacitaciones',
+                    app: 'asistencias',
                     metodo: 'post',
-                    endPoint: 'crearCapacitacion',
+                    endPoint: 'crearFormacion',
                     accion: 'Crear registro fallido',
                     detalle: 'La fecha de inicio no puede ser mayor a la fecha de fin.',
                     datos: { fechaInicioProporcionado: fechaInicio, fechaFinProporcionado: fechaFin, },
@@ -936,9 +936,9 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
                 rolUsuario: usuarioToken.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                app: 'capacitaciones',
+                app: 'asistencias',
                 metodo: 'post',
-                endPoint: 'crearCapacitacion',
+                endPoint: 'crearFormacion',
                 accion: `Crear registro fallido`,
                 detalle: 'Registro no permitido: Cédula de usuario no tiene firma registrada.',
                 datos: { cedulaUsuarioProporcionado: usuarioToken.cedula },
@@ -957,9 +957,9 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
                 rolUsuario: usuarioToken.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                app: 'capacitaciones',
+                app: 'asistencias',
                 metodo: 'post',
-                endPoint: 'crearCapacitacion',
+                endPoint: 'crearFormacion',
                 accion: `Crear registro fallido`,
                 detalle: 'Registro no permitido: Contraseña actual incorrecta.',
                 datos: { cedulaUsuarioProporcionado: usuarioToken.cedula },
@@ -979,13 +979,13 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
         const valoresFinales = [...values, token, firma[0].firma];
 
         const query = `
-            INSERT INTO capacitaciones (${campos})
+            INSERT INTO formaciones_asistencias (${campos})
             VALUES (${placeholders})
         `;
 
         const [result] = await dbRailway.query(query, valoresFinales);
 
-        const [registroGuardado] = await dbRailway.query('SELECT * FROM capacitaciones WHERE id = ?', [result.insertId]);
+        const [registroGuardado] = await dbRailway.query('SELECT * FROM formaciones_asistencias WHERE id = ?', [result.insertId]);
 
         await registrarHistorial({
             nombreUsuario: usuarioToken?.nombre || 'No registrado',
@@ -993,9 +993,9 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'post',
-            endPoint: 'crearCapacitacion',
+            endPoint: 'crearFormacion',
             accion: 'Crear registro exitoso',
             detalle: 'Registro creado con exito',
             datos: { data },
@@ -1022,9 +1022,9 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'post',
-            endPoint: 'crearCapacitacion',
+            endPoint: 'crearFormacion',
             accion: 'Error al crear registro',
             detalle: 'Error interno del servidor',
             datos: {
@@ -1040,7 +1040,7 @@ router.post('/crearCapacitacion', validarToken, async (req, res) => {
     }
 });
 
-router.delete('/eliminarCapacitacion/:id', validarToken, async (req, res) => {
+router.delete('/eliminarFormacion/:id', validarToken, async (req, res) => {
     const usuarioToken = req.validarToken?.usuario || null;;
     const { id } = req.params;
 
@@ -1052,9 +1052,9 @@ router.delete('/eliminarCapacitacion/:id', validarToken, async (req, res) => {
                 rolUsuario: usuarioToken?.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                app: 'capacitaciones',
+                app: 'asistencias',
                 metodo: 'delete',
-                endPoint: 'eliminarCapacitacion',
+                endPoint: 'eliminarFormacion',
                 accion: 'Eliminar registro fallido',
                 detalle: 'El ID del registro es requerido.',
                 datos: { id },
@@ -1067,7 +1067,7 @@ router.delete('/eliminarCapacitacion/:id', validarToken, async (req, res) => {
         }
 
         const [existeRegistro] = await dbRailway.query(
-            'SELECT * FROM capacitaciones WHERE id = ?',
+            'SELECT * FROM formaciones_asistencias WHERE id = ?',
             [id]
         );
 
@@ -1078,9 +1078,9 @@ router.delete('/eliminarCapacitacion/:id', validarToken, async (req, res) => {
                 rolUsuario: usuarioToken?.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                app: 'capacitaciones',
+                app: 'asistencias',
                 metodo: 'delete',
-                endPoint: 'eliminarCapacitacion',
+                endPoint: 'eliminarFormacion',
                 accion: 'Eliminar registro fallido',
                 detalle: 'El registro no existe o ya fue eliminado.',
                 datos: { id },
@@ -1095,7 +1095,7 @@ router.delete('/eliminarCapacitacion/:id', validarToken, async (req, res) => {
         const registroEliminado = existeRegistro[0];
 
         const [result] = await dbRailway.query(
-            'DELETE FROM capacitaciones WHERE id = ?',
+            'DELETE FROM formaciones_asistencias WHERE id = ?',
             [id]
         );
 
@@ -1109,9 +1109,9 @@ router.delete('/eliminarCapacitacion/:id', validarToken, async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'delete',
-            endPoint: 'eliminarCapacitacion',
+            endPoint: 'eliminarFormacion',
             accion: 'Eliminar registro exitoso',
             detalle: `Registro ID ${id} eliminado correctamente`,
             datos: {
@@ -1119,7 +1119,7 @@ router.delete('/eliminarCapacitacion/:id', validarToken, async (req, res) => {
                 registroEliminado
             },
             tablasIdsAfectados: [{
-                tabla: 'capacitaciones',
+                tabla: 'formaciones_asistencias',
                 id: id.toString()
             }],
             ipAddress: getClientIp(req),
@@ -1145,9 +1145,9 @@ router.delete('/eliminarCapacitacion/:id', validarToken, async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'delete',
-            endPoint: 'eliminarCapacitacion',
+            endPoint: 'eliminarFormacion',
             accion: 'Error al eliminar registro',
             detalle: 'Error interno del servidor',
             datos: {
@@ -1178,7 +1178,7 @@ router.post('/roles', async (req, res) => {
                 rolUsuario: usuarioToken?.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                app: 'capacitaciones',
+                app: 'asistencias',
                 metodo: 'post',
                 endPoint: 'roles',
                 accion: 'Consulta registros fallido',
@@ -1199,7 +1199,7 @@ router.post('/roles', async (req, res) => {
                 rolUsuario: usuarioToken.rol || 'No registrado',
                 nivel: 'log',
                 plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                app: 'capacitaciones',
+                app: 'asistencias',
                 metodo: 'post',
                 endPoint: 'roles',
                 accion: 'Consulta registros fallido',
@@ -1213,7 +1213,7 @@ router.post('/roles', async (req, res) => {
             return sendError(res, 400, "Se requiere la cedula para la consulta");
         }
 
-        const [rows] = await dbRailway.query('SELECT * FROM rol_capacitaciones where cedula = ?', [data.cedula]);
+        const [rows] = await dbRailway.query('SELECT * FROM rol_asistencias where cedula = ?', [data.cedula]);
 
         await registrarHistorial({
             nombreUsuario: usuarioToken?.nombre || 'No registrado',
@@ -1221,7 +1221,7 @@ router.post('/roles', async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'No registrado',
             nivel: 'success',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'post',
             endPoint: 'roles',
             accion: 'Consulta registros exitosa',
@@ -1236,7 +1236,7 @@ router.post('/roles', async (req, res) => {
             res,
             200,
             `Consulta exitosa`,
-            `Se obtuvieron ${rows.length} registros de roles en capacitaciones.`,
+            `Se obtuvieron ${rows.length} registros de roles en asistencias.`,
             rows
         );
     } catch (err) {
@@ -1246,7 +1246,7 @@ router.post('/roles', async (req, res) => {
             rolUsuario: usuarioToken?.rol || 'Error sistema',
             nivel: 'error',
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'capacitaciones',
+            app: 'asistencias',
             metodo: 'post',
             endPoint: 'roles',
             accion: 'Error al obtener los registros',
