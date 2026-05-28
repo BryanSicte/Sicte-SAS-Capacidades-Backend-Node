@@ -967,7 +967,7 @@ router.get('/plantaEnLineaCedulaNombreActivos', async (req, res) => {
     const usuarioToken = req.validarToken?.usuario || null;
 
     try {
-        const [rows] = await dbRailway.query("SELECT nit, nombre, perfil FROM plantaenlinea WHERE perfil <> 'RETIRADO'");
+        const [rows] = await dbRailway.query("SELECT nit, nombre, perfil, cargo FROM plantaenlinea WHERE perfil <> 'RETIRADO'");
 
         await registrarHistorial({
             nombreUsuario: usuarioToken?.nombre || 'No registrado',

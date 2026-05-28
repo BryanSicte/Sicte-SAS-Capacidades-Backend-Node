@@ -178,9 +178,9 @@ router.post('/crearRegistro', async (req, res) => {
             const ahoraColombia = new Date(ahora.toLocaleString('en-US', opcionesZonaHoraria));
 
             const [formacionesEnCurso] = await dbRailway.query(`
-                SELECT id, nombreCapacitacion, fechaInicio, fechaFin, cedulaCapacitador, nombreCapacitador FROM formaciones_asistencias WHERE nombreCapacitacion = ? AND ? BETWEEN fechaInicio AND fechaFin LIMIT 1
+                SELECT id, nombreCapacitacion, fechaInicio, fechaFin, cedulaCapacitador, nombreCapacitador, requiereAlcoholimetria FROM formaciones_asistencias WHERE nombreCapacitacion = ? AND ? BETWEEN fechaInicio AND fechaFin LIMIT 1
             `, [nombreCapacitacion, ahoraColombia]);
-
+ 
             if (formacionesEnCurso.length === 0) {
                 await registrarHistorial({
                     nombreUsuario: usuarioToken?.nombre || 'No registrado',
@@ -202,8 +202,31 @@ router.post('/crearRegistro', async (req, res) => {
                     ipAddress: getClientIp(req),
                     userAgent: req.headers['user-agent'] || ''
                 });
-
+ 
                 return sendError(res, 400, `La formacion "${nombreCapacitacion}" no está en curso en este momento.`, null, { "nombreCapacitacion": `La formacion "${nombreCapacitacion}" no está en curso en este momento.` });
+            }
+
+            if (formacionesEnCurso[0].requiereAlcoholimetria === 'Si') {
+                if (!data.resultadoAlcoholimetria) {
+                    await registrarHistorial({
+                        nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                        cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                        rolUsuario: usuarioToken?.rol || 'No registrado',
+                        nivel: 'log',
+                        plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                        app: 'asistencias',
+                        metodo: 'post',
+                        endPoint: 'crearRegistro',
+                        accion: 'Crear registro fallido',
+                        detalle: 'Falta resultado de alcoholimetría.',
+                        datos: { data },
+                        tablasIdsAfectados: [],
+                        ipAddress: getClientIp(req),
+                        userAgent: req.headers['user-agent'] || ''
+                    });
+
+                    return sendError(res, 400, "El resultado de alcoholimetría es requerido para esta capacitación.", null, { "resultadoAlcoholimetria": "El resultado de alcoholimetría es obligatorio." });
+                }
             }
         }
 
@@ -820,6 +843,7 @@ router.post('/crearFormacion', validarToken, async (req, res) => {
             fechaFin: "Seleccione la fecha de fin.",
             direccion: "Ingrese la direccion.",
             ubicacion: "Seleccione la ubicación en el mapa.",
+            requiereAlcoholimetria: "Seleccione si requiere alcoholimetría.",
             contrasena: "Ingrese la contraseña de firma.",
         };
 
@@ -842,6 +866,35 @@ router.post('/crearFormacion', validarToken, async (req, res) => {
             });
 
             return;
+        }
+
+        if (data.requiereAlcoholimetria === "Si") {
+            const extraRequiredFields = {
+                marcaEquipo: "Ingrese la marca del equipo.",
+                serieEquipo: "Ingrese la serie del equipo.",
+                fechaCalibracion: "Ingrese la fecha de calibración.",
+            };
+
+            if (!validateRequiredFields(data, extraRequiredFields, res)) {
+                await registrarHistorial({
+                    nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                    cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                    rolUsuario: usuarioToken?.rol || 'No registrado',
+                    nivel: 'log',
+                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                    app: 'asistencias',
+                    metodo: 'post',
+                    endPoint: 'crearFormacion',
+                    accion: 'Crear registro fallido',
+                    detalle: 'Faltan campos obligatorios de alcoholimetría.',
+                    datos: { data },
+                    tablasIdsAfectados: [],
+                    ipAddress: getClientIp(req),
+                    userAgent: req.headers['user-agent'] || ''
+                });
+
+                return;
+            }
         }
 
         const { cedulaCapacitador, fechaInicio, fechaFin } = data;
