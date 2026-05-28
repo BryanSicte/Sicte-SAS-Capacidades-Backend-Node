@@ -207,7 +207,7 @@ router.post('/crearRegistro', async (req, res) => {
             }
 
             if (formacionesEnCurso[0].requiereAlcoholimetria === 'Si') {
-                if (!data.resultadoAlcoholimetria) {
+                if (data.resultadoAlcoholimetria === undefined || data.resultadoAlcoholimetria === null || String(data.resultadoAlcoholimetria).trim() === "") {
                     await registrarHistorial({
                         nombreUsuario: usuarioToken?.nombre || 'No registrado',
                         cedulaUsuario: usuarioToken?.cedula || 'No registrado',
@@ -357,7 +357,7 @@ router.post('/crearRegistro', async (req, res) => {
         }
 
         if (token) {
-            const [dataRows] = await dbRailway.query(`SELECT token, ubicacion FROM formaciones_asistencias WHERE token = ?`, [token]);
+            const [dataRows] = await dbRailway.query(`SELECT token, ubicacion FROM formaciones_asistencias WHERE token = ? AND nombreCapacitacion = ?`, [token, nombreCapacitacion]);
 
             if (dataRows.length === 0) {
                 await registrarHistorial({
@@ -371,13 +371,13 @@ router.post('/crearRegistro', async (req, res) => {
                     endPoint: 'crearRegistro',
                     accion: 'Crear registro fallido',
                     detalle: 'Registro no permitido: Token',
-                    datos: { tokenProporcionado: token },
+                    datos: { tokenProporcionado: token, nombreCapacitacion },
                     tablasIdsAfectados: [],
                     ipAddress: getClientIp(req),
                     userAgent: req.headers['user-agent'] || ''
                 });
 
-                return sendError(res, 400, "Registro no permitido: Token", null, { "token": `El token ${token} no se encuentra registrado en el sistema.` });
+                return sendError(res, 400, "Registro no permitido: Token", null, { "token": `El token ${token} no corresponde a la capacitación seleccionada o no es válido.` });
             }
 
             const ubicacionCapacitacion = dataRows[0].ubicacion;
