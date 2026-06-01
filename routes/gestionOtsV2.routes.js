@@ -78,9 +78,39 @@ router.get('/registros', validarToken, async (req, res) => {
         const params = [];
 
         if (search) {
-            sql += ` AND (nro_orden LIKE ? OR direccion LIKE ? OR nombre LIKE ? OR tipo_falla LIKE ? OR no_rotulo LIKE ?) `;
             const term = `%${search}%`;
-            params.push(term, term, term, term, term);
+            sql += ` AND (
+                nro_orden           LIKE ? OR
+                direccion           LIKE ? OR
+                nombre              LIKE ? OR
+                tipo_falla          LIKE ? OR
+                no_rotulo           LIKE ? OR
+                localidad_descrip   LIKE ? OR
+                numero_localidad    LIKE ? OR
+                referencia_barrio   LIKE ? OR
+                telefono            LIKE ? OR
+                cod                 LIKE ? OR
+                asignado            LIKE ? OR
+                nro_transformador   LIKE ? OR
+                lbt                 LIKE ? OR
+                tipo                LIKE ? OR
+                codigo_cto          LIKE ? OR
+                uso                 LIKE ? OR
+                cd_preventivo       LIKE ? OR
+                estado_actual       LIKE ? OR
+                proyecto            LIKE ? OR
+                observaciones_para_programacion LIKE ? OR
+                movil               LIKE ? OR
+                turno               LIKE ? OR
+                estado_reprogramada LIKE ? OR
+                bolsa               LIKE ? OR
+                condicion           LIKE ? OR
+                tipoMovil           LIKE ? OR
+                cuadrilla           LIKE ? OR
+                nombre_cuadrilla    LIKE ? OR
+                turnoAsignado       LIKE ?
+            ) `;
+            params.push(...Array(29).fill(term));
         }
 
         if (estado) {
@@ -184,6 +214,56 @@ router.get('/cuadrillas', validarToken, async (req, res) => {
             userAgent: req.headers['user-agent'] || ''
         });
         return sendError(res, 500, "Error al obtener cuadrillas", err);
+    }
+});
+
+// 2b. GET /auxiliares: Obtiene tipoMovil y turnos desde tabla_aux_gestion_de_ots
+router.get('/auxiliares', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken?.usuario || {};
+    try {
+        const [rows] = await dbRailway.query(
+            'SELECT id, tipoMovil, turnos FROM tabla_aux_gestion_de_ots ORDER BY id ASC'
+        );
+
+        const tiposMovil = [...new Set(rows.map(r => r.tipoMovil).filter(Boolean))];
+        const turnos = [...new Set(rows.map(r => r.turnos).filter(Boolean))];
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'gestionOtsV2',
+            metodo: 'get',
+            endPoint: 'auxiliares',
+            accion: 'Consulta de auxiliares exitosa',
+            detalle: `tiposMovil: ${tiposMovil.length}, turnos: ${turnos.length}`,
+            datos: null,
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(res, 200, "Auxiliares obtenidos", "Se listaron los auxiliares correctamente.", { tiposMovil, turnos });
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'gestionOtsV2',
+            metodo: 'get',
+            endPoint: 'auxiliares',
+            accion: 'Error al obtener auxiliares',
+            detalle: err.message,
+            datos: null,
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+        return sendError(res, 500, "Error al obtener auxiliares", err);
     }
 });
 
@@ -599,7 +679,7 @@ router.post('/asignarOTV2', validarToken, async (req, res) => {
         return sendError(res, 400, "Falta campo requerido: tipo_proceso");
     }
 
-    const nombreUsuario = usuarioToken.nombre || 'Usuario CCOT';
+    const nombreUsuario = usuarioToken.nombre;
 
     try {
         const table = getTableName(tipo_proceso);
@@ -908,7 +988,7 @@ router.get('/movimientoDetalle/:consecutivo', validarToken, async (req, res) => 
             WHERE lotes LIKE ?
         `;
         const [rows] = await dbRailway.query(sql, [`%${consecutivo}%`]);
-        
+
         const filteredRows = rows.filter(r => {
             try {
                 const arr = JSON.parse(r.lotes || '[]');
@@ -922,11 +1002,11 @@ router.get('/movimientoDetalle/:consecutivo', validarToken, async (req, res) => 
             let hist = [];
             try {
                 hist = JSON.parse(r.historico || '[]');
-            } catch {}
+            } catch { }
             if (!Array.isArray(hist)) hist = [];
-            
+
             const histFiltrado = hist.filter(h => Number(h.lote) === Number(consecutivo));
-            
+
             return {
                 id: r.id,
                 nro_orden: r.nro_orden,
