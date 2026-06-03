@@ -1440,6 +1440,114 @@ router.post('/users', validarToken, async (req, res) => {
     }
 });
 
+router.post('/users/bulk', validarToken, async (req, res) => {
+    const { usuarios } = req.body;
+    const usuarioToken = req.validarToken?.usuario;
+
+    if (!Array.isArray(usuarios) || usuarios.length === 0) {
+        return sendError(res, 400, "No se proporcionó un arreglo de usuarios válido.");
+    }
+
+    const creados = [];
+    const fallidos = [];
+
+    for (const u of usuarios) {
+        const { nombre, correo, cedula, rol, telefono, contrasena } = u;
+
+        if (!nombre || !correo || !cedula || !rol || !telefono || !contrasena) {
+            fallidos.push({
+                usuario: u,
+                razon: "Faltan campos obligatorios: nombre, correo, cedula, rol, telefono o contrasena."
+            });
+            continue;
+        }
+
+        try {
+            // Verificar si la cédula o correo ya existen
+            const [existentes] = await dbRailway.query(
+                'SELECT id, cedula, correo FROM user WHERE cedula = ? OR correo = ?',
+                [cedula, correo]
+            );
+
+            if (existentes.length > 0) {
+                const esCedula = existentes.some(user => String(user.cedula) === String(cedula));
+                const razon = esCedula
+                    ? "Ya existe un usuario registrado con esa cédula."
+                    : "Ya existe un usuario registrado con ese correo electrónico.";
+                fallidos.push({ usuario: u, razon });
+                continue;
+            }
+
+            // Guardar usuario
+            const hashedPassword = await bcrypt.hash(contrasena, 10);
+            const [result] = await dbRailway.query(
+                'INSERT INTO user (nombre, correo, cedula, rol, telefono, contrasena) VALUES (?, ?, ?, ?, ?, ?)',
+                [nombre, correo, cedula, rol, telefono, hashedPassword]
+            );
+
+            const nuevoUsuarioId = result.insertId;
+
+            // Crear fila de permisos
+            await dbRailway.query(
+                'INSERT IGNORE INTO pages_per_user (cedula) VALUES (?)',
+                [cedula]
+            );
+
+            // Sincronizar
+            try {
+                await syncSingleUser(cedula);
+            } catch (syncErr) {
+                console.error(`Error al sincronizar habilitado en POST /users/bulk para ${cedula}:`, syncErr);
+            }
+
+            creados.push({
+                id: nuevoUsuarioId,
+                nombre,
+                correo,
+                cedula,
+                rol,
+                telefono
+            });
+
+        } catch (err) {
+            console.error("Error al procesar usuario en bulk:", err);
+            fallidos.push({
+                usuario: u,
+                razon: `Error interno al procesar registro: ${err.message}`
+            });
+        }
+    }
+
+    try {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'post',
+            endPoint: 'users/bulk',
+            accion: 'Importación masiva de usuarios',
+            detalle: `Se procesaron ${usuarios.length} usuarios. Creados: ${creados.length}, Fallidos: ${fallidos.length}`,
+            datos: { total: usuarios.length, creadosCount: creados.length, fallidosCount: fallidos.length },
+            tablasIdsAfectados: creados.map(user => ({ tabla: 'user', id: user.id.toString() })),
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+    } catch (histErr) {
+        console.error("Error al registrar historial en /users/bulk:", histErr);
+    }
+
+    return sendResponse(
+        res,
+        200,
+        "Proceso masivo completado",
+        `Importación completada. Creados: ${creados.length}, Fallidos: ${fallidos.length}`,
+        { creados, fallidos }
+    );
+});
+
 router.put('/users/:id', validarToken, async (req, res) => {
     const { id } = req.params;
     const { nombre, correo, cedula, rol, telefono, contrasena } = req.body;
@@ -2150,6 +2258,458 @@ router.put('/roles/update', validarToken, async (req, res) => {
             userAgent: req.headers['user-agent'] || ''
         });
         return sendError(res, 500, "Error al actualizar los permisos de rol del aplicativo", err);
+    }
+});
+
+router.get('/auxiliar', validarToken, async (req, res) => {
+
+    const usuarioToken = req.validarToken.usuario
+
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM tabla_aux_usuarios');
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'get',
+            endPoint: 'auxiliar',
+            accion: 'Consulta tabla auxiliar exitosa',
+            detalle: `Se consultó ${rows.length} registros`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron registros de la data auxiliar de usuarios.`,
+            rows
+        );
+
+    } catch (err) {
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'usuarios',
+            metodo: 'get',
+            endPoint: 'auxiliar',
+            accion: 'Error al obtener la tabla auxiliar',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.get('/relacionPersonalCadena/auxiliar', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+    try {
+        const [rowsCiudades] = await dbRailway.query('SELECT DISTINCT ciudades FROM tabla_aux_cadena_de_suministro WHERE ciudades IS NOT NULL AND ciudades != "" ORDER BY ciudades ASC');
+        const [rowsAreas] = await dbRailway.query('SELECT DISTINCT areas FROM tabla_aux_cadena_de_suministro WHERE areas IS NOT NULL AND areas != "" ORDER BY areas ASC');
+        
+        const ciudades = rowsCiudades.map(r => r.ciudades).filter(Boolean);
+        const areas = rowsAreas.map(r => r.areas).filter(Boolean);
+
+        try {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'usuarios',
+                metodo: 'get',
+                endPoint: 'relacionPersonalCadena/auxiliar',
+                accion: 'Consulta auxiliar de relación de personal exitosa',
+                detalle: `Se obtuvieron ciudades y áreas auxiliares`,
+                datos: {},
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+        } catch (histErr) {}
+
+        return sendResponse(res, 200, "Consulta auxiliar exitosa", "Se obtuvieron ciudades y áreas de la tabla auxiliar.", { ciudades, areas });
+    } catch (err) {
+        console.error("Error al obtener auxiliar para relación de personal:", err);
+        try {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+                cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+                rolUsuario: usuarioToken?.rol || 'Error sistema',
+                nivel: 'error',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'usuarios',
+                metodo: 'get',
+                endPoint: 'relacionPersonalCadena/auxiliar',
+                accion: 'Error al obtener datos auxiliares para relación de personal',
+                detalle: 'Error interno del servidor',
+                datos: { error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+        } catch (histErr) {}
+        return sendError(res, 500, "Error inesperado al obtener datos auxiliares.", err);
+    }
+});
+
+router.get('/relacionPersonalCadena', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM relacion_personal_cadena_de_suministro');
+        
+        const parseJsonArray = (val) => {
+            if (!val) return [];
+            try {
+                return typeof val === 'string' ? JSON.parse(val) : val;
+            } catch (e) {
+                return [];
+            }
+        };
+
+        const mapped = rows.map(r => ({
+            ...r,
+            aprobacion1: parseJsonArray(r.aprobacion1),
+            disponibilidadLogistica: parseJsonArray(r.disponibilidadLogistica),
+            entradaMaterialLogistica: parseJsonArray(r.entradaMaterialLogistica),
+            trasladoBodegasLogistica: parseJsonArray(r.trasladoBodegasLogistica),
+            despachoLogistica: parseJsonArray(r.despachoLogistica)
+        }));
+
+        try {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'usuarios',
+                metodo: 'get',
+                endPoint: 'relacionPersonalCadena',
+                accion: 'Consulta de relación de personal exitosa',
+                detalle: `Se obtuvieron ${mapped.length} registros de relación de personal`,
+                datos: {},
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+        } catch (histErr) {}
+
+        return sendResponse(res, 200, "Consulta exitosa", "Se obtuvieron las relaciones de personal de la cadena de suministro.", mapped);
+    } catch (err) {
+        console.error("Error al obtener relaciones de personal:", err);
+        try {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+                cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+                rolUsuario: usuarioToken?.rol || 'Error sistema',
+                nivel: 'error',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'usuarios',
+                metodo: 'get',
+                endPoint: 'relacionPersonalCadena',
+                accion: 'Error al consultar relaciones de personal',
+                detalle: 'Error interno del servidor',
+                datos: { error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+        } catch (histErr) {}
+        return sendError(res, 500, "Error inesperado al consultar relaciones de personal.", err);
+    }
+});
+
+router.post('/relacionPersonalCadena', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+    const {
+        ciudad,
+        area,
+        aprobacion1,
+        disponibilidadLogistica,
+        entradaMaterialLogistica,
+        trasladoBodegasLogistica,
+        despachoLogistica
+    } = req.body;
+
+    if (!ciudad || !area) {
+        return sendError(res, 400, "Ciudad y Área son campos obligatorios.");
+    }
+
+    try {
+        const [existing] = await dbRailway.query(
+            'SELECT id FROM relacion_personal_cadena_de_suministro WHERE ciudad = ? AND area = ?',
+            [ciudad, area]
+        );
+
+        if (existing.length > 0) {
+            return sendError(res, 400, "Ya existe una relación configurada para esta combinación de Ciudad y Área.");
+        }
+
+        const stringifyVal = (val) => {
+            if (!val) return '[]';
+            if (Array.isArray(val)) return JSON.stringify(val);
+            if (typeof val === 'string') return val;
+            return '[]';
+        };
+
+        const [result] = await dbRailway.query(
+            `INSERT INTO relacion_personal_cadena_de_suministro (
+                ciudad,
+                area,
+                aprobacion1,
+                disponibilidadLogistica,
+                entradaMaterialLogistica,
+                trasladoBodegasLogistica,
+                despachoLogistica
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+                ciudad,
+                area,
+                stringifyVal(aprobacion1),
+                stringifyVal(disponibilidadLogistica),
+                stringifyVal(entradaMaterialLogistica),
+                stringifyVal(trasladoBodegasLogistica),
+                stringifyVal(despachoLogistica)
+            ]
+        );
+
+        const newId = result.insertId;
+
+        try {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'usuarios',
+                metodo: 'post',
+                endPoint: 'relacionPersonalCadena',
+                accion: 'Creación de relación de personal',
+                detalle: `Se creó relación de personal para ${ciudad} - ${area}`,
+                datos: { id: newId, ciudad, area },
+                tablasIdsAfectados: [{ tabla: 'relacion_personal_cadena_de_suministro', id: newId.toString() }],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+        } catch (histErr) {}
+
+        return sendResponse(res, 201, "Relación creada", "La relación de personal ha sido creada exitosamente.", { id: newId });
+    } catch (err) {
+        console.error("Error al crear relación de personal:", err);
+        try {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+                cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+                rolUsuario: usuarioToken?.rol || 'Error sistema',
+                nivel: 'error',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'usuarios',
+                metodo: 'post',
+                endPoint: 'relacionPersonalCadena',
+                accion: 'Error al crear relación de personal',
+                detalle: 'Error interno del servidor',
+                datos: { ciudad, area, error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+        } catch (histErr) {}
+        return sendError(res, 500, "Error inesperado al crear relación de personal.", err);
+    }
+});
+
+router.put('/relacionPersonalCadena/:id', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+    const { id } = req.params;
+    const {
+        ciudad,
+        area,
+        aprobacion1,
+        disponibilidadLogistica,
+        entradaMaterialLogistica,
+        trasladoBodegasLogistica,
+        despachoLogistica
+    } = req.body;
+
+    if (!ciudad || !area) {
+        return sendError(res, 400, "Ciudad y Área son campos obligatorios.");
+    }
+
+    try {
+        const [existing] = await dbRailway.query(
+            'SELECT id FROM relacion_personal_cadena_de_suministro WHERE id = ?',
+            [id]
+        );
+
+        if (existing.length === 0) {
+            return sendError(res, 404, "Registro no encontrado.");
+        }
+
+        const [duplicate] = await dbRailway.query(
+            'SELECT id FROM relacion_personal_cadena_de_suministro WHERE ciudad = ? AND area = ? AND id != ?',
+            [ciudad, area, id]
+        );
+
+        if (duplicate.length > 0) {
+            return sendError(res, 400, "Ya existe otra relación configurada para esta Ciudad y Área.");
+        }
+
+        const stringifyVal = (val) => {
+            if (!val) return '[]';
+            if (Array.isArray(val)) return JSON.stringify(val);
+            if (typeof val === 'string') return val;
+            return '[]';
+        };
+
+        await dbRailway.query(
+            `UPDATE relacion_personal_cadena_de_suministro SET
+                ciudad = ?,
+                area = ?,
+                aprobacion1 = ?,
+                disponibilidadLogistica = ?,
+                entradaMaterialLogistica = ?,
+                trasladoBodegasLogistica = ?,
+                despachoLogistica = ?
+            WHERE id = ?`,
+            [
+                ciudad,
+                area,
+                stringifyVal(aprobacion1),
+                stringifyVal(disponibilidadLogistica),
+                stringifyVal(entradaMaterialLogistica),
+                stringifyVal(trasladoBodegasLogistica),
+                stringifyVal(despachoLogistica),
+                id
+            ]
+        );
+
+        try {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'usuarios',
+                metodo: 'put',
+                endPoint: 'relacionPersonalCadena/:id',
+                accion: 'Actualización de relación de personal',
+                detalle: `Se actualizó relación de personal ID ${id} para ${ciudad} - ${area}`,
+                datos: { id, ciudad, area },
+                tablasIdsAfectados: [{ tabla: 'relacion_personal_cadena_de_suministro', id: id.toString() }],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+        } catch (histErr) {}
+
+        return sendResponse(res, 200, "Relación actualizada", "La relación de personal ha sido actualizada correctamente.");
+    } catch (err) {
+        console.error("Error al actualizar relación de personal:", err);
+        try {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+                cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+                rolUsuario: usuarioToken?.rol || 'Error sistema',
+                nivel: 'error',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'usuarios',
+                metodo: 'put',
+                endPoint: 'relacionPersonalCadena/:id',
+                accion: 'Error al actualizar relación de personal',
+                detalle: 'Error interno del servidor',
+                datos: { id, ciudad, area, error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+        } catch (histErr) {}
+        return sendError(res, 500, "Error inesperado al actualizar relación de personal.", err);
+    }
+});
+
+router.delete('/relacionPersonalCadena/:id', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+    const { id } = req.params;
+
+    try {
+        const [existing] = await dbRailway.query(
+            'SELECT id, ciudad, area FROM relacion_personal_cadena_de_suministro WHERE id = ?',
+            [id]
+        );
+
+        if (existing.length === 0) {
+            return sendError(res, 404, "Registro no encontrado.");
+        }
+
+        const record = existing[0];
+
+        await dbRailway.query(
+            'DELETE FROM relacion_personal_cadena_de_suministro WHERE id = ?',
+            [id]
+        );
+
+        try {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'usuarios',
+                metodo: 'delete',
+                endPoint: 'relacionPersonalCadena/:id',
+                accion: 'Eliminación de relación de personal',
+                detalle: `Se eliminó relación de personal ID ${id} para ${record.ciudad} - ${record.area}`,
+                datos: { id, ciudad: record.ciudad, area: record.area },
+                tablasIdsAfectados: [{ tabla: 'relacion_personal_cadena_de_suministro', id: id.toString() }],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+        } catch (histErr) {}
+
+        return sendResponse(res, 200, "Relación eliminada", "La relación de personal ha sido eliminada correctamente.");
+    } catch (err) {
+        console.error("Error al eliminar relación de personal:", err);
+        try {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+                cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+                rolUsuario: usuarioToken?.rol || 'Error sistema',
+                nivel: 'error',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'usuarios',
+                metodo: 'delete',
+                endPoint: 'relacionPersonalCadena/:id',
+                accion: 'Error al eliminar relación de personal',
+                detalle: 'Error interno del servidor',
+                datos: { id, error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+        } catch (histErr) {}
+        return sendError(res, 500, "Error inesperado al eliminar relación de personal.", err);
     }
 });
 

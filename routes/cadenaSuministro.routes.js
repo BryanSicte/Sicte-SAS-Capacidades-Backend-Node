@@ -1195,11 +1195,11 @@ router.put('/comprasGenerarOC', validarToken, async (req, res) => {
         const { contrasena, fechaOrdenCompra, totalGeneralSinIva, totalIva, totalOrdenCompra, ids } = data;
 
         if (
-            !contrasena || 
-            !fechaOrdenCompra || 
-            totalGeneralSinIva === undefined || totalGeneralSinIva === null || 
-            totalIva === undefined || totalIva === null || 
-            totalOrdenCompra === undefined || totalOrdenCompra === null || 
+            !contrasena ||
+            !fechaOrdenCompra ||
+            totalGeneralSinIva === undefined || totalGeneralSinIva === null ||
+            totalIva === undefined || totalIva === null ||
+            totalOrdenCompra === undefined || totalOrdenCompra === null ||
             !ids || !Array.isArray(ids) || ids.length === 0
         ) {
             await registrarHistorial({
@@ -5384,6 +5384,106 @@ router.put('/trasladoEnTransito',
             return sendError(res, 500, "Error inesperado.", err);
         }
     });
+
+router.post('/roles', validarToken, async (req, res) => {
+
+    const usuarioToken = req.validarToken?.usuario || null;
+
+    try {
+        const data = req.body;
+
+        if (!data || Object.keys(data).length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken?.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+                rolUsuario: usuarioToken?.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'post',
+                endPoint: 'roles',
+                accion: 'Consulta registros fallido',
+                detalle: 'Los datos de usuario son requeridos.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Los datos de usuario son requeridos.");
+        }
+
+        if (!data?.cedula) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'post',
+                endPoint: 'roles',
+                accion: 'Consulta archivos fallido',
+                detalle: 'Se requiere la cedula para la consulta',
+                datos: { dataProporcionado: data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Se requiere la cedula para la consulta");
+        }
+
+        const [rows] = await dbRailway.query('SELECT * FROM rol_cadena_de_suministro where cedula = ?', [data.cedula]);
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'post',
+            endPoint: 'roles',
+            accion: 'Consulta registros exitosa',
+            detalle: `Se consultó ${rows.length} registros`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron ${rows.length} registros de roles en cadena de suministro.`,
+            rows
+        );
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'cadenaSuministro',
+            metodo: 'post',
+            endPoint: 'roles',
+            accion: 'Error al obtener los registros',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
 
 
 module.exports = router;
