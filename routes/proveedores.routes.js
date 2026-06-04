@@ -110,11 +110,17 @@ router.post('/crearRegistro', validarToken,
                 nombreUsuario: "No se pudo identificar el nombre del usuario.",
                 nit: "Ingrese el nit.",
                 nombreProveedor: "Ingrese un nombre del proveedor.",
-                nombreContacto: "Ingrese un nombre de contacto.",
-                direccion: "Ingrese la direccion.",
-                telefono: "Ingrese el telefono.",
-                correo: "Ingrese el correo.",
-                paginaWeb: "Ingrese la pagina web.",
+                tipoIdentificacion: "Seleccione el tipo de identificación.",
+                servicioProducto: "Ingrese el servicio o producto.",
+                ciudad: "Ingrese la ciudad.",
+                cedulaResponsableSicte: "Ingrese la cédula del responsable.",
+                nombreResponsableSicte: "Ingrese el nombre del responsable.",
+                cargoResponsable: "Ingrese el cargo del responsable.",
+                estandaresMinimosSgsst: "Ingrese los estándares mínimos del SG-SST.",
+                licenciasPermisosSst: "Ingrese las licencias/permisos en SST.",
+                licenciasPermisosAmbientales: "Ingrese las licencias/permisos ambientales.",
+                estadoGeneral: "Seleccione el estado general.",
+                estadoSeleccion: "Seleccione el estado de selección.",
             };
 
             if (!validateRequiredFields(data, requiredFields, res)) {
@@ -383,8 +389,25 @@ router.post('/crearRegistro', validarToken,
                     certificacionBancaria,
                     cedulaRepresentanteLegal,
                     observaciones,
-                    estado
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    estado,
+                    tipoIdentificacion,
+                    servicioProducto,
+                    ciudad,
+                    nombreRepresentante,
+                    fechaSeleccion,
+                    puntajeSeleccion,
+                    estadoSeleccion,
+                    fechaUltimaEvaluacion,
+                    puntajeUltimaEvaluacion,
+                    estadoEvaluacionSeguimiento,
+                    cedulaResponsableSicte,
+                    nombreResponsableSicte,
+                    cargoResponsable,
+                    estandaresMinimosSgsst,
+                    licenciasPermisosSst,
+                    licenciasPermisosAmbientales,
+                    estadoGeneral
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     data.fecha,
                     data.cedulaUsuario,
@@ -401,7 +424,24 @@ router.post('/crearRegistro', validarToken,
                     certificacionBancariaJSON,
                     cedulaRepresentanteLegalJSON,
                     data.observaciones,
-                    true
+                    true,
+                    data.tipoIdentificacion || null,
+                    data.servicioProducto || null,
+                    data.ciudad || null,
+                    data.nombreRepresentante || null,
+                    data.fechaSeleccion || null,
+                    data.puntajeSeleccion || null,
+                    data.estadoSeleccion || null,
+                    data.fechaUltimaEvaluacion || null,
+                    data.puntajeUltimaEvaluacion || null,
+                    data.estadoEvaluacionSeguimiento || null,
+                    data.cedulaResponsableSicte || null,
+                    data.nombreResponsableSicte || null,
+                    data.cargoResponsable || null,
+                    data.estandaresMinimosSgsst || null,
+                    data.licenciasPermisosSst || null,
+                    data.licenciasPermisosAmbientales || null,
+                    data.estadoGeneral || null
                 ]
             );
 
@@ -523,11 +563,17 @@ router.put('/editarRegistro/:id', validarToken,
                 nombreUsuario: "No se pudo identificar el nombre del usuario.",
                 nit: "Ingrese el nit.",
                 nombreProveedor: "Ingrese un nombre del proveedor.",
-                nombreContacto: "Ingrese un nombre de contacto.",
-                direccion: "Ingrese la direccion.",
-                telefono: "Ingrese el telefono.",
-                correo: "Ingrese el correo.",
-                paginaWeb: "Ingrese la pagina web.",
+                tipoIdentificacion: "Seleccione el tipo de identificación.",
+                servicioProducto: "Ingrese el servicio o producto.",
+                ciudad: "Ingrese la ciudad.",
+                cedulaResponsableSicte: "Ingrese la cédula del responsable.",
+                nombreResponsableSicte: "Ingrese el nombre del responsable.",
+                cargoResponsable: "Ingrese el cargo del responsable.",
+                estandaresMinimosSgsst: "Ingrese los estándares mínimos del SG-SST.",
+                licenciasPermisosSst: "Ingrese las licencias/permisos en SST.",
+                licenciasPermisosAmbientales: "Ingrese las licencias/permisos ambientales.",
+                estadoGeneral: "Seleccione el estado general.",
+                estadoSeleccion: "Seleccione el estado de selección.",
             };
 
             if (!validateRequiredFields(data, requiredFields, res)) {
@@ -1268,6 +1314,61 @@ router.post('/roles', validarToken, async (req, res) => {
             metodo: 'post',
             endPoint: 'roles',
             accion: 'Error al obtener los registros',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.get('/auxiliar', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+
+    try {
+        const [rows] = await dbRailway.query('SELECT * FROM tabla_aux_proveedores');
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'proveedores',
+            metodo: 'get',
+            endPoint: 'auxiliar',
+            accion: 'Consulta tabla auxiliar exitosa',
+            detalle: `Se consultó ${rows.length} registros`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron registros de la data auxiliar de proveedores.`,
+            rows
+        );
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'proveedores',
+            metodo: 'get',
+            endPoint: 'auxiliar',
+            accion: 'Error al obtener la tabla auxiliar',
             detalle: 'Error interno del servidor',
             datos: {
                 error: err.message,
