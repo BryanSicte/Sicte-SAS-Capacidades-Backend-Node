@@ -2324,7 +2324,7 @@ router.get('/relacionPersonalCadena/auxiliar', validarToken, async (req, res) =>
     try {
         const [rowsCiudades] = await dbRailway.query('SELECT DISTINCT ciudades FROM tabla_aux_cadena_de_suministro WHERE ciudades IS NOT NULL AND ciudades != "" ORDER BY ciudades ASC');
         const [rowsAreas] = await dbRailway.query('SELECT DISTINCT areas FROM tabla_aux_cadena_de_suministro WHERE areas IS NOT NULL AND areas != "" ORDER BY areas ASC');
-        
+
         const ciudades = rowsCiudades.map(r => r.ciudades).filter(Boolean);
         const areas = rowsAreas.map(r => r.areas).filter(Boolean);
 
@@ -2345,7 +2345,7 @@ router.get('/relacionPersonalCadena/auxiliar', validarToken, async (req, res) =>
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
-        } catch (histErr) {}
+        } catch (histErr) { }
 
         return sendResponse(res, 200, "Consulta auxiliar exitosa", "Se obtuvieron ciudades y áreas de la tabla auxiliar.", { ciudades, areas });
     } catch (err) {
@@ -2367,7 +2367,7 @@ router.get('/relacionPersonalCadena/auxiliar', validarToken, async (req, res) =>
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
-        } catch (histErr) {}
+        } catch (histErr) { }
         return sendError(res, 500, "Error inesperado al obtener datos auxiliares.", err);
     }
 });
@@ -2376,7 +2376,7 @@ router.get('/relacionPersonalCadena', validarToken, async (req, res) => {
     const usuarioToken = req.validarToken.usuario;
     try {
         const [rows] = await dbRailway.query('SELECT * FROM relacion_personal_cadena_de_suministro');
-        
+
         const parseJsonArray = (val) => {
             if (!val) return [];
             try {
@@ -2412,7 +2412,7 @@ router.get('/relacionPersonalCadena', validarToken, async (req, res) => {
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
-        } catch (histErr) {}
+        } catch (histErr) { }
 
         return sendResponse(res, 200, "Consulta exitosa", "Se obtuvieron las relaciones de personal de la cadena de suministro.", mapped);
     } catch (err) {
@@ -2434,7 +2434,7 @@ router.get('/relacionPersonalCadena', validarToken, async (req, res) => {
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
-        } catch (histErr) {}
+        } catch (histErr) { }
         return sendError(res, 500, "Error inesperado al consultar relaciones de personal.", err);
     }
 });
@@ -2512,7 +2512,7 @@ router.post('/relacionPersonalCadena', validarToken, async (req, res) => {
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
-        } catch (histErr) {}
+        } catch (histErr) { }
 
         return sendResponse(res, 201, "Relación creada", "La relación de personal ha sido creada exitosamente.", { id: newId });
     } catch (err) {
@@ -2534,7 +2534,7 @@ router.post('/relacionPersonalCadena', validarToken, async (req, res) => {
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
-        } catch (histErr) {}
+        } catch (histErr) { }
         return sendError(res, 500, "Error inesperado al crear relación de personal.", err);
     }
 });
@@ -2621,7 +2621,7 @@ router.put('/relacionPersonalCadena/:id', validarToken, async (req, res) => {
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
-        } catch (histErr) {}
+        } catch (histErr) { }
 
         return sendResponse(res, 200, "Relación actualizada", "La relación de personal ha sido actualizada correctamente.");
     } catch (err) {
@@ -2643,7 +2643,7 @@ router.put('/relacionPersonalCadena/:id', validarToken, async (req, res) => {
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
-        } catch (histErr) {}
+        } catch (histErr) { }
         return sendError(res, 500, "Error inesperado al actualizar relación de personal.", err);
     }
 });
@@ -2686,7 +2686,7 @@ router.delete('/relacionPersonalCadena/:id', validarToken, async (req, res) => {
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
-        } catch (histErr) {}
+        } catch (histErr) { }
 
         return sendResponse(res, 200, "Relación eliminada", "La relación de personal ha sido eliminada correctamente.");
     } catch (err) {
@@ -2708,7 +2708,7 @@ router.delete('/relacionPersonalCadena/:id', validarToken, async (req, res) => {
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
             });
-        } catch (histErr) {}
+        } catch (histErr) { }
         return sendError(res, 500, "Error inesperado al eliminar relación de personal.", err);
     }
 });

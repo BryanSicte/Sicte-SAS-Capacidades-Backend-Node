@@ -1,5 +1,6 @@
 const dbRailway = require('../db/db_railway');
 const { sendError } = require('../utils/responseHandler');
+const crypto = require('crypto');
 
 async function validarToken(req, res, next) {
 
@@ -21,17 +22,6 @@ async function validarToken(req, res, next) {
 
         const resetToken = tokenData[0];
 
-        if (resetToken.length === 0) {
-            return sendError(res, 403, "Token invalido, por favor, cierra sesión y vuelve a ingresar para restablecer tu sesión.");
-        }
-
-        const expiracionUTC = new Date(tokenData.expiryDate);
-        const ahoraUTC = new Date();
-
-        if (expiracionUTC < ahoraUTC) {
-            return sendError(res, 403, "Token expirado, por favor, cierra sesión y vuelve a ingresar para restablecer tu sesión.");
-        }
-
         const [users] = await dbRailway.query(
             'SELECT * FROM user WHERE cedula = ?',
             [resetToken.cedula || ""]
@@ -51,8 +41,34 @@ async function validarToken(req, res, next) {
             return sendError(res, 403, "Usuario inhabilitado o retirado de la planta.");
         }
 
+        const expiracionUTC = new Date(resetToken.expiryDate);
+        const ahoraUTC = new Date();
+
+        let tokenActual = token;
+
+        if (expiracionUTC < ahoraUTC) {
+            // El token expiró, pero como es un token válido en la base de datos, lo renovamos por 24 horas
+            const nuevoToken = crypto.randomBytes(20).toString('hex');
+            const now = new Date();
+            now.setMinutes(now.getMinutes() + 1440); // 24 horas
+            const newExpiryDate = now.toISOString();
+
+            await dbRailway.query(
+                `UPDATE tokens 
+                 SET token = ?, expiryDate = ? 
+                 WHERE token = ?`,
+                [nuevoToken, newExpiryDate, token]
+            );
+
+            // Exponer y establecer el header con el nuevo token
+            res.setHeader('X-New-Token', nuevoToken);
+            res.setHeader('Access-Control-Expose-Headers', 'X-New-Token');
+
+            tokenActual = nuevoToken;
+        }
+
         req.validarToken = {
-            tokenData: tokenData.token,
+            tokenData: tokenActual,
             usuario: {
                 cedula: usuario.cedula,
                 nombre: usuario.nombre,
