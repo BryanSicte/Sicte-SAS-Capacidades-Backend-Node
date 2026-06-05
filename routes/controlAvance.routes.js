@@ -67,6 +67,8 @@ async function initDatabase() {
                 valor_unidad DECIMAL(12, 2) DEFAULT 0.00,
                 valor_total DECIMAL(12, 2) DEFAULT 0.00,
                 estado VARCHAR(50) DEFAULT 'Creado',
+                categoria VARCHAR(100) DEFAULT NULL,
+                subcategoria VARCHAR(100) DEFAULT NULL,
                 FOREIGN KEY (proyecto_id) REFERENCES control_avance_proyectos(id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `);
@@ -83,6 +85,12 @@ async function initDatabase() {
         }
         if (!itemColNames.includes('estado')) {
             await dbRailway.query('ALTER TABLE control_avance_items ADD COLUMN estado VARCHAR(50) DEFAULT "Creado"');
+        }
+        if (!itemColNames.includes('categoria')) {
+            await dbRailway.query('ALTER TABLE control_avance_items ADD COLUMN categoria VARCHAR(100) DEFAULT NULL');
+        }
+        if (!itemColNames.includes('subcategoria')) {
+            await dbRailway.query('ALTER TABLE control_avance_items ADD COLUMN subcategoria VARCHAR(100) DEFAULT NULL');
         }
 
         // 3. Histórico de estados
@@ -147,13 +155,37 @@ async function initDatabase() {
             console.log("Datos de prueba sembrados en tabla_aux_control_avance.");
         }
 
-        // 7. Agregar aplicativosControlAvance a pages_per_user
-        const [columns] = await dbRailway.query('SHOW COLUMNS FROM pages_per_user');
-        const columnNames = columns.map(col => col.Field);
-        if (!columnNames.includes('aplicativosControlAvance')) {
-            await dbRailway.query('ALTER TABLE pages_per_user ADD COLUMN aplicativosControlAvance TINYINT(1) DEFAULT 0');
-            console.log("Columna 'aplicativosControlAvance' agregada con éxito a 'pages_per_user'.");
-        }
+        // 8. Categorías de Control de Avance
+        await dbRailway.query(`
+            CREATE TABLE IF NOT EXISTS control_avance_categorias (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nombre VARCHAR(100) NOT NULL UNIQUE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        // 9. Subcategorías de Control de Avance
+        await dbRailway.query(`
+            CREATE TABLE IF NOT EXISTS control_avance_subcategorias (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                categoria_id INT NOT NULL,
+                nombre VARCHAR(100) NOT NULL,
+                FOREIGN KEY (categoria_id) REFERENCES control_avance_categorias(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        // 10. Materiales de bodega asignados a los ítems del proyecto
+        await dbRailway.query(`
+            CREATE TABLE IF NOT EXISTS control_avance_item_materiales (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                item_id INT NOT NULL,
+                material_codigo VARCHAR(100) NOT NULL,
+                descripcion_material TEXT DEFAULT NULL,
+                unidad_medida VARCHAR(50) DEFAULT NULL,
+                cantidad_presupuestada DECIMAL(12, 2) NOT NULL,
+                cantidad_entregada DECIMAL(12, 2) DEFAULT 0.00,
+                FOREIGN KEY (item_id) REFERENCES control_avance_items(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
 
         console.log("Base de datos para Control de Avance inicializada correctamente.");
     } catch (err) {
@@ -269,6 +301,11 @@ router.get('/proyectos/:id', validarToken, async (req, res) => {
         // Items del proyecto
         const [items] = await dbRailway.query('SELECT * FROM control_avance_items WHERE proyecto_id = ?', [id]);
 
+        for (const item of items) {
+            const [materiales] = await dbRailway.query('SELECT * FROM control_avance_item_materiales WHERE item_id = ?', [item.id]);
+            item.materiales = materiales;
+        }
+
         // Historial de estados
         const [historial] = await dbRailway.query('SELECT * FROM control_avance_historico_estados WHERE proyecto_id = ? ORDER BY fecha_cambio DESC', [id]);
 
@@ -327,16 +364,16 @@ router.get('/proyectos/:id', validarToken, async (req, res) => {
 
 // 3. Crear proyecto con sus items presupuestados
 router.post('/crearProyecto', validarToken, async (req, res) => {
-    const { 
-        nombre_proyecto, 
-        ot, 
-        fecha_arranque, 
-        fecha_cierre_proyectada, 
-        contrato, 
-        tipo_proyecto, 
-        subproyecto, 
+    const {
+        nombre_proyecto,
+        ot,
+        fecha_arranque,
+        fecha_cierre_proyectada,
+        contrato,
+        tipo_proyecto,
+        subproyecto,
         fecha_registro,
-        items 
+        items
     } = req.body;
     const usuarioToken = req.validarToken.usuario;
 
@@ -385,12 +422,15 @@ router.post('/crearProyecto', validarToken, async (req, res) => {
             const valorTotal = parseFloat(item.valor_total) || (parseFloat(item.cantidad_presupuestada) * valorUnidad);
             const itemEstado = item.estado || 'Creado';
             const itemTipo = item.tipo || 'Mano de obra';
+            const itemCategoria = item.categoria || null;
+            const itemSubcategoria = item.subcategoria || null;
 
-            await connection.query(`
+            const [itemResult] = await connection.query(`
                 INSERT INTO control_avance_items (
                     proyecto_id, tipo, codigo, descripcion, unidad_medida, 
-                    cantidad_presupuestada, valor_unidad, valor_total, estado
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    cantidad_presupuestada, valor_unidad, valor_total, estado,
+                    categoria, subcategoria
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 proyectoId,
                 itemTipo,
@@ -400,8 +440,31 @@ router.post('/crearProyecto', validarToken, async (req, res) => {
                 item.cantidad_presupuestada,
                 valorUnidad,
                 valorTotal,
-                itemEstado
+                itemEstado,
+                itemCategoria,
+                itemSubcategoria
             ]);
+
+            const itemId = itemResult.insertId;
+
+            if (item.materiales && Array.isArray(item.materiales)) {
+                for (const mat of item.materiales) {
+                    if (!mat.material_codigo || mat.cantidad_presupuestada === undefined) {
+                        throw new Error("Material de bodega inválido en el ítem del proyecto.");
+                    }
+                    await connection.query(`
+                        INSERT INTO control_avance_item_materiales (
+                            item_id, material_codigo, descripcion_material, unidad_medida, cantidad_presupuestada
+                        ) VALUES (?, ?, ?, ?, ?)
+                    `, [
+                        itemId,
+                        mat.material_codigo,
+                        mat.descripcion_material || mat.descripcion || null,
+                        mat.unidad_medida || mat.unimed || null,
+                        parseFloat(mat.cantidad_presupuestada) || 0
+                    ]);
+                }
+            }
         }
 
         // Registrar estado inicial en el histórico
@@ -601,12 +664,12 @@ router.post('/proyectos/:id/avances', validarToken, async (req, res) => {
                     observacion, usuario_registro, cedula_usuario_registro, fecha_avance
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
-                id, 
-                item_id, 
-                nombre_tecnico, 
-                cedula_tecnico, 
-                avanceNum, 
-                observacion || '', 
+                id,
+                item_id,
+                nombre_tecnico,
+                cedula_tecnico,
+                avanceNum,
+                observacion || '',
                 usuarioToken.nombre,
                 usuarioToken.cedula,
                 fecha_registro || new Date()
@@ -749,6 +812,151 @@ router.get('/auxiliar', validarToken, async (req, res) => {
             userAgent: req.headers['user-agent'] || ''
         });
         return sendError(res, 500, "Error al obtener datos auxiliares", err);
+    }
+});
+
+// 8. Obtener lista de baremos
+router.get('/baremos', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+    try {
+        const [rows] = await dbRailway.query(`
+            SELECT codigo, actividad, um, valor_unitario_sin_aiu 
+            FROM baremos 
+            ORDER BY codigo ASC
+        `);
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'get',
+            endPoint: 'baremos',
+            accion: 'Consulta lista de baremos exitosa',
+            detalle: `Se consultaron ${rows.length} baremos`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(res, 200, "Baremos obtenidos", "Se listaron los baremos correctamente.", rows);
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'get',
+            endPoint: 'baremos',
+            accion: 'Error al obtener baremos',
+            detalle: 'Error interno del servidor',
+            datos: { error: err.message },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+        return sendError(res, 500, "Error al obtener baremos", err);
+    }
+});
+
+// 9. Obtener lista de categorías y sus subcategorías
+router.get('/categorias', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+    try {
+        const [categorias] = await dbRailway.query('SELECT * FROM control_avance_categorias ORDER BY nombre ASC');
+        for (const cat of categorias) {
+            const [subcategorias] = await dbRailway.query('SELECT * FROM control_avance_subcategorias WHERE categoria_id = ? ORDER BY nombre ASC', [cat.id]);
+            cat.subcategorias = subcategorias;
+        }
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'get',
+            endPoint: 'categorias',
+            accion: 'Consulta lista de categorías exitosa',
+            detalle: `Se consultaron ${categorias.length} categorías`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(res, 200, "Categorías obtenidas", "Se listaron las categorías correctamente.", categorias);
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'get',
+            endPoint: 'categorias',
+            accion: 'Error al obtener categorías',
+            detalle: 'Error interno del servidor',
+            datos: { error: err.message },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+        return sendError(res, 500, "Error al obtener categorías", err);
+    }
+});
+
+// 10. Obtener materiales de bodega filtrados por Bodega = 'KGPROD_ENEL_X'
+router.get('/materialesBodega', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+    try {
+        const [rows] = await dbRailway.query(
+            'SELECT codigo, descrip, unimed FROM bodega_kgprod WHERE Bodega = "KGPROD_ENEL_X" ORDER BY descrip ASC'
+        );
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'get',
+            endPoint: 'materialesBodega',
+            accion: 'Consulta materiales bodega exitosa',
+            detalle: `Se consultaron ${rows.length} materiales de la bodega KGPROD_ENEL_X`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(res, 200, "Materiales obtenidos", "Se listaron los materiales de bodega correctamente.", rows);
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'get',
+            endPoint: 'materialesBodega',
+            accion: 'Error al obtener materiales de bodega',
+            detalle: 'Error interno del servidor',
+            datos: { error: err.message },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+        return sendError(res, 500, "Error al obtener materiales de bodega", err);
     }
 });
 
