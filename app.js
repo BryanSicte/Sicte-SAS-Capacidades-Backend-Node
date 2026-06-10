@@ -24,7 +24,7 @@ app.use(cors({
         'https://gya-ccot.up.railway.app',
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Platform'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Platform', 'Cache-Control', 'Pragma', 'Expires'],
     credentials: false
 }));
 
