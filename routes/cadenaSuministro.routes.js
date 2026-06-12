@@ -14,12 +14,422 @@ const bcrypt = require('bcrypt');
 
 const folderId = '1dJdsXK_WxtvoLmn0Dgcm5uvRA1YYnbuE';
 
+// Asynchronous DB initialization
+async function initDatabase() {
+    try {
+        console.log("Inicializando base de datos para Cadena de Suministro...");
+
+        // 1. Tabla de cabecera de la solicitud
+        await dbRailway.query(`
+            CREATE TABLE IF NOT EXISTS cadena_suministro_solicitud (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              solicitud INT UNIQUE NOT NULL,
+              fecha VARCHAR(50) NOT NULL,
+              cedulaUsuario VARCHAR(50) NOT NULL,
+              nombreUsuario VARCHAR(100) NOT NULL,
+              tipoSolicitud VARCHAR(50) NOT NULL,
+              ciudad VARCHAR(50) NOT NULL,
+              area VARCHAR(50) NOT NULL,
+              centro_costos VARCHAR(45) NOT NULL,
+              nombre_centro_costos VARCHAR(100) NOT NULL,
+              implementacion VARCHAR(45) NOT NULL,
+              contratista VARCHAR(45) NOT NULL,
+              bodega VARCHAR(45) NOT NULL,
+              uuidOt VARCHAR(50) NULL,
+              nombreProyecto VARCHAR(100) NULL,
+              fechaEntregaProyectada VARCHAR(50) NULL,
+              diseno JSON NULL,
+              facturacionEsperada JSON NULL,
+              observaciones TEXT NOT NULL,
+              estadoSolicitud VARCHAR(50) NOT NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        // 2. Tabla de items solicitados
+        await dbRailway.query(`
+            CREATE TABLE IF NOT EXISTS cadena_suministro_item (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              solicitud_id INT NOT NULL,
+              solicitudItem VARCHAR(45) NOT NULL,
+              codigo VARCHAR(50) NOT NULL,
+              descripcion VARCHAR(200) NOT NULL,
+              um VARCHAR(50) NOT NULL,
+              cantidad VARCHAR(50) NOT NULL,
+              FOREIGN KEY (solicitud_id) REFERENCES cadena_suministro_solicitud(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        // 3. Tabla de aprobacion del director (Aprobacion 1)
+        await dbRailway.query(`
+            CREATE TABLE IF NOT EXISTS cadena_suministro_aprobacion_director (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              item_id INT NOT NULL UNIQUE,
+              fechaAprobacion1 VARCHAR(30) NULL,
+              cedulaUsuarioAprobacion1 VARCHAR(30) NULL,
+              nombreUsuarioAprobacion1 VARCHAR(100) NULL,
+              observacionAprobacion1 TEXT NULL,
+              firmaAprobacion1 TEXT NULL,
+              estadoAprobacion1 VARCHAR(30) NULL,
+              FOREIGN KEY (item_id) REFERENCES cadena_suministro_item(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        // 4. Tabla de logistica, bodega, traslados y despacho
+        await dbRailway.query(`
+            CREATE TABLE IF NOT EXISTS cadena_suministro_logistica_despacho (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              item_id INT NOT NULL UNIQUE,
+              fechaLogistica VARCHAR(30) NULL,
+              cedulaUsuarioLogistica VARCHAR(30) NULL,
+              nombreUsuarioLogistica VARCHAR(100) NULL,
+              disponibilidadLogistica VARCHAR(30) NULL,
+              cantidadRestanteLogistica VARCHAR(30) NULL,
+              bodegaConfirmacionLogistica VARCHAR(30) NULL,
+              estadoLogistica VARCHAR(30) NULL,
+              consecutivoTrasladoLogistica VARCHAR(30) NULL,
+              fechaTrasladoSalidaLogistica VARCHAR(30) NULL,
+              cedulaUsuarioTrasladoSalidaLogistica VARCHAR(30) NULL,
+              nombreUsuarioTrasladoSalidaLogistica VARCHAR(100) NULL,
+              cantidadTrasladoSalidaLogistica VARCHAR(30) NULL,
+              pdfsTrasladoSalidaLogistica JSON NULL,
+              observacionTrasladoSalidaLogistica TEXT NULL,
+              fechaTrasladoEntradaLogistica VARCHAR(30) NULL,
+              cedulaUsuarioTrasladoEntradaLogistica VARCHAR(30) NULL,
+              nombreUsuarioTrasladoEntradaLogistica VARCHAR(100) NULL,
+              cantidadTrasladoEntradaLogistica VARCHAR(30) NULL,
+              pdfsTrasladoEntradaLogistica JSON NULL,
+              observacionTrasladoEntradaLogistica TEXT NULL,
+              estadoTrasladoLogistica VARCHAR(30) NULL,
+              fechaDespachoMaterial VARCHAR(30) NULL,
+              cedulaUsuarioDespachoMaterial VARCHAR(30) NULL,
+              nombreUsuarioDespachoMaterial VARCHAR(100) NULL,
+              cantidadDespachadaMaterial VARCHAR(30) NULL,
+              pdfsDespachoMaterial JSON NULL,
+              observacionDespachoMaterial TEXT NULL,
+              estadoDespachoMaterial VARCHAR(30) NULL,
+              FOREIGN KEY (item_id) REFERENCES cadena_suministro_item(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        // 5. Tabla de compras, OC, aprobaciones de OC y entregas de proveedor
+        await dbRailway.query(`
+            CREATE TABLE IF NOT EXISTS cadena_suministro_compras (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              item_id INT NOT NULL UNIQUE,
+              fechaCompra VARCHAR(30) NULL,
+              cedulaUsuarioCompras VARCHAR(30) NULL,
+              nombreUsuarioCompras VARCHAR(100) NULL,
+              nitProveedor VARCHAR(30) NULL,
+              proveedor VARCHAR(100) NULL,
+              descripcionProveedor TEXT NULL,
+              umProveedor VARCHAR(30) NULL,
+              cantidadProveedor VARCHAR(30) NULL,
+              formaPago VARCHAR(30) NULL,
+              plazoPagoDias VARCHAR(30) NULL,
+              tipoMoneda VARCHAR(30) NULL,
+              precioAnticipo VARCHAR(30) NULL,
+              precioUnitario VARCHAR(30) NULL,
+              precioTotalSinIva VARCHAR(30) NULL,
+              iva VARCHAR(30) NULL,
+              precioTotalConIva VARCHAR(30) NULL,
+              plazoEntrega VARCHAR(30) NULL,
+              observacionCompra TEXT NULL,
+              fechaOrdenCompra VARCHAR(30) NULL,
+              cedulaUsuarioElaboraCompra VARCHAR(30) NULL,
+              nombreUsuarioElaboraCompra VARCHAR(100) NULL,
+              ordenCompra VARCHAR(30) NULL,
+              totalGeneralSinIva VARCHAR(30) NULL,
+              totalIva VARCHAR(30) NULL,
+              totalOrdenCompra VARCHAR(30) NULL,
+              firmaCompra TEXT NULL,
+              estadoCompra VARCHAR(30) NULL,
+              fechaAprobacion2 VARCHAR(30) NULL,
+              cedulaUsuarioAprobacion2 VARCHAR(30) NULL,
+              nombreUsuarioAprobacion2 VARCHAR(100) NULL,
+              observacionAprobacion2 TEXT NULL,
+              firmaAprobacion2 TEXT NULL,
+              estadoAprobacion2 VARCHAR(30) NULL,
+              fechaAprobacion3 VARCHAR(30) NULL,
+              cedulaUsuarioAprobacion3 VARCHAR(30) NULL,
+              nombreUsuarioAprobacion3 VARCHAR(100) NULL,
+              observacionAprobacion3 TEXT NULL,
+              firmaAprobacion3 TEXT NULL,
+              estadoAprobacion3 VARCHAR(30) NULL,
+              fechaAprobacion4 VARCHAR(30) NULL,
+              cedulaUsuarioAprobacion4 VARCHAR(30) NULL,
+              nombreUsuarioAprobacion4 VARCHAR(100) NULL,
+              observacionAprobacion4 TEXT NULL,
+              firmaAprobacion4 TEXT NULL,
+              estadoAprobacion4 VARCHAR(30) NULL,
+              fechaEnvioOrdenCompra VARCHAR(30) NULL,
+              cedulaUsuarioEnvioOrdenCompra VARCHAR(30) NULL,
+              nombreUsuarioEnvioOrdenCompra VARCHAR(100) NULL,
+              envioDeCorreoEnvioOrdenCompra VARCHAR(30) NULL,
+              estadoEnvioOrdenCompra VARCHAR(30) NULL,
+              fechaEntregaProveedor VARCHAR(30) NULL,
+              cedulaUsuarioEntregaProveedor VARCHAR(30) NULL,
+              nombreUsuarioEntregaProveedor VARCHAR(100) NULL,
+              cantidadEntregaProveedor VARCHAR(30) NULL,
+              pdfsEntregaProveedor JSON NULL,
+              observacionEntregaProveedor TEXT NULL,
+              estadoEntregaProveedor VARCHAR(30) NULL,
+              FOREIGN KEY (item_id) REFERENCES cadena_suministro_item(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        // 6. Tabla de finanzas y facturación
+        await dbRailway.query(`
+            CREATE TABLE IF NOT EXISTS cadena_suministro_finanzas_facturacion (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              item_id INT NOT NULL UNIQUE,
+              fechaContabilidad VARCHAR(30) NULL,
+              cedulaUsuarioContabilidad VARCHAR(30) NULL,
+              nombreUsuarioContabilidad VARCHAR(100) NULL,
+              rtFteContabilidad VARCHAR(30) NULL,
+              rtIvaContabilidad VARCHAR(30) NULL,
+              rtIcaContabilidad VARCHAR(30) NULL,
+              totalPagarContabilidad VARCHAR(30) NULL,
+              observacionContabilidad TEXT NULL,
+              estadoContabilidad VARCHAR(30) NULL,
+              fechaAprobacionAnticipo3 VARCHAR(30) NULL,
+              cedulaUsuarioAprobacionAnticipo3 VARCHAR(30) NULL,
+              nombreUsuarioAprobacionAnticipo3 VARCHAR(100) NULL,
+              observacionAprobacionAnticipo3 TEXT NULL,
+              firmaAprobacionAnticipo3 TEXT NULL,
+              estadoAprobacionAnticipo3 VARCHAR(30) NULL,
+              fechaAprobacionAnticipo4 VARCHAR(30) NULL,
+              cedulaUsuarioAprobacionAnticipo4 VARCHAR(30) NULL,
+              nombreUsuarioAprobacionAnticipo4 VARCHAR(100) NULL,
+              observacionAprobacionAnticipo4 TEXT NULL,
+              firmaAprobacionAnticipo4 TEXT NULL,
+              estadoAprobacionAnticipo4 VARCHAR(30) NULL,
+              fechaAnticipoTesoreria VARCHAR(30) NULL,
+              cedulaUsuarioAnticipoTesoreria VARCHAR(30) NULL,
+              nombreUsuarioAnticipoTesoreria VARCHAR(100) NULL,
+              observacionAnticipoTesoreria TEXT NULL,
+              firmaAnticipoTesoreria TEXT NULL,
+              pdfsAnticipoTesoreria JSON NULL,
+              estadoAnticipoTesoreria VARCHAR(30) NULL,
+              fechaTesoreria VARCHAR(30) NULL,
+              cedulaUsuarioTesoreria VARCHAR(30) NULL,
+              nombreUsuarioTesoreria VARCHAR(100) NULL,
+              observacionTesoreria TEXT NULL,
+              firmaTesoreria TEXT NULL,
+              pdfsTesoreria JSON NULL,
+              estadoFacturasTesoreria VARCHAR(30) NULL,
+              estadoTesoreria VARCHAR(30) NULL,
+              fechaAsociacionFactura VARCHAR(30) NULL,
+              cedulaUsuarioAsociacionFactura VARCHAR(30) NULL,
+              nombreUsuarioAsociacionFactura VARCHAR(100) NULL,
+              consecutivoAsociacionFactura VARCHAR(30) NULL,
+              fechaRevisionFactura VARCHAR(30) NULL,
+              cedulaUsuarioRevisionFactura VARCHAR(30) NULL,
+              nombreUsuarioRevisionFactura VARCHAR(100) NULL,
+              pdfsRevisionFactura JSON NULL,
+              observacionRevisionFactura TEXT NULL,
+              estadoAsociacionFactura VARCHAR(30) NULL,
+              FOREIGN KEY (item_id) REFERENCES cadena_suministro_item(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
+        console.log("Base de datos para Cadena de Suministro inicializada correctamente.");
+    } catch (err) {
+        console.error("Error inicializando base de datos para Cadena de Suministro:", err);
+    }
+}
+
+// Run DB init
+initDatabase();
+
+async function getRegistrosCompletos(whereClause, params) {
+    const query = `
+        SELECT 
+          s.id as solicitud_id_db,
+          i.id as id,
+          s.solicitud as solicitud,
+          s.fecha as fecha,
+          s.cedulaUsuario as cedulaUsuario,
+          s.nombreUsuario as nombreUsuario,
+          s.tipoSolicitud as tipoSolicitud,
+          s.ciudad as ciudad,
+          s.area as area,
+          s.centro_costos as centro_costos,
+          s.nombre_centro_costos as nombre_centro_costos,
+          s.implementacion as implementacion,
+          s.contratista as contratista,
+          s.bodega as bodega,
+          s.uuidOt as uuidOt,
+          s.nombreProyecto as nombreProyecto,
+          s.fechaEntregaProyectada as fechaEntregaProyectada,
+          s.diseno as diseno,
+          s.facturacionEsperada as facturacionEsperada,
+          s.observaciones as observaciones,
+          s.estadoSolicitud as estadoSolicitud,
+          
+          i.solicitudItem as solicitudItem,
+          i.codigo as codigo,
+          i.descripcion as descripcion,
+          i.um as um,
+          i.cantidad as cantidad,
+          
+          ad.fechaAprobacion1 as fechaAprobacion1,
+          ad.cedulaUsuarioAprobacion1 as cedulaUsuarioAprobacion1,
+          ad.nombreUsuarioAprobacion1 as nombreUsuarioAprobacion1,
+          ad.observacionAprobacion1 as observacionAprobacion1,
+          ad.firmaAprobacion1 as firmaAprobacion1,
+          ad.estadoAprobacion1 as estadoAprobacion1,
+          
+          ld.fechaLogistica as fechaLogistica,
+          ld.cedulaUsuarioLogistica as cedulaUsuarioLogistica,
+          ld.nombreUsuarioLogistica as nombreUsuarioLogistica,
+          ld.disponibilidadLogistica as disponibilidadLogistica,
+          ld.cantidadRestanteLogistica as cantidadRestanteLogistica,
+          ld.bodegaConfirmacionLogistica as bodegaConfirmacionLogistica,
+          ld.estadoLogistica as estadoLogistica,
+          ld.consecutivoTrasladoLogistica as consecutivoTrasladoLogistica,
+          ld.fechaTrasladoSalidaLogistica as fechaTrasladoSalidaLogistica,
+          ld.cedulaUsuarioTrasladoSalidaLogistica as cedulaUsuarioTrasladoSalidaLogistica,
+          ld.nombreUsuarioTrasladoSalidaLogistica as nombreUsuarioTrasladoSalidaLogistica,
+          ld.cantidadTrasladoSalidaLogistica as cantidadTrasladoSalidaLogistica,
+          ld.pdfsTrasladoSalidaLogistica as pdfsTrasladoSalidaLogistica,
+          ld.observacionTrasladoSalidaLogistica as observacionTrasladoSalidaLogistica,
+          ld.fechaTrasladoEntradaLogistica as fechaTrasladoEntradaLogistica,
+          ld.cedulaUsuarioTrasladoEntradaLogistica as cedulaUsuarioTrasladoEntradaLogistica,
+          ld.nombreUsuarioTrasladoEntradaLogistica as nombreUsuarioTrasladoEntradaLogistica,
+          ld.cantidadTrasladoEntradaLogistica as cantidadTrasladoEntradaLogistica,
+          ld.pdfsTrasladoEntradaLogistica as pdfsTrasladoEntradaLogistica,
+          ld.observacionTrasladoEntradaLogistica as observacionTrasladoEntradaLogistica,
+          ld.estadoTrasladoLogistica as estadoTrasladoLogistica,
+          ld.fechaDespachoMaterial as fechaDespachoMaterial,
+          ld.cedulaUsuarioDespachoMaterial as cedulaUsuarioDespachoMaterial,
+          ld.nombreUsuarioDespachoMaterial as nombreUsuarioDespachoMaterial,
+          ld.cantidadDespachadaMaterial as cantidadDespachadaMaterial,
+          ld.pdfsDespachoMaterial as pdfsDespachoMaterial,
+          ld.observacionDespachoMaterial as observacionDespachoMaterial,
+          ld.estadoDespachoMaterial as estadoDespachoMaterial,
+          
+          c.fechaCompra as fechaCompra,
+          c.cedulaUsuarioCompras as cedulaUsuarioCompras,
+          c.nombreUsuarioCompras as nombreUsuarioCompras,
+          c.nitProveedor as nitProveedor,
+          c.proveedor as proveedor,
+          c.descripcionProveedor as descripcionProveedor,
+          c.umProveedor as umProveedor,
+          c.cantidadProveedor as cantidadProveedor,
+          c.formaPago as formaPago,
+          c.plazoPagoDias as plazoPagoDias,
+          c.tipoMoneda as tipoMoneda,
+          c.precioAnticipo as precioAnticipo,
+          c.precioUnitario as precioUnitario,
+          c.precioTotalSinIva as precioTotalSinIva,
+          c.iva as iva,
+          c.precioTotalConIva as precioTotalConIva,
+          c.plazoEntrega as plazoEntrega,
+          c.observacionCompra as observacionCompra,
+          c.fechaOrdenCompra as fechaOrdenCompra,
+          c.cedulaUsuarioElaboraCompra as cedulaUsuarioElaboraCompra,
+          c.nombreUsuarioElaboraCompra as nombreUsuarioElaboraCompra,
+          c.ordenCompra as ordenCompra,
+          c.totalGeneralSinIva as totalGeneralSinIva,
+          c.totalIva as totalIva,
+          c.totalOrdenCompra as totalOrdenCompra,
+          c.firmaCompra as firmaCompra,
+          c.estadoCompra as estadoCompra,
+          c.fechaAprobacion2 as fechaAprobacion2,
+          c.cedulaUsuarioAprobacion2 as cedulaUsuarioAprobacion2,
+          c.nombreUsuarioAprobacion2 as nombreUsuarioAprobacion2,
+          c.observacionAprobacion2 as observacionAprobacion2,
+          c.firmaAprobacion2 as firmaAprobacion2,
+          c.estadoAprobacion2 as estadoAprobacion2,
+          c.fechaAprobacion3 as fechaAprobacion3,
+          c.cedulaUsuarioAprobacion3 as cedulaUsuarioAprobacion3,
+          c.nombreUsuarioAprobacion3 as nombreUsuarioAprobacion3,
+          c.observacionAprobacion3 as observacionAprobacion3,
+          c.firmaAprobacion3 as firmaAprobacion3,
+          c.estadoAprobacion3 as estadoAprobacion3,
+          c.fechaAprobacion4 as fechaAprobacion4,
+          c.cedulaUsuarioAprobacion4 as cedulaUsuarioAprobacion4,
+          c.nombreUsuarioAprobacion4 as nombreUsuarioAprobacion4,
+          c.observacionAprobacion4 as observacionAprobacion4,
+          c.firmaAprobacion4 as firmaAprobacion4,
+          c.estadoAprobacion4 as estadoAprobacion4,
+          c.fechaEnvioOrdenCompra as fechaEnvioOrdenCompra,
+          c.cedulaUsuarioEnvioOrdenCompra as cedulaUsuarioEnvioOrdenCompra,
+          c.nombreUsuarioEnvioOrdenCompra as nombreUsuarioEnvioOrdenCompra,
+          c.envioDeCorreoEnvioOrdenCompra as envioDeCorreoEnvioOrdenCompra,
+          c.estadoEnvioOrdenCompra as estadoEnvioOrdenCompra,
+          c.fechaEntregaProveedor as fechaEntregaProveedor,
+          c.cedulaUsuarioEntregaProveedor as cedulaUsuarioEntregaProveedor,
+          c.nombreUsuarioEntregaProveedor as nombreUsuarioEntregaProveedor,
+          c.cantidadEntregaProveedor as cantidadEntregaProveedor,
+          c.pdfsEntregaProveedor as pdfsEntregaProveedor,
+          c.observacionEntregaProveedor as observacionEntregaProveedor,
+          c.estadoEntregaProveedor as estadoEntregaProveedor,
+          
+          ff.fechaContabilidad as fechaContabilidad,
+          ff.cedulaUsuarioContabilidad as cedulaUsuarioContabilidad,
+          ff.nombreUsuarioContabilidad as nombreUsuarioContabilidad,
+          ff.rtFteContabilidad as rtFteContabilidad,
+          ff.rtIvaContabilidad as rtIvaContabilidad,
+          ff.rtIcaContabilidad as rtIcaContabilidad,
+          ff.totalPagarContabilidad as totalPagarContabilidad,
+          ff.observacionContabilidad as observacionContabilidad,
+          ff.estadoContabilidad as estadoContabilidad,
+          ff.fechaAprobacionAnticipo3 as fechaAprobacionAnticipo3,
+          ff.cedulaUsuarioAprobacionAnticipo3 as cedulaUsuarioAprobacionAnticipo3,
+          ff.nombreUsuarioAprobacionAnticipo3 as nombreUsuarioAprobacionAnticipo3,
+          ff.observacionAprobacionAnticipo3 as observacionAprobacionAnticipo3,
+          ff.firmaAprobacionAnticipo3 as firmaAprobacionAnticipo3,
+          ff.estadoAprobacionAnticipo3 as estadoAprobacionAnticipo3,
+          ff.fechaAprobacionAnticipo4 as fechaAprobacionAnticipo4,
+          ff.cedulaUsuarioAprobacionAnticipo4 as cedulaUsuarioAprobacionAnticipo4,
+          ff.nombreUsuarioAprobacionAnticipo4 as nombreUsuarioAprobacionAnticipo4,
+          ff.observacionAprobacionAnticipo4 as observacionAprobacionAnticipo4,
+          ff.firmaAprobacionAnticipo4 as firmaAprobacionAnticipo4,
+          ff.estadoAprobacionAnticipo4 as estadoAprobacionAnticipo4,
+          ff.fechaAnticipoTesoreria as fechaAnticipoTesoreria,
+          ff.cedulaUsuarioAnticipoTesoreria as cedulaUsuarioAnticipoTesoreria,
+          ff.nombreUsuarioAnticipoTesoreria as nombreUsuarioAnticipoTesoreria,
+          ff.observacionAnticipoTesoreria as observacionAnticipoTesoreria,
+          ff.firmaAnticipoTesoreria as firmaAnticipoTesoreria,
+          ff.pdfsAnticipoTesoreria as pdfsAnticipoTesoreria,
+          ff.estadoAnticipoTesoreria as estadoAnticipoTesoreria,
+          ff.fechaTesoreria as fechaTesoreria,
+          ff.cedulaUsuarioTesoreria as cedulaUsuarioTesoreria,
+          ff.nombreUsuarioTesoreria as nombreUsuarioTesoreria,
+          ff.observacionTesoreria as observacionTesoreria,
+          ff.firmaTesoreria as firmaTesoreria,
+          ff.pdfsTesoreria as pdfsTesoreria,
+          ff.estadoFacturasTesoreria as estadoFacturasTesoreria,
+          ff.estadoTesoreria as estadoTesoreria,
+          ff.fechaAsociacionFactura as fechaAsociacionFactura,
+          ff.cedulaUsuarioAsociacionFactura as cedulaUsuarioAsociacionFactura,
+          ff.nombreUsuarioAsociacionFactura as nombreUsuarioAsociacionFactura,
+          ff.consecutivoAsociacionFactura as consecutivoAsociacionFactura,
+          ff.fechaRevisionFactura as fechaRevisionFactura,
+          ff.cedulaUsuarioRevisionFactura as cedulaUsuarioRevisionFactura,
+          ff.nombreUsuarioRevisionFactura as nombreUsuarioRevisionFactura,
+          ff.pdfsRevisionFactura as pdfsRevisionFactura,
+          ff.observacionRevisionFactura as observacionRevisionFactura,
+          ff.estadoAsociacionFactura as estadoAsociacionFactura
+        FROM cadena_suministro_item i
+        JOIN cadena_suministro_solicitud s ON i.solicitud_id = s.id
+        LEFT JOIN cadena_suministro_aprobacion_director ad ON i.id = ad.item_id
+        LEFT JOIN cadena_suministro_logistica_despacho ld ON i.id = ld.item_id
+        LEFT JOIN cadena_suministro_compras c ON i.id = c.item_id
+        LEFT JOIN cadena_suministro_finanzas_facturacion ff ON i.id = ff.item_id
+        WHERE ${whereClause}
+    `;
+    const [rows] = await dbRailway.query(query, params);
+    return rows;
+}
+
 router.get('/registros', validarToken, async (req, res) => {
 
     const usuarioToken = req.validarToken.usuario
 
     try {
-        const [rows] = await dbRailway.query('SELECT * FROM registros_solicitud_cadena_suministro');
+        const rows = await getRegistrosCompletos('1=1', []);
 
         await registrarHistorial({
             nombreUsuario: usuarioToken.nombre || 'No registrado',
@@ -105,14 +515,13 @@ router.post('/crearRegistro',
                 return sendError(res, 400, "Los datos del registro son requeridos.");
             }
 
-            const [auxiliarAreaRequiereProyecto] = await dbRailway.query('SELECT areaRequiereProyecto FROM tabla_aux_cadena_de_suministro WHERE areas = ?', [data.area]);
-
             let requiredFields;
-            if (auxiliarAreaRequiereProyecto[0].areaRequiereProyecto === '1') {
+            if (data.tipoSolicitud === 'Por proyecto') {
                 requiredFields = {
                     fecha: "No se pudo obtener la fecha del registro.",
                     cedulaUsuario: "No se pudo identificar la cedula del usuario.",
                     nombreUsuario: "No se pudo identificar el nombre del usuario.",
+                    tipoSolicitud: "Ingrese y seleccione un tipo de solicitud.",
                     ciudad: "Ingrese y seleccione una ciudad.",
                     area: "Ingrese y seleccione un area.",
                     centro_costos: "Ingrese y seleccione un centro de costos.",
@@ -129,6 +538,7 @@ router.post('/crearRegistro',
                     fecha: "No se pudo obtener la fecha del registro.",
                     cedulaUsuario: "No se pudo identificar la cedula del usuario.",
                     nombreUsuario: "No se pudo identificar el nombre del usuario.",
+                    tipoSolicitud: "Ingrese y seleccione un tipo de solicitud.",
                     ciudad: "Ingrese y seleccione una ciudad.",
                     area: "Ingrese y seleccione un area.",
                     centro_costos: "Ingrese y seleccione un centro de costos.",
@@ -186,7 +596,7 @@ router.post('/crearRegistro',
             const driveResults = [];
             const fechaColombia = getFechaHoraColombia()
 
-            if (auxiliarAreaRequiereProyecto[0].areaRequiereProyecto === '1') {
+            if (data.tipoSolicitud === 'Por proyecto') {
                 if (!archivos?.diseno) {
                     await registrarHistorial({
                         nombreUsuario: usuarioToken.nombre || 'No registrado',
@@ -226,7 +636,7 @@ router.post('/crearRegistro',
                         userAgent: req.headers['user-agent'] || ''
                     });
 
-                    return sendError(res, 400, "Registro no permitido: Facturacion esperada", null, { "facturacionEsperada": `Ingrese un archivo .zip para el diseño.` });
+                    return sendError(res, 400, "Registro no permitido: Facturación esperada", null, { "facturacionEsperada": `Ingrese un archivo PDF para la facturación.` });
                 }
 
                 if (archivos?.diseno?.[0]) {
@@ -320,79 +730,107 @@ router.post('/crearRegistro',
             const resultados = [];
 
             let nuevoNumeroSolicitud = 1;
-            const [maxRows] = await dbRailway.query('SELECT MAX(solicitud) as maxSolicitud FROM registros_solicitud_cadena_suministro');
+            const [maxRows] = await dbRailway.query('SELECT MAX(solicitud) as maxSolicitud FROM cadena_suministro_solicitud');
             const maxSolicitud = maxRows[0].maxSolicitud || 0;
             nuevoNumeroSolicitud = maxSolicitud + 1;
 
-            for (const [index, item] of items.entries()) {
+            const [solicitudResult] = await dbRailway.query(
+                `INSERT INTO cadena_suministro_solicitud (
+                    solicitud,
+                    fecha,
+                    cedulaUsuario,
+                    nombreUsuario,
+                    tipoSolicitud,
+                    ciudad,
+                    area,
+                    centro_costos,
+                    nombre_centro_costos,
+                    implementacion,
+                    contratista,
+                    bodega,
+                    uuidOt,
+                    nombreProyecto,
+                    fechaEntregaProyectada,
+                    diseno,
+                    facturacionEsperada,
+                    observaciones,
+                    estadoSolicitud
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    nuevoNumeroSolicitud,
+                    data.fecha,
+                    data.cedulaUsuario,
+                    data.nombreUsuario,
+                    data.tipoSolicitud,
+                    data.ciudad,
+                    data.area,
+                    data.centro_costos,
+                    data.nombre_centro_costos,
+                    data.implementacion,
+                    data.contratista,
+                    data.bodega,
+                    data.uuidOt || null,
+                    data.nombreProyecto || null,
+                    data.fechaEntregaProyectada || null,
+                    disenoJSON,
+                    facturacionJSON,
+                    data.observaciones,
+                    "Pendiente Aprobacion 1"
+                ]
+            );
+            const solicitudIdDb = solicitudResult.insertId;
 
-                const [result] = await dbRailway.query(
-                    `INSERT INTO registros_solicitud_cadena_suministro (
-                        solicitud,
-                        fecha,
-                        cedulaUsuario,
-                        nombreUsuario,
-                        ciudad,
-                        area,
-                        centro_costos,
-                        nombre_centro_costos,
-                        implementacion,
-                        contratista,
-                        bodega,
-                        uuidOt,
-                        nombreProyecto,
-                        fechaEntregaProyectada,
-                        diseno,
-                        facturacionEsperada,
+            for (const [index, item] of items.entries()) {
+                const [itemResult] = await dbRailway.query(
+                    `INSERT INTO cadena_suministro_item (
+                        solicitud_id,
                         solicitudItem,
                         codigo,
                         descripcion,
                         um,
-                        cantidad,
-                        observaciones,
-                        estadoSolicitud,
-                        estadoAprobacion1
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        cantidad
+                    ) VALUES (?, ?, ?, ?, ?, ?)`,
                     [
-                        nuevoNumeroSolicitud,
-                        data.fecha,
-                        data.cedulaUsuario,
-                        data.nombreUsuario,
-                        data.ciudad,
-                        data.area,
-                        data.centro_costos,
-                        data.nombre_centro_costos,
-                        data.implementacion,
-                        data.contratista,
-                        data.bodega,
-                        data.uuidOt,
-                        data.nombreProyecto,
-                        data.fechaEntregaProyectada,
-                        disenoJSON,
-                        facturacionJSON,
+                        solicitudIdDb,
                         item.solicitudItem,
                         item.codigo,
                         item.descripcion,
                         item.um,
-                        item.cantidad,
-                        data.observaciones,
-                        "Pendiente Aprobacion 1",
-                        "Pendiente"
+                        item.cantidad
                     ]
+                );
+                const itemId = itemResult.insertId;
+
+                // Inicializar tablas de seguimiento hijas
+                await dbRailway.query(
+                    `INSERT INTO cadena_suministro_aprobacion_director (item_id, estadoAprobacion1) VALUES (?, ?)`,
+                    [itemId, 'Pendiente']
+                );
+                await dbRailway.query(
+                    `INSERT INTO cadena_suministro_logistica_despacho (item_id) VALUES (?)`,
+                    [itemId]
+                );
+                await dbRailway.query(
+                    `INSERT INTO cadena_suministro_compras (item_id) VALUES (?)`,
+                    [itemId]
+                );
+                await dbRailway.query(
+                    `INSERT INTO cadena_suministro_finanzas_facturacion (item_id) VALUES (?)`,
+                    [itemId]
                 );
 
                 resultados.push({
                     item: item.codigo,
                     descripcion: item.descripcion,
                     cantidad: item.cantidad,
-                    insertId: result.insertId,
+                    insertId: itemId,
                     solicitud: nuevoNumeroSolicitud,
-                    affectedRows: result.affectedRows
+                    affectedRows: itemResult.affectedRows
                 });
             }
 
             const idsAfectados = resultados.map(r => ({
-                tabla: 'registros_solicitud_cadena_suministro',
+                tabla: 'cadena_suministro_item',
                 id: r.insertId.toString()
             }));
 
@@ -712,7 +1150,6 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                 app: 'cadenaSuministro',
                 metodo: 'put',
                 endPoint: 'logisticaActualizarCantidades',
-                accion: 'Deshabilitar proveedor fallido',
                 accion: 'Actualizar cantidades fallido',
                 datos: { idProporcionado: id },
                 tablasIdsAfectados: [],
@@ -723,10 +1160,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
             return sendError(res, 400, "ID de solicitud inválido o no proporcionado.");
         }
 
-        const [solicitudesExistentes] = await dbRailway.query(
-            'SELECT id, cantidad, bodega FROM registros_solicitud_cadena_suministro WHERE solicitud = ?',
-            [id]
-        );
+        const solicitudesExistentes = await getRegistrosCompletos('s.solicitud = ?', [id]);
 
         if (!data || Object.keys(data).length === 0) {
             await registrarHistorial({
@@ -763,109 +1197,149 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
             BodegasExistentesMap[solicitud.id] = solicitud.bodega;
         });
 
-        for (const [id, cantidadEditada] of Object.entries(cantidadesEditadas)) {
+        const connection = await dbRailway.getConnection();
+        try {
+            await connection.beginTransaction();
 
-            const cantidadExistente = cantidadesExistentesMap[id];
-            let estadoSolicitudRegistro = 'Validar';
-            let estadoCompra = 'Validar';
-            let estadoAprobacion2 = 'Validar';
-            let cantidadRestanteLogistica = 0;
+            for (const [id, cantidadEditada] of Object.entries(cantidadesEditadas)) {
 
-            if (parseFloat(cantidadExistente) === parseFloat(cantidadEditada)) {
-                estadoSolicitudRegistro = 'Pendiente Despacho Bodega';
-                estadoCompra = 'No aplica';
-                estadoAprobacion2 = 'No aplica';
-            } else if (parseFloat(cantidadEditada) < parseFloat(cantidadExistente)) {
-                estadoSolicitudRegistro = 'Pendiente Compras';
-                estadoCompra = 'Pendiente';
-                estadoAprobacion2 = null;
-            } else if (parseFloat(cantidadEditada) > parseFloat(cantidadExistente)) {
-                await registrarHistorial({
-                    nombreUsuario: usuarioToken.nombre || 'No registrado',
-                    cedulaUsuario: usuarioToken.cedula || 'No registrado',
-                    rolUsuario: usuarioToken.rol || 'No registrado',
-                    nivel: 'log',
-                    plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-                    app: 'cadenaSuministro',
-                    metodo: 'put',
-                    endPoint: 'logisticaActualizarCantidades',
-                    accion: 'Actualizar cantidades fallido',
-                    detalle: 'La cantidad disponible no puede ser mayor a la cantidad requerida.',
-                    datos: { data },
-                    tablasIdsAfectados: [],
-                    ipAddress: getClientIp(req),
-                    userAgent: req.headers['user-agent'] || ''
-                });
+                const cantidadExistente = cantidadesExistentesMap[id];
+                let estadoSolicitudRegistro = 'Validar';
+                let estadoCompra = 'Validar';
+                let estadoAprobacion2 = 'Validar';
+                let cantidadRestanteLogistica = 0;
 
-                return sendError(res, 400, "La cantidad disponible no puede ser mayor a la cantidad requerida.");
-            } else {
-                estadoSolicitudRegistro = 'Pendiente logistica';
-                estadoCompra = null;
-                estadoAprobacion2 = null;
+                if (parseFloat(cantidadExistente) === parseFloat(cantidadEditada)) {
+                    estadoSolicitudRegistro = 'Pendiente Despacho Bodega';
+                    estadoCompra = 'No aplica';
+                    estadoAprobacion2 = 'No aplica';
+                } else if (parseFloat(cantidadEditada) < parseFloat(cantidadExistente)) {
+                    estadoSolicitudRegistro = 'Pendiente Compras';
+                    estadoCompra = 'Pendiente';
+                    estadoAprobacion2 = null;
+                } else if (parseFloat(cantidadEditada) > parseFloat(cantidadExistente)) {
+                    await registrarHistorial({
+                        nombreUsuario: usuarioToken.nombre || 'No registrado',
+                        cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                        rolUsuario: usuarioToken.rol || 'No registrado',
+                        nivel: 'log',
+                        plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                        app: 'cadenaSuministro',
+                        metodo: 'put',
+                        endPoint: 'logisticaActualizarCantidades',
+                        accion: 'Actualizar cantidades fallido',
+                        detalle: 'La cantidad disponible no puede ser mayor a la cantidad requerida.',
+                        datos: { data },
+                        tablasIdsAfectados: [],
+                        ipAddress: getClientIp(req),
+                        userAgent: req.headers['user-agent'] || ''
+                    });
+
+                    await connection.rollback();
+                    return sendError(res, 400, "La cantidad disponible no puede ser mayor a la cantidad requerida.");
+                } else {
+                    estadoSolicitudRegistro = 'Pendiente logistica';
+                    estadoCompra = null;
+                    estadoAprobacion2 = null;
+                }
+
+                cantidadRestanteLogistica = parseFloat(cantidadExistente) - parseFloat(cantidadEditada);
+                let estadoTrasladoLogistica = bodegasEditadas[id] !== BodegasExistentesMap[id] && parseFloat(cantidadEditada) !== 0 ? 'Pendiente' : 'No aplica';
+                estadoSolicitudRegistro = estadoSolicitudRegistro === 'Pendiente Despacho Bodega' && estadoTrasladoLogistica === 'Pendiente' ? 'Pendiente Traslado Entre Bodegas' : estadoSolicitudRegistro;
+
+                // 1. Actualizar logística
+                await connection.query(
+                    `UPDATE cadena_suministro_logistica_despacho SET 
+                        fechaLogistica = ?, 
+                        cedulaUsuarioLogistica = ?, 
+                        nombreUsuarioLogistica = ?, 
+                        disponibilidadLogistica = ?, 
+                        cantidadRestanteLogistica = ?,
+                        bodegaConfirmacionLogistica = ?, 
+                        estadoLogistica = ?, 
+                        estadoTrasladoLogistica = ?
+                    WHERE item_id = ? LIMIT 1`,
+                    [
+                        fechaColombia,
+                        usuarioToken.cedula,
+                        usuarioToken.nombre,
+                        cantidadEditada,
+                        cantidadRestanteLogistica,
+                        bodegasEditadas[id] || null,
+                        'Realizado',
+                        estadoTrasladoLogistica,
+                        id
+                    ]
+                );
+
+                // 2. Actualizar compras
+                await connection.query(
+                    `UPDATE cadena_suministro_compras SET 
+                        estadoCompra = ?,
+                        estadoAprobacion2 = ?,
+                        estadoAprobacion3 = ?,
+                        estadoAprobacion4 = ?,
+                        estadoEnvioOrdenCompra = ?,
+                        estadoEntregaProveedor = ?
+                    WHERE item_id = ? LIMIT 1`,
+                    [
+                        estadoCompra,
+                        estadoAprobacion2,
+                        estadoAprobacion2,
+                        estadoAprobacion2,
+                        estadoAprobacion2,
+                        estadoAprobacion2,
+                        id
+                    ]
+                );
+
+                // 3. Actualizar finanzas y facturación
+                await connection.query(
+                    `UPDATE cadena_suministro_finanzas_facturacion SET 
+                        estadoContabilidad = ?,
+                        estadoAprobacionAnticipo3 = ?,
+                        estadoAprobacionAnticipo4 = ?,
+                        estadoAnticipoTesoreria = ?,
+                        estadoTesoreria = ?,
+                        estadoAsociacionFactura = ?
+                    WHERE item_id = ? LIMIT 1`,
+                    [
+                        estadoAprobacion2,
+                        estadoAprobacion2,
+                        estadoAprobacion2,
+                        estadoAprobacion2,
+                        estadoAprobacion2,
+                        estadoAprobacion2,
+                        id
+                    ]
+                );
+
+                // 4. Actualizar estado general en cabecera
+                await connection.query(
+                    `UPDATE cadena_suministro_solicitud s
+                     JOIN cadena_suministro_item i ON i.solicitud_id = s.id
+                     SET s.estadoSolicitud = ?
+                     WHERE i.id = ?`,
+                    [
+                        estadoSolicitudRegistro,
+                        id
+                    ]
+                );
+
+                idsActualizados.push(id);
             }
 
-            cantidadRestanteLogistica = parseFloat(cantidadExistente) - parseFloat(cantidadEditada);
-            let estadoTrasladoLogistica = bodegasEditadas[id] !== BodegasExistentesMap[id] && parseFloat(cantidadEditada) !== 0 ? 'Pendiente' : 'No aplica';
-            estadoSolicitudRegistro = estadoSolicitudRegistro === 'Pendiente Despacho Bodega' && estadoTrasladoLogistica === 'Pendiente' ? 'Pendiente Traslado Entre Bodegas' : estadoSolicitudRegistro;
-
-            await dbRailway.query(
-                `UPDATE registros_solicitud_cadena_suministro SET 
-                fechaLogistica = ?, 
-                cedulaUsuarioLogistica = ?, 
-                nombreUsuarioLogistica = ?, 
-                disponibilidadLogistica = ?, 
-                cantidadRestanteLogistica = ?,
-                bodegaConfirmacionLogistica = ?, 
-                estadoSolicitud = ?,  
-                estadoLogistica = ?, 
-                estadoCompra = ? ,
-                estadoAprobacion2 = ?,
-                estadoAprobacion3 = ?,
-                estadoAprobacion4 = ?,
-                estadoContabilidad = ?,
-                estadoAprobacionAnticipo3 = ?,
-                estadoAprobacionAnticipo4 = ?,
-                estadoAnticipoTesoreria = ?,
-                estadoTesoreria = ?,
-                estadoEnvioOrdenCompra = ?,
-                estadoEntregaProveedor = ?,
-                estadoAsociacionFactura = ?,
-                estadoTrasladoLogistica = ?
-                WHERE id = ? LIMIT 1`,
-                [
-                    fechaColombia,
-                    usuarioToken.cedula,
-                    usuarioToken.nombre,
-                    cantidadEditada,
-                    cantidadRestanteLogistica,
-                    bodegasEditadas[id] || null,
-                    estadoSolicitudRegistro,
-                    'Realizado',
-                    estadoCompra,
-                    estadoAprobacion2,
-                    estadoAprobacion2,
-                    estadoAprobacion2,
-                    estadoAprobacion2,
-                    estadoAprobacion2,
-                    estadoAprobacion2,
-                    estadoAprobacion2,
-                    estadoAprobacion2,
-                    estadoAprobacion2,
-                    estadoAprobacion2,
-                    estadoAprobacion2,
-                    estadoTrasladoLogistica,
-                    id
-                ]
-            );
-            idsActualizados.push(id);
+            await connection.commit();
+        } catch (err) {
+            await connection.rollback();
+            throw err;
+        } finally {
+            connection.release();
         }
 
         const registrosActualizados = [];
         for (const id of idsActualizados) {
-            const [registro] = await dbRailway.query(
-                'SELECT * FROM registros_solicitud_cadena_suministro WHERE id = ?',
-                [id]
-            );
+            const registro = await getRegistrosCompletos('i.id = ?', [id]);
             if (registro.length > 0) {
                 registrosActualizados.push(registro[0]);
             }
@@ -890,7 +1364,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                 solicitudActual: registrosActualizados
             },
             tablasIdsAfectados: [{
-                tabla: 'registros_solicitud_cadena_suministro',
+                tabla: 'cadena_suministro_solicitud',
                 solicitud: id.toString()
             }],
             ipAddress: getClientIp(req),
@@ -958,10 +1432,7 @@ router.put('/comprasActualizarCampos/:id', validarToken, async (req, res) => {
             return sendError(res, 400, "ID de solicitud inválido o no proporcionado.");
         }
 
-        const [solicitudesExistentes] = await dbRailway.query(
-            'SELECT * FROM registros_solicitud_cadena_suministro WHERE solicitud = ?',
-            [id]
-        );
+        const solicitudesExistentes = await getRegistrosCompletos('s.solicitud = ?', [id]);
 
         if (!data || Object.keys(data).length === 0) {
             await registrarHistorial({
@@ -1050,7 +1521,7 @@ router.put('/comprasActualizarCampos/:id', validarToken, async (req, res) => {
             }
 
             await dbRailway.query(
-                `UPDATE registros_solicitud_cadena_suministro SET 
+                `UPDATE cadena_suministro_compras SET 
                 fechaCompra = ?, 
                 cedulaUsuarioCompras = ?, 
                 nombreUsuarioCompras = ?, 
@@ -1070,7 +1541,7 @@ router.put('/comprasActualizarCampos/:id', validarToken, async (req, res) => {
                 plazoEntrega = ?,
                 observacionCompra = ?,
                 estadoCompra = ?
-                WHERE id = ? LIMIT 1`,
+                WHERE item_id = ? LIMIT 1`,
                 [
                     fechaColombia,
                     usuarioToken.cedula,
@@ -1099,10 +1570,7 @@ router.put('/comprasActualizarCampos/:id', validarToken, async (req, res) => {
 
         const registrosActualizados = [];
         for (const id of idsActualizados) {
-            const [registro] = await dbRailway.query(
-                'SELECT * FROM registros_solicitud_cadena_suministro WHERE id = ?',
-                [id]
-            );
+            const registro = await getRegistrosCompletos('i.id = ?', [id]);
             if (registro.length > 0) {
                 registrosActualizados.push(registro[0]);
             }
@@ -1125,7 +1593,7 @@ router.put('/comprasActualizarCampos/:id', validarToken, async (req, res) => {
                 solicitudActual: registrosActualizados
             },
             tablasIdsAfectados: [{
-                tabla: 'registros_solicitud_cadena_suministro',
+                tabla: 'cadena_suministro_solicitud',
                 solicitud: id.toString()
             }],
             ipAddress: getClientIp(req),
@@ -1149,8 +1617,8 @@ router.put('/comprasActualizarCampos/:id', validarToken, async (req, res) => {
             plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
             app: 'cadenaSuministro',
             metodo: 'put',
-            endPoint: 'logisticaActualizarCantidades',
-            accion: 'Error al actualizar cantidades',
+            endPoint: 'comprasActualizarCampos',
+            accion: 'Error al actualizar campos de compra',
             detalle: 'Error interno del servidor',
             datos: {
                 error: err.message,
@@ -1270,7 +1738,7 @@ router.put('/comprasGenerarOC', validarToken, async (req, res) => {
         }
 
         const [registrosExistentes] = await dbRailway.query(
-            `SELECT id FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
+            `SELECT id FROM cadena_suministro_item WHERE id IN (?)`,
             [ids]
         );
 
@@ -1303,7 +1771,7 @@ router.put('/comprasGenerarOC', validarToken, async (req, res) => {
 
         const [ultimaOrden] = await dbRailway.query(`
             SELECT ordenCompra 
-            FROM registros_solicitud_cadena_suministro 
+            FROM cadena_suministro_compras 
             WHERE ordenCompra IS NOT NULL 
             AND ordenCompra != '' 
             AND ordenCompra LIKE ?
@@ -1328,9 +1796,11 @@ router.put('/comprasGenerarOC', validarToken, async (req, res) => {
 
         try {
             const placeholders = ids.map(() => '?').join(',');
-            const [result] = await connection.query(
+
+            // 1. Actualizar compras
+            await connection.query(
                 `
-                UPDATE registros_solicitud_cadena_suministro 
+                UPDATE cadena_suministro_compras 
                 SET 
                     fechaOrdenCompra = ?,
                     cedulaUsuarioElaboraCompra = ?,
@@ -1340,11 +1810,9 @@ router.put('/comprasGenerarOC', validarToken, async (req, res) => {
                     totalIva = ?,
                     totalOrdenCompra = ?,
                     firmaCompra = ?,
-                    estadoSolicitud = ?,
                     estadoCompra = ?,
-                    estadoFacturasTesoreria = ?,
                     estadoAprobacion2 = ?
-                WHERE id IN (${placeholders})
+                WHERE item_id IN (${placeholders})
                 `,
                 [
                     fechaOrdenCompra,
@@ -1355,20 +1823,42 @@ router.put('/comprasGenerarOC', validarToken, async (req, res) => {
                     totalIva,
                     totalOrdenCompra,
                     firma[0].firma,
-                    'Pendiente Aprobacion 2',
                     'Realizado',
                     'Pendiente',
+                    ...ids
+                ]
+            );
+
+            // 2. Actualizar finanzas y facturación
+            await connection.query(
+                `
+                UPDATE cadena_suministro_finanzas_facturacion 
+                SET estadoFacturasTesoreria = ?
+                WHERE item_id IN (${placeholders})
+                `,
+                [
                     'Pendiente',
+                    ...ids
+                ]
+            );
+
+            // 3. Actualizar estado general en cabecera
+            await connection.query(
+                `
+                UPDATE cadena_suministro_solicitud s
+                JOIN cadena_suministro_item i ON i.solicitud_id = s.id
+                SET s.estadoSolicitud = ?
+                WHERE i.id IN (${placeholders})
+                `,
+                [
+                    'Pendiente Aprobacion 2',
                     ...ids
                 ]
             );
 
             await connection.commit();
 
-            const [registrosActualizados] = await dbRailway.query(
-                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
-                [ids]
-            );
+            const registrosActualizados = await getRegistrosCompletos('i.id IN (?)', [ids]);
 
             await registrarHistorial({
                 nombreUsuario: usuarioToken.nombre || 'No registrado',
@@ -1388,10 +1878,10 @@ router.put('/comprasGenerarOC', validarToken, async (req, res) => {
                     totalIva,
                     totalOrdenCompra,
                     idsActualizados: ids,
-                    registrosAfectados: result.affectedRows
+                    registrosAfectados: ids.length
                 },
                 tablasIdsAfectados: ids.map(id => ({
-                    tabla: 'registros_solicitud_cadena_suministro',
+                    tabla: 'cadena_suministro_solicitud',
                     id: id.toString()
                 })),
                 ipAddress: getClientIp(req),
@@ -1402,7 +1892,7 @@ router.put('/comprasGenerarOC', validarToken, async (req, res) => {
                 res,
                 200,
                 `Orden de compra generada correctamente`,
-                `Se generó la orden ${nuevaOrdenCompra} para ${result.affectedRows} registro(s).`,
+                `Se generó la orden ${nuevaOrdenCompra} para ${ids.length} registro(s).`,
                 {
                     ordenCompra: nuevaOrdenCompra,
                     registrosActualizados: registrosActualizados,
@@ -1471,7 +1961,7 @@ router.put('/comprasAprobacion1/:id', validarToken, async (req, res) => {
         }
 
         const [solicitudExistente] = await dbRailway.query(
-            'SELECT * FROM registros_solicitud_cadena_suministro WHERE solicitud = ?',
+            'SELECT * FROM cadena_suministro_solicitud WHERE solicitud = ?',
             [id]
         );
 
@@ -1561,6 +2051,27 @@ router.put('/comprasAprobacion1/:id', validarToken, async (req, res) => {
             return sendError(res, 400, "Campo Obligatorio", null, { "contrasena": `La contraseña es requerida.` });
         }
 
+        if (estado === 'Rechazado' && (!observaciones || !observaciones.trim())) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'comprasAprobacion1',
+                accion: 'Actualizar aprobacion 1 fallido',
+                detalle: 'La observación es obligatoria para rechazar la solicitud.',
+                datos: { data },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Campo Obligatorio", null, { "observaciones": `La observación es obligatoria para rechazar la solicitud.` });
+        }
+
         const [firma] = await dbRailway.query(
             `SELECT * FROM firmas WHERE cedulaUsuario = ?`,
             [usuarioToken.cedula]
@@ -1615,67 +2126,65 @@ router.put('/comprasAprobacion1/:id', validarToken, async (req, res) => {
         await connection.beginTransaction();
 
         try {
-            let result;
+            let affectedRows = 0;
 
+            // 1. Actualizar aprobación del director (aprobacion 1)
+            const [aprobacionResult] = await connection.query(
+                `
+                UPDATE cadena_suministro_aprobacion_director ad
+                JOIN cadena_suministro_item i ON ad.item_id = i.id
+                JOIN cadena_suministro_solicitud s ON i.solicitud_id = s.id
+                SET 
+                    ad.fechaAprobacion1 = ?,
+                    ad.cedulaUsuarioAprobacion1 = ?,
+                    ad.nombreUsuarioAprobacion1 = ?,
+                    ad.observacionAprobacion1 = ?,
+                    ad.firmaAprobacion1 = ?,
+                    ad.estadoAprobacion1 = ?
+                WHERE s.solicitud = ?
+                `,
+                [
+                    fechaColombia,
+                    usuarioToken.cedula,
+                    usuarioToken.nombre,
+                    observaciones || null,
+                    firma[0].firma,
+                    estado,
+                    id
+                ]
+            );
+            affectedRows = aprobacionResult.affectedRows;
+
+            // 2. Si se aprueba, colocar estadoLogistica = 'Pendiente'
             if (estado === 'Aprobado') {
-                [result] = await connection.query(
+                await connection.query(
                     `
-                        UPDATE registros_solicitud_cadena_suministro 
-                        SET 
-                            fechaAprobacion1 = ?,
-                            cedulaUsuarioAprobacion1 = ?,
-                            nombreUsuarioAprobacion1 = ?,
-                            observacionAprobacion1 = ?,
-                            firmaAprobacion1 = ?,
-                            estadoAprobacion1 = ?,
-                            estadoLogistica = 'Pendiente',
-                            estadoSolicitud = 'Pendiente Logistica'
-                        WHERE solicitud = ?
+                    UPDATE cadena_suministro_logistica_despacho ld
+                    JOIN cadena_suministro_item i ON ld.item_id = i.id
+                    JOIN cadena_suministro_solicitud s ON i.solicitud_id = s.id
+                    SET ld.estadoLogistica = 'Pendiente'
+                    WHERE s.solicitud = ?
                     `,
-                    [
-                        fechaColombia,
-                        usuarioToken.cedula,
-                        usuarioToken.nombre,
-                        observaciones || null,
-                        firma[0].firma,
-                        estado,
-                        id
-                    ]
-                );
-
-            } else {
-                [result] = await connection.query(
-                    `
-                        UPDATE registros_solicitud_cadena_suministro 
-                        SET 
-                            fechaAprobacion1 = ?,
-                            cedulaUsuarioAprobacion1 = ?,
-                            nombreUsuarioAprobacion1 = ?,
-                            observacionAprobacion1 = ?,
-                            firmaAprobacion1 = ?,
-                            estadoAprobacion1 = ?,
-                            estadoSolicitud = ?
-                        WHERE solicitud = ?
-                    `,
-                    [
-                        fechaColombia,
-                        usuarioToken.cedula,
-                        usuarioToken.nombre,
-                        observaciones || null,
-                        firma[0].firma,
-                        estado,
-                        estadoSolicitud,
-                        id
-                    ]
+                    [id]
                 );
             }
 
+            // 3. Actualizar estado general en la cabecera
+            await connection.query(
+                `
+                UPDATE cadena_suministro_solicitud 
+                SET estadoSolicitud = ?
+                WHERE solicitud = ?
+                `,
+                [
+                    estadoSolicitud,
+                    id
+                ]
+            );
+
             await connection.commit();
 
-            const [registrosActualizados] = await dbRailway.query(
-                `SELECT * FROM registros_solicitud_cadena_suministro WHERE solicitud = ?`,
-                [id]
-            );
+            const registrosActualizados = await getRegistrosCompletos('s.solicitud = ?', [id]);
 
             await registrarHistorial({
                 nombreUsuario: usuarioToken.nombre || 'No registrado',
@@ -1686,7 +2195,7 @@ router.put('/comprasAprobacion1/:id', validarToken, async (req, res) => {
                 app: 'cadenaSuministro',
                 metodo: 'put',
                 endPoint: 'comprasAprobacion1',
-                accion: 'Actualizar aprobacion 1 exitoso',
+                accion: 'Actualizar aprobación 1 exitoso',
                 detalle: `Aprobación 1 actualizada para la solicitud ${id}`,
                 datos: {
                     solicitud: id,
@@ -1695,7 +2204,7 @@ router.put('/comprasAprobacion1/:id', validarToken, async (req, res) => {
                     totalRegistros: registrosActualizados.length,
                 },
                 tablasIdsAfectados: registrosActualizados.map(registro => ({
-                    tabla: 'registros_solicitud_cadena_suministro',
+                    tabla: 'cadena_suministro_solicitud',
                     id: registro.id.toString()
                 })),
                 ipAddress: getClientIp(req),
@@ -1710,7 +2219,7 @@ router.put('/comprasAprobacion1/:id', validarToken, async (req, res) => {
                 {
                     registrosActualizados: registrosActualizados,
                     solicitud: id,
-                    totalRegistrosAfectados: result.affectedRows
+                    totalRegistrosAfectados: affectedRows
                 }
             );
 
@@ -1844,7 +2353,7 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
         }
 
         const [registrosExistentes] = await dbRailway.query(
-            `SELECT id, formaPago, totalOrdenCompra FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
+            `SELECT item_id as id, formaPago, totalOrdenCompra FROM cadena_suministro_compras WHERE item_id IN (?)`,
             [ids]
         );
 
@@ -1964,7 +2473,7 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
             if (aprobacion === '2') {
                 [result] = await connection.query(
                     `
-                        UPDATE registros_solicitud_cadena_suministro 
+                        UPDATE cadena_suministro_compras 
                         SET 
                             fechaAprobacion2 = ?,
                             cedulaUsuarioAprobacion2 = ?,
@@ -1972,9 +2481,8 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
                             observacionAprobacion2 = ?,
                             firmaAprobacion2 = ?,
                             estadoAprobacion2 = ?,
-                            estadoAprobacion3 = ?,
-                            estadoSolicitud = ?
-                        WHERE id IN (${placeholders})
+                            estadoAprobacion3 = ?
+                        WHERE item_id IN (${placeholders})
                     `,
                     [
                         fechaColombia,
@@ -1984,6 +2492,18 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
                         firma[0].firma,
                         estado,
                         estadoAprobacion3,
+                        ...ids
+                    ]
+                );
+
+                await connection.query(
+                    `
+                        UPDATE cadena_suministro_solicitud s
+                        JOIN cadena_suministro_item i ON i.solicitud_id = s.id
+                        SET s.estadoSolicitud = ?
+                        WHERE i.id IN (${placeholders})
+                    `,
+                    [
                         estadoSolicitud,
                         ...ids
                     ]
@@ -1991,7 +2511,7 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
             } else if (aprobacion === '3') {
                 [result] = await connection.query(
                     `
-                    UPDATE registros_solicitud_cadena_suministro 
+                    UPDATE cadena_suministro_compras 
                     SET 
                         fechaAprobacion3 = ?,
                         cedulaUsuarioAprobacion3 = ?,
@@ -2000,15 +2520,8 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
                         firmaAprobacion3 = ?,
                         estadoAprobacion3 = ?,
                         estadoAprobacion4 = ?,
-                        estadoContabilidad = ?,
-                        estadoAprobacionAnticipo3 = ?,
-                        estadoAprobacionAnticipo4 = ?,
-                        estadoAnticipoTesoreria = ?,
-                        estadoTesoreria = ?,
-                        estadoFacturasTesoreria = ?,
-                        estadoEnvioOrdenCompra = ?,
-                        estadoSolicitud = ?
-                    WHERE id IN (${placeholders})
+                        estadoEnvioOrdenCompra = ?
+                    WHERE item_id IN (${placeholders})
                 `,
                     [
                         fechaColombia,
@@ -2018,13 +2531,42 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
                         firma[0].firma,
                         estadoAprobacion3,
                         estadoAprobacion4,
+                        estadoEnvioOrdenCompra,
+                        ...ids
+                    ]
+                );
+
+                await connection.query(
+                    `
+                    UPDATE cadena_suministro_finanzas_facturacion 
+                    SET 
+                        estadoContabilidad = ?,
+                        estadoAprobacionAnticipo3 = ?,
+                        estadoAprobacionAnticipo4 = ?,
+                        estadoAnticipoTesoreria = ?,
+                        estadoTesoreria = ?,
+                        estadoFacturasTesoreria = ?
+                    WHERE item_id IN (${placeholders})
+                `,
+                    [
                         estadoContabilidad,
                         estadoAprobacionAnticipo3,
                         estadoAprobacionAnticipo3,
                         estadoAprobacionAnticipo3,
                         estadoAprobacionAnticipo3,
                         estadoFacturasTesoreria,
-                        estadoEnvioOrdenCompra,
+                        ...ids
+                    ]
+                );
+
+                await connection.query(
+                    `
+                    UPDATE cadena_suministro_solicitud s
+                    JOIN cadena_suministro_item i ON i.solicitud_id = s.id
+                    SET s.estadoSolicitud = ?
+                    WHERE i.id IN (${placeholders})
+                `,
+                    [
                         estadoSolicitud,
                         ...ids
                     ]
@@ -2032,7 +2574,7 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
             } else if (aprobacion === '4') {
                 [result] = await connection.query(
                     `
-                    UPDATE registros_solicitud_cadena_suministro 
+                    UPDATE cadena_suministro_compras 
                     SET 
                         fechaAprobacion4 = ?,
                         cedulaUsuarioAprobacion4 = ?,
@@ -2040,15 +2582,8 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
                         observacionAprobacion4 = ?,
                         firmaAprobacion4 = ?,
                         estadoAprobacion4 = ?,
-                        estadoContabilidad = ?,
-                        estadoAprobacionAnticipo3 = ?,
-                        estadoAprobacionAnticipo4 = ?,
-                        estadoAnticipoTesoreria = ?,
-                        estadoTesoreria = ?,
-                        estadoFacturasTesoreria = ?,
-                        estadoEnvioOrdenCompra = ?,
-                        estadoSolicitud = ?,
-                    WHERE id IN (${placeholders})
+                        estadoEnvioOrdenCompra = ?
+                    WHERE item_id IN (${placeholders})
                 `,
                     [
                         fechaColombia,
@@ -2057,13 +2592,42 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
                         observaciones,
                         firma[0].firma,
                         estadoAprobacion4,
+                        estadoEnvioOrdenCompra,
+                        ...ids
+                    ]
+                );
+
+                await connection.query(
+                    `
+                    UPDATE cadena_suministro_finanzas_facturacion 
+                    SET 
+                        estadoContabilidad = ?,
+                        estadoAprobacionAnticipo3 = ?,
+                        estadoAprobacionAnticipo4 = ?,
+                        estadoAnticipoTesoreria = ?,
+                        estadoTesoreria = ?,
+                        estadoFacturasTesoreria = ?
+                    WHERE item_id IN (${placeholders})
+                `,
+                    [
                         estadoContabilidad,
                         estadoAprobacionAnticipo3,
                         estadoAprobacionAnticipo3,
                         estadoAprobacionAnticipo3,
                         estadoAprobacionAnticipo3,
                         estadoFacturasTesoreria,
-                        estadoEnvioOrdenCompra,
+                        ...ids
+                    ]
+                );
+
+                await connection.query(
+                    `
+                    UPDATE cadena_suministro_solicitud s
+                    JOIN cadena_suministro_item i ON i.solicitud_id = s.id
+                    SET s.estadoSolicitud = ?
+                    WHERE i.id IN (${placeholders})
+                `,
+                    [
                         estadoSolicitud,
                         ...ids
                     ]
@@ -2072,10 +2636,7 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
 
             await connection.commit();
 
-            const [registrosActualizados] = await dbRailway.query(
-                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
-                [ids]
-            );
+            const registrosActualizados = await getRegistrosCompletos('i.id IN (?)', [ids]);
 
             await registrarHistorial({
                 nombreUsuario: usuarioToken.nombre || 'No registrado',
@@ -2093,8 +2654,8 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
                     registrosAfectados: result.affectedRows
                 },
                 tablasIdsAfectados: ids.map(id => ({
-                    tabla: 'registros_solicitud_cadena_suministro',
-                    ids: ids.toString()
+                    tabla: 'cadena_suministro_solicitud',
+                    id: id.toString()
                 })),
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
@@ -2207,10 +2768,7 @@ router.put('/despachoMaterial',
 
             const placeholders = idsProyectos.map(() => '?').join(',');
 
-            const [solicitudesExistentes] = await dbRailway.query(
-                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (${placeholders})`,
-                idsProyectos
-            );
+            const solicitudesExistentes = await getRegistrosCompletos(`i.id IN (${placeholders})`, idsProyectos);
 
             const fechaColombia = getFechaHoraColombia()
             const driveResults = [];
@@ -2355,9 +2913,9 @@ router.put('/despachoMaterial',
                 const estadoDespachoMaterial = cantidadRestanteLogistica === 0 ? 'Realizado' : 'Parcial';
                 const estadoSolicitud = cantidadRestanteLogistica === 0 ? 'Material Despachado' : 'Pendiente Despacho Bodega';
 
-                const [result] = await connection.query(
+                await connection.query(
                     `
-                        UPDATE registros_solicitud_cadena_suministro 
+                        UPDATE cadena_suministro_logistica_despacho 
                         SET 
                             fechaDespachoMaterial = ?,
                             cedulaUsuarioDespachoMaterial = ?,
@@ -2365,9 +2923,8 @@ router.put('/despachoMaterial',
                             cantidadDespachadaMaterial = ?,
                             pdfsDespachoMaterial = ?,
                             observacionDespachoMaterial = ?,
-                            estadoDespachoMaterial = ?,
-                            estadoSolicitud = ?
-                        WHERE id = ?
+                            estadoDespachoMaterial = ?
+                        WHERE item_id = ?
                     `,
                     [
                         fechaColombia,
@@ -2377,6 +2934,18 @@ router.put('/despachoMaterial',
                         pdfsJsonParaBD,
                         editadosDespachoMaterial['observaciones'],
                         estadoDespachoMaterial,
+                        id
+                    ]
+                );
+
+                await connection.query(
+                    `
+                        UPDATE cadena_suministro_solicitud s
+                        JOIN cadena_suministro_item i ON i.solicitud_id = s.id
+                        SET s.estadoSolicitud = ?
+                        WHERE i.id = ?
+                    `,
+                    [
                         estadoSolicitud,
                         id
                     ]
@@ -2388,10 +2957,7 @@ router.put('/despachoMaterial',
             await connection.commit();
             connection.release();
 
-            const [registrosActualizados] = await dbRailway.query(
-                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
-                [idsProyectos]
-            );
+            const registrosActualizados = await getRegistrosCompletos('i.id IN (?)', [idsProyectos]);
 
             await registrarHistorial({
                 nombreUsuario: usuarioToken.nombre || 'No registrado',
@@ -2409,8 +2975,8 @@ router.put('/despachoMaterial',
                     registrosAfectados: idsActualizados.length
                 },
                 tablasIdsAfectados: idsActualizados.map(id => ({
-                    tabla: 'registros_solicitud_cadena_suministro',
-                    ids: id.toString()
+                    tabla: 'cadena_suministro_solicitud',
+                    id: id.toString()
                 })),
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
@@ -2665,10 +3231,7 @@ router.put('/tesoreria', validarToken,
                 return sendError(res, 400, "Registro no permitido: Contraseña actual incorrecta.", null, { "contrasena": `La contraseña actual proporcionada no coincide con la registrada.` });
             }
 
-            const [registrosExistentes] = await dbRailway.query(
-                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
-                [ids]
-            );
+            const registrosExistentes = await getRegistrosCompletos('i.id IN (?)', [ids]);
 
             const idsExistentes = registrosExistentes.map(r => r.id);
             const idsNoExistentes = ids.filter(id => !idsExistentes.includes(id));
@@ -2782,7 +3345,7 @@ router.put('/tesoreria', validarToken,
                 if (accion === 'factura') {
                     [result] = await connection.query(
                         `
-                            UPDATE registros_solicitud_cadena_suministro 
+                            UPDATE cadena_suministro_finanzas_facturacion 
                             SET 
                                 fechaTesoreria = ?,
                                 cedulaUsuarioTesoreria = ?,
@@ -2791,7 +3354,7 @@ router.put('/tesoreria', validarToken,
                                 firmaTesoreria = ?,
                                 pdfsTesoreria = ?,
                                 estadoFacturasTesoreria = 'Realizado'
-                            WHERE id IN (${placeholders})
+                            WHERE item_id IN (${placeholders})
                         `,
                         [
                             fechaColombia,
@@ -2806,7 +3369,7 @@ router.put('/tesoreria', validarToken,
                 } else if (accion === 'anticipo') {
                     [result] = await connection.query(
                         `
-                            UPDATE registros_solicitud_cadena_suministro 
+                            UPDATE cadena_suministro_finanzas_facturacion 
                             SET 
                                 fechaAnticipoTesoreria = ?,
                                 cedulaUsuarioAnticipoTesoreria = ?,
@@ -2815,10 +3378,8 @@ router.put('/tesoreria', validarToken,
                                 firmaAnticipoTesoreria = ?,
                                 pdfsAnticipoTesoreria = ?,
                                 estadoAnticipoTesoreria = 'Realizado',
-                                estadoTesoreria = 'Realizado',
-                                estadoEnvioOrdenCompra = 'Pendiente',
-                                estadoSolicitud = 'Pendiente Envio Orden de Compra'
-                            WHERE id IN (${placeholders})
+                                estadoTesoreria = 'Realizado'
+                            WHERE item_id IN (${placeholders})
                         `,
                         [
                             fechaColombia,
@@ -2830,14 +3391,31 @@ router.put('/tesoreria', validarToken,
                             ...ids
                         ]
                     );
+
+                    await connection.query(
+                        `
+                            UPDATE cadena_suministro_compras 
+                            SET 
+                                estadoEnvioOrdenCompra = 'Pendiente'
+                            WHERE item_id IN (${placeholders})
+                        `,
+                        ids
+                    );
+
+                    await connection.query(
+                        `
+                            UPDATE cadena_suministro_solicitud s
+                            JOIN cadena_suministro_item i ON i.solicitud_id = s.id
+                            SET s.estadoSolicitud = 'Pendiente Envio Orden de Compra'
+                            WHERE i.id IN (${placeholders})
+                        `,
+                        ids
+                    );
                 }
 
                 await connection.commit();
 
-                const [registrosActualizados] = await dbRailway.query(
-                    `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
-                    [ids]
-                );
+                const registrosActualizados = await getRegistrosCompletos('i.id IN (?)', [ids]);
 
                 await registrarHistorial({
                     nombreUsuario: usuarioToken.nombre || 'No registrado',
@@ -2855,8 +3433,8 @@ router.put('/tesoreria', validarToken,
                         registrosAfectados: result.affectedRows
                     },
                     tablasIdsAfectados: ids.map(id => ({
-                        tabla: 'registros_solicitud_cadena_suministro',
-                        ids: ids.toString()
+                        tabla: 'cadena_suministro_solicitud',
+                        id: id.toString()
                     })),
                     ipAddress: getClientIp(req),
                     userAgent: req.headers['user-agent'] || ''
@@ -2970,10 +3548,7 @@ router.put('/entregaProveedor',
 
             const placeholders = idsProyectos.map(() => '?').join(',');
 
-            const [solicitudesExistentes] = await dbRailway.query(
-                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (${placeholders})`,
-                idsProyectos
-            );
+            const solicitudesExistentes = await getRegistrosCompletos(`i.id IN (${placeholders})`, idsProyectos);
 
             const fechaColombia = getFechaHoraColombia()
             const driveResults = [];
@@ -3099,9 +3674,9 @@ router.put('/entregaProveedor',
                 const estadoSolicitud = cantidadRestanteLogistica === 0 || cantidadRestanteLogistica < 0 ? (solicitud.estadoTrasladoLogistica === 'Pendiente' || solicitud.estadoTrasladoLogistica === 'En Transito' ? 'Pendiente Traslado Entre Bodegas' : 'Pendiente Despacho Bodega') : 'Pendiente Entrega Proveedor';
                 const estadoAsociacionFactura = estadoEntregaProveedor === 'Realizado' ? 'Pendiente' : null;
 
-                const [result] = await connection.query(
+                await connection.query(
                     `
-                        UPDATE registros_solicitud_cadena_suministro 
+                        UPDATE cadena_suministro_compras 
                         SET 
                             fechaEntregaProveedor = ?,
                             cedulaUsuarioEntregaProveedor = ?,
@@ -3109,11 +3684,8 @@ router.put('/entregaProveedor',
                             cantidadEntregaProveedor = ?,
                             pdfsEntregaProveedor = ?,
                             observacionEntregaProveedor = ?,
-                            estadoEntregaProveedor = ?,
-                            estadoDespachoMaterial = ?,
-                            estadoAsociacionFactura = ?,
-                            estadoSolicitud = ?
-                        WHERE id = ?
+                            estadoEntregaProveedor = ?
+                        WHERE item_id = ?
                     `,
                     [
                         fechaColombia,
@@ -3123,8 +3695,44 @@ router.put('/entregaProveedor',
                         pdfsJsonParaBD,
                         editadosEntregaProveedor['observaciones'],
                         estadoEntregaProveedor,
+                        id
+                    ]
+                );
+
+                await connection.query(
+                    `
+                        UPDATE cadena_suministro_logistica_despacho 
+                        SET 
+                            estadoDespachoMaterial = ?
+                        WHERE item_id = ?
+                    `,
+                    [
                         estadoDespachoMaterial,
+                        id
+                    ]
+                );
+
+                await connection.query(
+                    `
+                        UPDATE cadena_suministro_finanzas_facturacion 
+                        SET 
+                            estadoAsociacionFactura = ?
+                        WHERE item_id = ?
+                    `,
+                    [
                         estadoAsociacionFactura,
+                        id
+                    ]
+                );
+
+                await connection.query(
+                    `
+                        UPDATE cadena_suministro_solicitud s
+                        JOIN cadena_suministro_item i ON i.solicitud_id = s.id
+                        SET s.estadoSolicitud = ?
+                        WHERE i.id = ?
+                    `,
+                    [
                         estadoSolicitud,
                         id
                     ]
@@ -3136,10 +3744,7 @@ router.put('/entregaProveedor',
             await connection.commit();
             connection.release();
 
-            const [registrosActualizados] = await dbRailway.query(
-                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
-                [idsProyectos]
-            );
+            const registrosActualizados = await getRegistrosCompletos('i.id IN (?)', [idsProyectos]);
 
             await registrarHistorial({
                 nombreUsuario: usuarioToken.nombre || 'No registrado',
@@ -3157,8 +3762,8 @@ router.put('/entregaProveedor',
                     registrosAfectados: idsActualizados.length
                 },
                 tablasIdsAfectados: idsActualizados.map(id => ({
-                    tabla: 'registros_solicitud_cadena_suministro',
-                    ids: id.toString()
+                    tabla: 'cadena_suministro_solicitud',
+                    id: id.toString()
                 })),
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
@@ -3251,10 +3856,7 @@ router.put('/enviarAProveedor', validarToken, async (req, res) => {
             return sendError(res, 400, "Array de IDs son requeridos");
         }
 
-        const [registrosExistentes] = await dbRailway.query(
-            `SELECT id FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
-            [ids]
-        );
+        const registrosExistentes = await getRegistrosCompletos('i.id IN (?)', [ids]);
 
         const idsExistentes = registrosExistentes.map(r => r.id);
         const idsNoExistentes = ids.filter(id => !idsExistentes.includes(id));
@@ -3291,16 +3893,15 @@ router.put('/enviarAProveedor', validarToken, async (req, res) => {
 
             [result] = await connection.query(
                 `
-                    UPDATE registros_solicitud_cadena_suministro 
+                    UPDATE cadena_suministro_compras 
                     SET 
                         fechaEnvioOrdenCompra = ?,
                         cedulaUsuarioEnvioOrdenCompra = ?,
                         nombreUsuarioEnvioOrdenCompra = ?,
                         envioDeCorreoEnvioOrdenCompra = 'Pendiente',
                         estadoEnvioOrdenCompra = 'Realizado',
-                        estadoEntregaProveedor = 'Pendiente',
-                        estadoSolicitud = 'Pendiente Entrega Proveedor'
-                    WHERE id IN (${placeholders})
+                        estadoEntregaProveedor = 'Pendiente'
+                    WHERE item_id IN (${placeholders})
                 `,
                 [
                     fechaColombia,
@@ -3310,12 +3911,19 @@ router.put('/enviarAProveedor', validarToken, async (req, res) => {
                 ]
             );
 
+            await connection.query(
+                `
+                    UPDATE cadena_suministro_solicitud s
+                    JOIN cadena_suministro_item i ON i.solicitud_id = s.id
+                    SET s.estadoSolicitud = 'Pendiente Entrega Proveedor'
+                    WHERE i.id IN (${placeholders})
+                `,
+                ids
+            );
+
             await connection.commit();
 
-            const [registrosActualizados] = await dbRailway.query(
-                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
-                [ids]
-            );
+            const registrosActualizados = await getRegistrosCompletos('i.id IN (?)', [ids]);
 
             await registrarHistorial({
                 nombreUsuario: usuarioToken.nombre || 'No registrado',
@@ -3333,8 +3941,8 @@ router.put('/enviarAProveedor', validarToken, async (req, res) => {
                     registrosAfectados: result.affectedRows
                 },
                 tablasIdsAfectados: ids.map(id => ({
-                    tabla: 'registros_solicitud_cadena_suministro',
-                    ids: ids.toString()
+                    tabla: 'cadena_suministro_solicitud',
+                    id: id.toString()
                 })),
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
@@ -3433,10 +4041,7 @@ router.put('/contabilidad', validarToken, async (req, res) => {
             return sendError(res, 400, "Los datos de retenciones son necesarios.");
         }
 
-        const [registrosExistentes] = await dbRailway.query(
-            `SELECT id FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
-            [ids]
-        );
+        const registrosExistentes = await getRegistrosCompletos('i.id IN (?)', [ids]);
 
         const idsExistentes = registrosExistentes.map(r => r.id);
         const idsNoExistentes = ids.filter(id => !idsExistentes.includes(id));
@@ -3473,7 +4078,7 @@ router.put('/contabilidad', validarToken, async (req, res) => {
 
             [result] = await connection.query(
                 `
-                    UPDATE registros_solicitud_cadena_suministro 
+                    UPDATE cadena_suministro_finanzas_facturacion 
                     SET 
                         fechaContabilidad = ?,
                         cedulaUsuarioContabilidad = ?,
@@ -3484,9 +4089,8 @@ router.put('/contabilidad', validarToken, async (req, res) => {
                         totalPagarContabilidad = ?,
                         observacionContabilidad = ?,
                         estadoContabilidad = 'Realizado',
-                        estadoAprobacionAnticipo3 = 'Pendiente',
-                        estadoSolicitud = 'Pendiente Aprobacion 3 Anticipo'
-                    WHERE id IN (${placeholders})
+                        estadoAprobacionAnticipo3 = 'Pendiente'
+                    WHERE item_id IN (${placeholders})
                 `,
                 [
                     fechaColombia,
@@ -3501,12 +4105,19 @@ router.put('/contabilidad', validarToken, async (req, res) => {
                 ]
             );
 
+            await connection.query(
+                `
+                    UPDATE cadena_suministro_solicitud s
+                    JOIN cadena_suministro_item i ON i.solicitud_id = s.id
+                    SET s.estadoSolicitud = 'Pendiente Aprobacion 3 Anticipo'
+                    WHERE i.id IN (${placeholders})
+                `,
+                ids
+            );
+
             await connection.commit();
 
-            const [registrosActualizados] = await dbRailway.query(
-                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
-                [ids]
-            );
+            const registrosActualizados = await getRegistrosCompletos('i.id IN (?)', [ids]);
 
             await registrarHistorial({
                 nombreUsuario: usuarioToken.nombre || 'No registrado',
@@ -3524,8 +4135,8 @@ router.put('/contabilidad', validarToken, async (req, res) => {
                     registrosAfectados: result.affectedRows
                 },
                 tablasIdsAfectados: ids.map(id => ({
-                    tabla: 'registros_solicitud_cadena_suministro',
-                    ids: ids.toString()
+                    tabla: 'cadena_suministro_solicitud',
+                    id: id.toString()
                 })),
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
@@ -3672,7 +4283,7 @@ router.put('/contabilidadAprobacion', validarToken, async (req, res) => {
         }
 
         const [registrosExistentes] = await dbRailway.query(
-            `SELECT id FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
+            `SELECT item_id as id, totalOrdenCompra FROM cadena_suministro_compras WHERE item_id IN (?)`,
             [ids]
         );
 
@@ -3770,7 +4381,7 @@ router.put('/contabilidadAprobacion', validarToken, async (req, res) => {
             if (nivel === '3') {
                 [result] = await connection.query(
                     `
-                        UPDATE registros_solicitud_cadena_suministro 
+                        UPDATE cadena_suministro_finanzas_facturacion 
                         SET 
                             fechaAprobacionAnticipo3 = ?,
                             cedulaUsuarioAprobacionAnticipo3 = ?,
@@ -3779,9 +4390,8 @@ router.put('/contabilidadAprobacion', validarToken, async (req, res) => {
                             firmaAprobacionAnticipo3 = ?,
                             estadoAprobacionAnticipo3 = ?,
                             estadoAprobacionAnticipo4 = ?,
-                            estadoTesoreria = ?,
-                            estadoSolicitud = ?
-                        WHERE id IN (${placeholders})
+                            estadoTesoreria = ?
+                        WHERE item_id IN (${placeholders})
                     `,
                     [
                         fechaColombia,
@@ -3792,6 +4402,18 @@ router.put('/contabilidadAprobacion', validarToken, async (req, res) => {
                         estadoAprobacionAnticipo3Temp,
                         estadoAprobacionAnticipo4Temp,
                         estadoTesoreriaTemp,
+                        ...ids
+                    ]
+                );
+
+                await connection.query(
+                    `
+                        UPDATE cadena_suministro_solicitud s
+                        JOIN cadena_suministro_item i ON i.solicitud_id = s.id
+                        SET s.estadoSolicitud = ?
+                        WHERE i.id IN (${placeholders})
+                    `,
+                    [
                         estadoSolicitud,
                         ...ids
                     ]
@@ -3799,7 +4421,7 @@ router.put('/contabilidadAprobacion', validarToken, async (req, res) => {
             } else if (nivel === '4') {
                 [result] = await connection.query(
                     `
-                    UPDATE registros_solicitud_cadena_suministro 
+                    UPDATE cadena_suministro_finanzas_facturacion 
                     SET 
                         fechaAprobacionAnticipo4 = ?,
                         cedulaUsuarioAprobacionAnticipo4 = ?,
@@ -3807,9 +4429,8 @@ router.put('/contabilidadAprobacion', validarToken, async (req, res) => {
                         observacionAprobacionAnticipo4 = ?,
                         firmaAprobacionAnticipo4 = ?,
                         estadoAprobacionAnticipo4 = ?,
-                        estadoTesoreria = ?,
-                        estadoSolicitud = ?
-                    WHERE id IN (${placeholders})
+                        estadoTesoreria = ?
+                    WHERE item_id IN (${placeholders})
                 `,
                     [
                         fechaColombia,
@@ -3819,6 +4440,18 @@ router.put('/contabilidadAprobacion', validarToken, async (req, res) => {
                         firma[0].firma,
                         estadoAprobacionAnticipo4Temp,
                         estadoTesoreriaTemp,
+                        ...ids
+                    ]
+                );
+
+                await connection.query(
+                    `
+                        UPDATE cadena_suministro_solicitud s
+                        JOIN cadena_suministro_item i ON i.solicitud_id = s.id
+                        SET s.estadoSolicitud = ?
+                        WHERE i.id IN (${placeholders})
+                    `,
+                    [
                         estadoSolicitud,
                         ...ids
                     ]
@@ -3827,10 +4460,7 @@ router.put('/contabilidadAprobacion', validarToken, async (req, res) => {
 
             await connection.commit();
 
-            const [registrosActualizados] = await dbRailway.query(
-                `SELECT * FROM registros_solicitud_cadena_suministro WHERE id IN (?)`,
-                [ids]
-            );
+            const registrosActualizados = await getRegistrosCompletos('i.id IN (?)', [ids]);
 
             await registrarHistorial({
                 nombreUsuario: usuarioToken.nombre || 'No registrado',
@@ -3848,8 +4478,8 @@ router.put('/contabilidadAprobacion', validarToken, async (req, res) => {
                     registrosAfectados: result.affectedRows
                 },
                 tablasIdsAfectados: ids.map(id => ({
-                    tabla: 'registros_solicitud_cadena_suministro',
-                    ids: ids.toString()
+                    tabla: 'cadena_suministro_solicitud',
+                    id: id.toString()
                 })),
                 ipAddress: getClientIp(req),
                 userAgent: req.headers['user-agent'] || ''
@@ -4417,7 +5047,7 @@ router.put('/asociarFactura', validarToken, async (req, res) => {
         const consecutivoFacturasFormateado = consecutivoFacturas.trim();
 
         const [consecutivoAsociado] = await dbRailway.query(
-            `SELECT id FROM registros_solicitud_cadena_suministro WHERE consecutivoAsociacionFactura = ? LIMIT 1`,
+            `SELECT id FROM cadena_suministro_finanzas_facturacion WHERE consecutivoAsociacionFactura = ? LIMIT 1`,
             [consecutivoFacturasFormateado]
         );
 
@@ -4443,7 +5073,7 @@ router.put('/asociarFactura', validarToken, async (req, res) => {
         }
 
         const [ordenCompraAsociado] = await dbRailway.query(
-            `SELECT id FROM registros_solicitud_cadena_suministro WHERE ordenCompra = ?`,
+            `SELECT item_id as id FROM cadena_suministro_compras WHERE ordenCompra = ?`,
             [ordenCompra]
         );
 
@@ -4474,62 +5104,69 @@ router.put('/asociarFactura', validarToken, async (req, res) => {
         const connection = await dbRailway.getConnection();
         await connection.beginTransaction();
 
-        const [result] = await connection.query(
-            `
-                UPDATE registros_solicitud_cadena_suministro 
-                SET 
-                    fechaAsociacionFactura = ?,
-                    cedulaUsuarioAsociacionFactura = ?,
-                    nombreUsuarioAsociacionFactura = ?,
-                    consecutivoAsociacionFactura = ?,
-                    estadoAsociacionFactura = 'En Revision'
-                WHERE id IN (${placeholders})
-            `,
-            [
-                fechaColombia,
-                usuarioToken.cedula,
-                usuarioToken.nombre,
-                consecutivoFacturasFormateado,
-                ...ids
-            ]
-        );
+        try {
+            const [result] = await connection.query(
+                `
+                    UPDATE cadena_suministro_finanzas_facturacion 
+                    SET 
+                        fechaAsociacionFactura = ?,
+                        cedulaUsuarioAsociacionFactura = ?,
+                        nombreUsuarioAsociacionFactura = ?,
+                        consecutivoAsociacionFactura = ?,
+                        estadoAsociacionFactura = 'En Revision'
+                    WHERE item_id IN (${placeholders})
+                `,
+                [
+                    fechaColombia,
+                    usuarioToken.cedula,
+                    usuarioToken.nombre,
+                    consecutivoFacturasFormateado,
+                    ...ids
+                ]
+            );
 
-        await connection.commit();
+            await connection.commit();
 
-        await registrarHistorial({
-            nombreUsuario: usuarioToken.nombre || 'No registrado',
-            cedulaUsuario: usuarioToken.cedula || 'No registrado',
-            rolUsuario: usuarioToken.rol || 'No registrado',
-            nivel: 'success',
-            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
-            app: 'cadenaSuministro',
-            metodo: 'put',
-            endPoint: 'asociarFactura',
-            accion: 'Asociar factura exitosa',
-            detalle: `Se asoció la factura con el consecutivo ${consecutivoFacturasFormateado} a ${result.affectedRows} registros.`,
-            datos: {
-                ids: ids,
-                consecutivoFacturas: consecutivoFacturasFormateado
-            },
-            tablasIdsAfectados: ids.map(id => ({
-                tabla: 'registros_solicitud_cadena_suministro',
-                id: id
-            })),
-            ipAddress: getClientIp(req),
-            userAgent: req.headers['user-agent'] || ''
-        });
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'success',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'cadenaSuministro',
+                metodo: 'put',
+                endPoint: 'asociarFactura',
+                accion: 'Asociar factura exitosa',
+                detalle: `Se asoció la factura con el consecutivo ${consecutivoFacturasFormateado} a ${result.affectedRows} registros.`,
+                datos: {
+                    ids: ids,
+                    consecutivoFacturas: consecutivoFacturasFormateado
+                },
+                tablasIdsAfectados: ids.map(id => ({
+                    tabla: 'cadena_suministro_solicitud',
+                    id: id.toString()
+                })),
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
 
-        return sendResponse(
-            res,
-            200,
-            "Factura asociada exitosamente",
-            `Se asoció la factura con el consecutivo ${consecutivoFacturasFormateado} a ${result.affectedRows} registros.`,
-            {
-                registrosActualizados: result.affectedRows,
-                ids: ids,
-                consecutivoFacturas: consecutivoFacturasFormateado
-            }
-        );
+            return sendResponse(
+                res,
+                200,
+                "Factura asociada exitosamente",
+                `Se asoció la factura con el consecutivo ${consecutivoFacturasFormateado} a ${result.affectedRows} registros.`,
+                {
+                    registrosActualizados: result.affectedRows,
+                    ids: ids,
+                    consecutivoFacturas: consecutivoFacturasFormateado
+                }
+            );
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
 
     } catch (err) {
         await registrarHistorial({
@@ -4613,10 +5250,7 @@ router.put('/revisionManual',
                 return sendError(res, 400, "Formato de IDs inválido.");
             }
 
-            const [registrosBase] = await dbRailway.query(
-                `SELECT consecutivoAsociacionFactura, ordenCompra FROM registros_solicitud_cadena_suministro WHERE id = ? LIMIT 1`,
-                [parsedIds[0]]
-            );
+            const registrosBase = await getRegistrosCompletos('i.id = ?', [parsedIds[0]]);
 
             if (registrosBase.length === 0) {
                 return sendError(res, 404, "No se encontró el registro base para procesar la revisión.");
@@ -4654,7 +5288,7 @@ router.put('/revisionManual',
                 const placeholders = parsedIds.map(() => '?').join(',');
 
                 const [result] = await connection.query(
-                    `UPDATE registros_solicitud_cadena_suministro 
+                    `UPDATE cadena_suministro_finanzas_facturacion 
                      SET 
                         fechaRevisionFactura = ?,
                         cedulaUsuarioRevisionFactura = ?,
@@ -4662,7 +5296,7 @@ router.put('/revisionManual',
                         pdfsRevisionFactura = ?,
                         observacionRevisionFactura = ?,
                         estadoAsociacionFactura = 'Realizado'
-                     WHERE id IN (${placeholders})`,
+                     WHERE item_id IN (${placeholders})`,
                     [
                         fechaColombia,
                         usuarioToken.cedula,
@@ -4691,8 +5325,8 @@ router.put('/revisionManual',
                         archivo: driveResult
                     },
                     tablasIdsAfectados: parsedIds.map(id => ({
-                        tabla: 'registros_solicitud_cadena_suministro',
-                        id: id
+                        tabla: 'cadena_suministro_solicitud',
+                        id: id.toString()
                     })),
                     ipAddress: getClientIp(req),
                     userAgent: req.headers['user-agent'] || ''
@@ -4933,7 +5567,16 @@ router.put('/trasladoPendiente',
             }
 
             const [solicitudesExistentes] = await dbRailway.query(
-                `SELECT id, codigo, descripcion, disponibilidadLogistica, solicitud FROM registros_solicitud_cadena_suministro WHERE solicitud IN (?) AND estadoTrasladoLogistica = 'Pendiente'`,
+                `SELECT 
+                    i.id as id, 
+                    i.codigo as codigo, 
+                    i.descripcion as descripcion, 
+                    ld.disponibilidadLogistica as disponibilidadLogistica, 
+                    s.solicitud as solicitud 
+                 FROM cadena_suministro_item i
+                 JOIN cadena_suministro_solicitud s ON i.solicitud_id = s.id
+                 JOIN cadena_suministro_logistica_despacho ld ON i.id = ld.item_id
+                 WHERE s.solicitud IN (?) AND ld.estadoTrasladoLogistica = 'Pendiente'`,
                 [solicitudesAfectadas]
             );
 
@@ -5034,13 +5677,13 @@ router.put('/trasladoPendiente',
 
             try {
                 const [maxConsecutivoRows] = await connection.query(
-                    'SELECT MAX(consecutivoTrasladoLogistica) as maxConsecutivo FROM registros_solicitud_cadena_suministro'
+                    'SELECT MAX(CAST(consecutivoTrasladoLogistica AS UNSIGNED)) as maxConsecutivo FROM cadena_suministro_logistica_despacho'
                 );
                 const nuevoConsecutivo = Number(maxConsecutivoRows[0].maxConsecutivo || 0) + 1;
 
                 for (const id of idsAActualizar) {
                     await connection.query(
-                        `UPDATE registros_solicitud_cadena_suministro 
+                        `UPDATE cadena_suministro_logistica_despacho 
                          SET 
                             consecutivoTrasladoLogistica = ?,
                             fechaTrasladoSalidaLogistica = ?,
@@ -5050,7 +5693,7 @@ router.put('/trasladoPendiente',
                             pdfsTrasladoSalidaLogistica = ?,
                             observacionTrasladoSalidaLogistica = ?,
                             estadoTrasladoLogistica = 'En Transito'
-                         WHERE id = ?`,
+                         WHERE item_id = ?`,
                         [
                             nuevoConsecutivo,
                             fechaColombia,
@@ -5088,7 +5731,7 @@ router.put('/trasladoPendiente',
                     totalPDFs: driveResults.length
                 },
                 tablasIdsAfectados: solicitudesAfectadas.map(id => ({
-                    tabla: 'registros_solicitud_cadena_suministro',
+                    tabla: 'cadena_suministro_solicitud',
                     id: id.toString()
                 })),
                 ipAddress: getClientIp(req),
@@ -5191,7 +5834,17 @@ router.put('/trasladoEnTransito',
             }
 
             const [solicitudesExistentes] = await dbRailway.query(
-                `SELECT id, codigo, descripcion, cantidadTrasladoSalidaLogistica, solicitud, estadoSolicitud FROM registros_solicitud_cadena_suministro WHERE solicitud IN (?) AND estadoTrasladoLogistica = 'En Transito'`,
+                `SELECT 
+                    i.id as id, 
+                    i.codigo as codigo, 
+                    i.descripcion as descripcion, 
+                    ld.cantidadTrasladoSalidaLogistica as cantidadTrasladoSalidaLogistica, 
+                    s.solicitud as solicitud, 
+                    s.estadoSolicitud as estadoSolicitud 
+                 FROM cadena_suministro_item i
+                 JOIN cadena_suministro_solicitud s ON i.solicitud_id = s.id
+                 JOIN cadena_suministro_logistica_despacho ld ON i.id = ld.item_id
+                 WHERE s.solicitud IN (?) AND ld.estadoTrasladoLogistica = 'En Transito'`,
                 [solicitudesAfectadas]
             );
 
@@ -5294,7 +5947,7 @@ router.put('/trasladoEnTransito',
                 for (const id of idsAActualizar) {
                     const solicitudData = solicitudesExistentes.find((sol) => sol.id === id);
                     await connection.query(
-                        `UPDATE registros_solicitud_cadena_suministro 
+                        `UPDATE cadena_suministro_logistica_despacho 
                          SET 
                             fechaTrasladoEntradaLogistica = ?,
                             cedulaUsuarioTrasladoEntradaLogistica = ?,
@@ -5302,9 +5955,8 @@ router.put('/trasladoEnTransito',
                             cantidadTrasladoEntradaLogistica = ?,
                             pdfsTrasladoEntradaLogistica = ?,
                             observacionTrasladoEntradaLogistica = ?,
-                            estadoTrasladoLogistica = 'Realizado',
-                            estadoSolicitud = ?
-                         WHERE id = ?`,
+                            estadoTrasladoLogistica = 'Realizado'
+                         WHERE item_id = ?`,
                         [
                             fechaColombia,
                             usuarioToken.cedula,
@@ -5312,10 +5964,40 @@ router.put('/trasladoEnTransito',
                             solicitudData.cantidadTrasladoSalidaLogistica,
                             driveResultsJSON,
                             observaciones || null,
-                            solicitudData.estadoSolicitud === 'Pendiente Traslado Entre Bodegas' ? 'Pendiente Despacho Bodega' : solicitudData.estadoSolicitud,
                             id
                         ]
                     );
+
+                    // Check if there are other items in the same request that are still in transit or pending transit
+                    const [transitCheck] = await connection.query(
+                        `SELECT COUNT(*) as count 
+                         FROM cadena_suministro_item i
+                         JOIN cadena_suministro_logistica_despacho ld ON i.id = ld.item_id
+                         WHERE i.solicitud_id = (SELECT solicitud_id FROM cadena_suministro_item WHERE id = ? LIMIT 1)
+                           AND ld.estadoTrasladoLogistica IN ('En Transito', 'Pendiente')`,
+                        [id]
+                    );
+                    const pendingCount = transitCheck[0]?.count || 0;
+
+                    if (pendingCount === 0) {
+                        const [[reqStatus]] = await connection.query(
+                            `SELECT s.estadoSolicitud 
+                             FROM cadena_suministro_solicitud s
+                             JOIN cadena_suministro_item i ON i.solicitud_id = s.id
+                             WHERE i.id = ? LIMIT 1`,
+                            [id]
+                        );
+                        
+                        if (reqStatus && reqStatus.estadoSolicitud === 'Pendiente Traslado Entre Bodegas') {
+                            await connection.query(
+                                `UPDATE cadena_suministro_solicitud s
+                                 JOIN cadena_suministro_item i ON i.solicitud_id = s.id
+                                 SET s.estadoSolicitud = 'Pendiente Despacho Bodega'
+                                 WHERE i.id = ?`,
+                                [id]
+                            );
+                        }
+                    }
                 }
 
                 await connection.commit();
@@ -5342,7 +6024,7 @@ router.put('/trasladoEnTransito',
                     totalPDFs: driveResults.length
                 },
                 tablasIdsAfectados: solicitudesAfectadas.map(id => ({
-                    tabla: 'registros_solicitud_cadena_suministro',
+                    tabla: 'cadena_suministro_solicitud',
                     id: id.toString()
                 })),
                 ipAddress: getClientIp(req),
