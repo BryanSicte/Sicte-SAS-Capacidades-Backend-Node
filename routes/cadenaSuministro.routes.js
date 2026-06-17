@@ -241,6 +241,168 @@ async function initDatabase() {
 // Run DB init
 initDatabase();
 
+// Funciones de utilidad para recalcular el estado de la solicitud en base al estado de sus ítems
+async function recalcularYActualizarEstadoSolicitud(solicitudId, connectionOrDb) {
+    const db = connectionOrDb || dbRailway;
+    const [items] = await db.query(`
+        SELECT 
+          ad.estadoAprobacion1,
+          ld.estadoLogistica,
+          ld.estadoTrasladoLogistica,
+          ld.estadoDespachoMaterial,
+          c.estadoCompra,
+          c.estadoAprobacion2,
+          c.estadoAprobacion3,
+          c.estadoAprobacion4,
+          c.estadoEnvioOrdenCompra,
+          c.estadoEntregaProveedor,
+          ff.estadoContabilidad,
+          ff.estadoAprobacionAnticipo3,
+          ff.estadoAprobacionAnticipo4,
+          ff.estadoAnticipoTesoreria,
+          ff.estadoTesoreria,
+          ff.estadoAsociacionFactura
+        FROM cadena_suministro_item i
+        LEFT JOIN cadena_suministro_aprobacion_director ad ON i.id = ad.item_id
+        LEFT JOIN cadena_suministro_logistica_despacho ld ON i.id = ld.item_id
+        LEFT JOIN cadena_suministro_compras c ON i.id = c.item_id
+        LEFT JOIN cadena_suministro_finanzas_facturacion ff ON i.id = ff.item_id
+        WHERE i.solicitud_id = ?
+    `, [solicitudId]);
+
+    if (!items || items.length === 0) return;
+
+    const prioridadEstados = {
+        'Pendiente Aprobacion 1': 1,
+        'Pendiente Logistica': 2,
+        'Pendiente Compras': 3,
+        'Pendiente Aprobacion 2': 4,
+        'Pendiente Aprobacion 3': 5,
+        'Pendiente Aprobacion 4': 6,
+        'Pendiente Contabilidad': 7,
+        'Pendiente Aprobacion 3 Anticipo': 8,
+        'Pendiente Aprobacion 4 Anticipo': 9,
+        'Pendiente Tesoreria': 10,
+        'Pendiente Envio Orden de Compra': 11,
+        'Pendiente Entrega Proveedor': 12,
+        'Pendiente Traslado Entre Bodegas': 13,
+        'Pendiente Despacho Bodega': 14,
+        'Rechazado': 15
+    };
+
+    let activeStates = new Set();
+
+    for (const item of items) {
+        if (item.estadoAprobacion1 === 'Pendiente') {
+            activeStates.add('Pendiente Aprobacion 1');
+        }
+        if (item.estadoLogistica === 'Pendiente') {
+            activeStates.add('Pendiente Logistica');
+        }
+        if (item.estadoCompra === 'Pendiente' || item.estadoCompra === 'En Proceso') {
+            activeStates.add('Pendiente Compras');
+        }
+        if (item.estadoAprobacion2 === 'Pendiente') {
+            activeStates.add('Pendiente Aprobacion 2');
+        }
+        if (item.estadoAprobacion3 === 'Pendiente') {
+            activeStates.add('Pendiente Aprobacion 3');
+        }
+        if (item.estadoAprobacion4 === 'Pendiente') {
+            activeStates.add('Pendiente Aprobacion 4');
+        }
+        if (item.estadoContabilidad === 'Pendiente') {
+            activeStates.add('Pendiente Contabilidad');
+        }
+        if (item.estadoAprobacionAnticipo3 === 'Pendiente') {
+            activeStates.add('Pendiente Aprobacion 3 Anticipo');
+        }
+        if (item.estadoAprobacionAnticipo4 === 'Pendiente') {
+            activeStates.add('Pendiente Aprobacion 4 Anticipo');
+        }
+        if (item.estadoAnticipoTesoreria === 'Pendiente' || item.estadoTesoreria === 'Pendiente') {
+            activeStates.add('Pendiente Tesoreria');
+        }
+        if (item.estadoEnvioOrdenCompra === 'Pendiente') {
+            activeStates.add('Pendiente Envio Orden de Compra');
+        }
+        if (item.estadoEntregaProveedor === 'Pendiente' || item.estadoEntregaProveedor === 'Parcial') {
+            activeStates.add('Pendiente Entrega Proveedor');
+        }
+        if (item.estadoTrasladoLogistica === 'Pendiente' || item.estadoTrasladoLogistica === 'En Transito') {
+            activeStates.add('Pendiente Traslado Entre Bodegas');
+        }
+        if (item.estadoDespachoMaterial === 'Pendiente' || item.estadoDespachoMaterial === 'Parcial') {
+            activeStates.add('Pendiente Despacho Bodega');
+        }
+
+        if (
+            item.estadoAprobacion1 === 'Rechazado' ||
+            item.estadoLogistica === 'Rechazado' ||
+            item.estadoCompra === 'Rechazado' ||
+            item.estadoAprobacion2 === 'Rechazado' ||
+            item.estadoAprobacion3 === 'Rechazado' ||
+            item.estadoAprobacion4 === 'Rechazado' ||
+            item.estadoContabilidad === 'Rechazado' ||
+            item.estadoAprobacionAnticipo3 === 'Rechazado' ||
+            item.estadoAprobacionAnticipo4 === 'Rechazado' ||
+            item.estadoAnticipoTesoreria === 'Rechazado' ||
+            item.estadoTesoreria === 'Rechazado' ||
+            item.estadoEnvioOrdenCompra === 'Rechazado' ||
+            item.estadoEntregaProveedor === 'Rechazado' ||
+            item.estadoTrasladoLogistica === 'Rechazado' ||
+            item.estadoDespachoMaterial === 'Rechazado' ||
+            item.estadoAsociacionFactura === 'Rechazado'
+        ) {
+            activeStates.add('Rechazado');
+        }
+    }
+
+    let finalState = 'Realizado';
+    if (activeStates.size > 0) {
+        let minPriority = Infinity;
+        for (const state of activeStates) {
+            const priority = prioridadEstados[state];
+            if (priority !== undefined && priority < minPriority) {
+                minPriority = priority;
+                finalState = state;
+            }
+        }
+    }
+
+    await db.query(
+        `UPDATE cadena_suministro_solicitud SET estadoSolicitud = ? WHERE id = ?`,
+        [finalState, solicitudId]
+    );
+}
+
+async function recalcularYActualizarEstadoSolicitudPorItems(itemIds, connectionOrDb) {
+    const db = connectionOrDb || dbRailway;
+    const ids = Array.isArray(itemIds) ? itemIds : [itemIds];
+    if (ids.length === 0) return;
+
+    const placeholders = ids.map(() => '?').join(',');
+    const [rows] = await db.query(
+        `SELECT DISTINCT solicitud_id FROM cadena_suministro_item WHERE id IN (${placeholders})`,
+        ids
+    );
+
+    for (const row of rows) {
+        await recalcularYActualizarEstadoSolicitud(row.solicitud_id, db);
+    }
+}
+
+async function recalcularYActualizarEstadoSolicitudPorSolicitudNumero(solicitudNumero, connectionOrDb) {
+    const db = connectionOrDb || dbRailway;
+    const [rows] = await db.query(
+        `SELECT id FROM cadena_suministro_solicitud WHERE solicitud = ?`,
+        [solicitudNumero]
+    );
+    if (rows.length > 0) {
+        await recalcularYActualizarEstadoSolicitud(rows[0].id, db);
+    }
+}
+
 async function getRegistrosCompletos(whereClause, params) {
     const query = `
         SELECT 
@@ -1315,16 +1477,7 @@ router.put('/logisticaActualizarCantidades/:id', validarToken, async (req, res) 
                 );
 
                 // 4. Actualizar estado general en cabecera
-                await connection.query(
-                    `UPDATE cadena_suministro_solicitud s
-                     JOIN cadena_suministro_item i ON i.solicitud_id = s.id
-                     SET s.estadoSolicitud = ?
-                     WHERE i.id = ?`,
-                    [
-                        estadoSolicitudRegistro,
-                        id
-                    ]
-                );
+                await recalcularYActualizarEstadoSolicitudPorItems(id, connection);
 
                 idsActualizados.push(id);
             }
@@ -1843,18 +1996,7 @@ router.put('/comprasGenerarOC', validarToken, async (req, res) => {
             );
 
             // 3. Actualizar estado general en cabecera
-            await connection.query(
-                `
-                UPDATE cadena_suministro_solicitud s
-                JOIN cadena_suministro_item i ON i.solicitud_id = s.id
-                SET s.estadoSolicitud = ?
-                WHERE i.id IN (${placeholders})
-                `,
-                [
-                    'Pendiente Aprobacion 2',
-                    ...ids
-                ]
-            );
+            await recalcularYActualizarEstadoSolicitudPorItems(ids, connection);
 
             await connection.commit();
 
@@ -2170,17 +2312,7 @@ router.put('/comprasAprobacion1/:id', validarToken, async (req, res) => {
             }
 
             // 3. Actualizar estado general en la cabecera
-            await connection.query(
-                `
-                UPDATE cadena_suministro_solicitud 
-                SET estadoSolicitud = ?
-                WHERE solicitud = ?
-                `,
-                [
-                    estadoSolicitud,
-                    id
-                ]
-            );
+            await recalcularYActualizarEstadoSolicitudPorSolicitudNumero(id, connection);
 
             await connection.commit();
 
@@ -2496,18 +2628,7 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
                     ]
                 );
 
-                await connection.query(
-                    `
-                        UPDATE cadena_suministro_solicitud s
-                        JOIN cadena_suministro_item i ON i.solicitud_id = s.id
-                        SET s.estadoSolicitud = ?
-                        WHERE i.id IN (${placeholders})
-                    `,
-                    [
-                        estadoSolicitud,
-                        ...ids
-                    ]
-                );
+                await recalcularYActualizarEstadoSolicitudPorItems(ids, connection);
             } else if (aprobacion === '3') {
                 [result] = await connection.query(
                     `
@@ -2559,18 +2680,7 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
                     ]
                 );
 
-                await connection.query(
-                    `
-                    UPDATE cadena_suministro_solicitud s
-                    JOIN cadena_suministro_item i ON i.solicitud_id = s.id
-                    SET s.estadoSolicitud = ?
-                    WHERE i.id IN (${placeholders})
-                `,
-                    [
-                        estadoSolicitud,
-                        ...ids
-                    ]
-                );
+                await recalcularYActualizarEstadoSolicitudPorItems(ids, connection);
             } else if (aprobacion === '4') {
                 [result] = await connection.query(
                     `
@@ -2620,18 +2730,7 @@ router.put('/comprasAprobacion', validarToken, async (req, res) => {
                     ]
                 );
 
-                await connection.query(
-                    `
-                    UPDATE cadena_suministro_solicitud s
-                    JOIN cadena_suministro_item i ON i.solicitud_id = s.id
-                    SET s.estadoSolicitud = ?
-                    WHERE i.id IN (${placeholders})
-                `,
-                    [
-                        estadoSolicitud,
-                        ...ids
-                    ]
-                );
+                await recalcularYActualizarEstadoSolicitudPorItems(ids, connection);
             }
 
             await connection.commit();
@@ -2938,18 +3037,7 @@ router.put('/despachoMaterial',
                     ]
                 );
 
-                await connection.query(
-                    `
-                        UPDATE cadena_suministro_solicitud s
-                        JOIN cadena_suministro_item i ON i.solicitud_id = s.id
-                        SET s.estadoSolicitud = ?
-                        WHERE i.id = ?
-                    `,
-                    [
-                        estadoSolicitud,
-                        id
-                    ]
-                );
+                await recalcularYActualizarEstadoSolicitudPorItems(id, connection);
 
                 idsActualizados.push(id);
             }
@@ -3402,15 +3490,7 @@ router.put('/tesoreria', validarToken,
                         ids
                     );
 
-                    await connection.query(
-                        `
-                            UPDATE cadena_suministro_solicitud s
-                            JOIN cadena_suministro_item i ON i.solicitud_id = s.id
-                            SET s.estadoSolicitud = 'Pendiente Envio Orden de Compra'
-                            WHERE i.id IN (${placeholders})
-                        `,
-                        ids
-                    );
+                    await recalcularYActualizarEstadoSolicitudPorItems(ids, connection);
                 }
 
                 await connection.commit();
@@ -3725,18 +3805,7 @@ router.put('/entregaProveedor',
                     ]
                 );
 
-                await connection.query(
-                    `
-                        UPDATE cadena_suministro_solicitud s
-                        JOIN cadena_suministro_item i ON i.solicitud_id = s.id
-                        SET s.estadoSolicitud = ?
-                        WHERE i.id = ?
-                    `,
-                    [
-                        estadoSolicitud,
-                        id
-                    ]
-                );
+                await recalcularYActualizarEstadoSolicitudPorItems(id, connection);
 
                 idsActualizados.push(id);
             }
@@ -4105,15 +4174,7 @@ router.put('/contabilidad', validarToken, async (req, res) => {
                 ]
             );
 
-            await connection.query(
-                `
-                    UPDATE cadena_suministro_solicitud s
-                    JOIN cadena_suministro_item i ON i.solicitud_id = s.id
-                    SET s.estadoSolicitud = 'Pendiente Aprobacion 3 Anticipo'
-                    WHERE i.id IN (${placeholders})
-                `,
-                ids
-            );
+            await recalcularYActualizarEstadoSolicitudPorItems(ids, connection);
 
             await connection.commit();
 
@@ -4406,18 +4467,7 @@ router.put('/contabilidadAprobacion', validarToken, async (req, res) => {
                     ]
                 );
 
-                await connection.query(
-                    `
-                        UPDATE cadena_suministro_solicitud s
-                        JOIN cadena_suministro_item i ON i.solicitud_id = s.id
-                        SET s.estadoSolicitud = ?
-                        WHERE i.id IN (${placeholders})
-                    `,
-                    [
-                        estadoSolicitud,
-                        ...ids
-                    ]
-                );
+                await recalcularYActualizarEstadoSolicitudPorItems(ids, connection);
             } else if (nivel === '4') {
                 [result] = await connection.query(
                     `
@@ -4444,18 +4494,7 @@ router.put('/contabilidadAprobacion', validarToken, async (req, res) => {
                     ]
                 );
 
-                await connection.query(
-                    `
-                        UPDATE cadena_suministro_solicitud s
-                        JOIN cadena_suministro_item i ON i.solicitud_id = s.id
-                        SET s.estadoSolicitud = ?
-                        WHERE i.id IN (${placeholders})
-                    `,
-                    [
-                        estadoSolicitud,
-                        ...ids
-                    ]
-                );
+                await recalcularYActualizarEstadoSolicitudPorItems(ids, connection);
             }
 
             await connection.commit();
@@ -5125,6 +5164,8 @@ router.put('/asociarFactura', validarToken, async (req, res) => {
                 ]
             );
 
+            await recalcularYActualizarEstadoSolicitudPorItems(ids, connection);
+
             await connection.commit();
 
             await registrarHistorial({
@@ -5306,6 +5347,8 @@ router.put('/revisionManual',
                         ...parsedIds
                     ]
                 );
+
+                await recalcularYActualizarEstadoSolicitudPorItems(parsedIds, connection);
 
                 await connection.commit();
 
@@ -5988,15 +6031,7 @@ router.put('/trasladoEnTransito',
                             [id]
                         );
                         
-                        if (reqStatus && reqStatus.estadoSolicitud === 'Pendiente Traslado Entre Bodegas') {
-                            await connection.query(
-                                `UPDATE cadena_suministro_solicitud s
-                                 JOIN cadena_suministro_item i ON i.solicitud_id = s.id
-                                 SET s.estadoSolicitud = 'Pendiente Despacho Bodega'
-                                 WHERE i.id = ?`,
-                                [id]
-                            );
-                        }
+                            await recalcularYActualizarEstadoSolicitudPorItems(id, connection);
                     }
                 }
 
