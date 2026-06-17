@@ -208,6 +208,13 @@ router.put('/actualizarEstadoSolicitud', async (req, res) => {
             datosActualizar.fecha_rechazada = new Date();
         }
 
+        if (data.estado.toLowerCase() === "completada") {
+            datosActualizar.fecha_completada = new Date();
+        }
+
+        if (data.estado.toLowerCase() === "cancelada") {
+            datosActualizar.fecha_cancelada = new Date();
+        }
         const setQuery = Object.keys(datosActualizar)
             .map(key => `${key} = ?`)
             .join(', ');
@@ -217,6 +224,34 @@ router.put('/actualizarEstadoSolicitud', async (req, res) => {
             data.id
         ];
 
+        const [rows] = await dbRailway.query(
+            `
+            SELECT estado
+            FROM registros_solicitud_apoyos
+            WHERE id = ?
+            `,
+            [data.id]
+        );
+
+        if (!rows.length) {
+            return sendError(
+                res,
+                404,
+                "Solicitud no encontrada."
+            );
+        }
+
+        const estadoActual = rows[0].estado;
+        if (
+            data.estado.toLowerCase() === "tomada" &&
+            estadoActual.toLowerCase() !== "pendiente"
+        ) {
+            return sendError(
+                res,
+                400,
+                "La solicitud ya fue tomada por otro móvil."
+            );
+        }
         const query = `
             UPDATE registros_solicitud_apoyos
             SET ${setQuery}
