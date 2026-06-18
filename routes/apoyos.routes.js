@@ -4,6 +4,7 @@ const dbRailway = require('../db/db_railway');
 const { sendResponse, sendError } = require('../utils/responseHandler');
 const { validateRequiredFields } = require('../utils/validate');
 const { registrarHistorial, getClientIp, determinarPlataforma } = require('../utils/historial');
+const { getFechaHoraColombia } = require('../utils/formatdate');
 
 /**
  * @route POST /api/apoyos/crearSolicitud
@@ -129,7 +130,29 @@ router.get('/datosSolicitud', async (req, res) => {
     try {
 
         const query = `
-            SELECT *
+            SELECT 
+                id,
+                tipo_apoyo,
+                cuenta,
+                nro_orden,
+                nombre_tecnico,
+                cedula_tecnico,
+                nro_telefonico_tecnico,
+                nombre_supervisor,
+                cedula_supervisor,
+                nro_telefonico_supervisor,
+                ubicacion,
+                observaciones,
+                estado,
+                placa_movil,
+                nombre_tecnico_apoyo,
+                cedula_tecnico_apoyo,
+                observaciones_rechazo,
+                DATE_FORMAT(fecha_creacion, '%Y-%m-%dT%H:%i:%s') AS fecha_creacion,
+                DATE_FORMAT(fecha_tomada, '%Y-%m-%dT%H:%i:%s') AS fecha_tomada,
+                DATE_FORMAT(fecha_rechazada, '%Y-%m-%dT%H:%i:%s') AS fecha_rechazada,
+                DATE_FORMAT(fecha_completada, '%Y-%m-%dT%H:%i:%s') AS fecha_completada,
+                DATE_FORMAT(fecha_cancelada, '%Y-%m-%dT%H:%i:%s') AS fecha_cancelada
             FROM registros_solicitud_apoyos
             ORDER BY id DESC
         `;
@@ -201,19 +224,19 @@ router.put('/actualizarEstadoSolicitud', async (req, res) => {
 
         // FECHAS AUTOMÁTICAS
         if (data.estado.toLowerCase() === "tomada") {
-            datosActualizar.fecha_tomada = new Date();
+            datosActualizar.fecha_tomada = getFechaHoraColombia();
         }
 
         if (data.estado.toLowerCase() === "rechazada") {
-            datosActualizar.fecha_rechazada = new Date();
+            datosActualizar.fecha_rechazada = getFechaHoraColombia();
         }
 
         if (data.estado.toLowerCase() === "completada") {
-            datosActualizar.fecha_completada = new Date();
+            datosActualizar.fecha_completada = getFechaHoraColombia();
         }
 
         if (data.estado.toLowerCase() === "cancelada") {
-            datosActualizar.fecha_cancelada = new Date();
+            datosActualizar.fecha_cancelada = getFechaHoraColombia();
         }
         const setQuery = Object.keys(datosActualizar)
             .map(key => `${key} = ?`)
