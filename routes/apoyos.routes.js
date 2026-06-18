@@ -31,6 +31,8 @@ router.post('/crearSolicitud', async (req, res) => {
             nombre_supervisor: "El nombre del supervisor es requerido.",
             cedula_supervisor: "La cédula del supervisor es requerida.",
 
+            nombre_titular: "El nombre del titular es requerido.",
+
             ubicacion: "La ubicación es requerida."
         };
 
@@ -51,6 +53,8 @@ router.post('/crearSolicitud', async (req, res) => {
             nombre_supervisor: data.nombre_supervisor,
             cedula_supervisor: data.cedula_supervisor,
             nro_telefonico_supervisor: data.nro_telefonico_supervisor,
+
+            nombre_titular: data.nombre_titular,
 
             ubicacion: data.ubicacion,
 
@@ -141,6 +145,7 @@ router.get('/datosSolicitud', async (req, res) => {
                 nombre_supervisor,
                 cedula_supervisor,
                 nro_telefonico_supervisor,
+                nombre_titular,
                 ubicacion,
                 observaciones,
                 estado,
