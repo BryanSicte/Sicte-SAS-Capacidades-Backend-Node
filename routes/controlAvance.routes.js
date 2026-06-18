@@ -58,7 +58,6 @@ async function initDatabase() {
             CREATE TABLE IF NOT EXISTS control_avance_items (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 proyecto_id INT NOT NULL,
-                tipo VARCHAR(50) NOT NULL, -- 'Mano de obra' o 'Material'
                 codigo VARCHAR(100) NOT NULL,
                 descripcion TEXT NOT NULL,
                 unidad_medida VARCHAR(50) NOT NULL,
@@ -92,20 +91,36 @@ async function initDatabase() {
         if (!itemColNames.includes('subcategoria')) {
             await dbRailway.query('ALTER TABLE control_avance_items ADD COLUMN subcategoria VARCHAR(100) DEFAULT NULL');
         }
+        if (!itemColNames.includes('fecha_inicio')) {
+            await dbRailway.query('ALTER TABLE control_avance_items ADD COLUMN fecha_inicio DATE DEFAULT NULL');
+        }
+        if (!itemColNames.includes('fecha_fin')) {
+            await dbRailway.query('ALTER TABLE control_avance_items ADD COLUMN fecha_fin DATE DEFAULT NULL');
+        }
 
         // 3. Histórico de estados
         await dbRailway.query(`
             CREATE TABLE IF NOT EXISTS control_avance_historico_estados (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 proyecto_id INT NOT NULL,
+                item_id INT DEFAULT NULL,
                 estado_anterior VARCHAR(50),
                 estado_nuevo VARCHAR(50) NOT NULL,
                 observacion TEXT,
                 fecha_cambio DATETIME DEFAULT CURRENT_TIMESTAMP,
                 usuario_cambio VARCHAR(255) NOT NULL,
-                FOREIGN KEY (proyecto_id) REFERENCES control_avance_proyectos(id) ON DELETE CASCADE
+                FOREIGN KEY (proyecto_id) REFERENCES control_avance_proyectos(id) ON DELETE CASCADE,
+                FOREIGN KEY (item_id) REFERENCES control_avance_items(id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `);
+
+        const [histCols] = await dbRailway.query('SHOW COLUMNS FROM control_avance_historico_estados');
+        const histColNames = histCols.map(col => col.Field);
+        if (!histColNames.includes('item_id')) {
+            await dbRailway.query('ALTER TABLE control_avance_historico_estados ADD COLUMN item_id INT DEFAULT NULL');
+            await dbRailway.query('ALTER TABLE control_avance_historico_estados ADD CONSTRAINT fk_historico_item FOREIGN KEY (item_id) REFERENCES control_avance_items(id) ON DELETE CASCADE');
+            console.log("Columna 'item_id' y constraint FK agregadas a control_avance_historico_estados.");
+        }
 
         // 4. Avances de los técnicos
         await dbRailway.query(`
@@ -159,7 +174,8 @@ async function initDatabase() {
         await dbRailway.query(`
             CREATE TABLE IF NOT EXISTS control_avance_categorias (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                nombre VARCHAR(100) NOT NULL UNIQUE
+                nombre VARCHAR(100) NOT NULL UNIQUE,
+                orden INT DEFAULT NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `);
 
@@ -204,7 +220,11 @@ router.get('/proyectos', validarToken, async (req, res) => {
     try {
         const { estado, busqueda } = req.query;
         let query = `
-            SELECT p.*,
+            SELECT p.id, p.nombre_proyecto, p.ot, p.fecha_arranque, p.fecha_cierre_proyectada, p.estado,
+                DATE_FORMAT(p.fecha_creacion, '%Y-%m-%d %H:%i:%s') as fecha_creacion,
+                p.usuario_creacion,
+                DATE_FORMAT(p.fecha_registro, '%Y-%m-%d %H:%i:%s') as fecha_registro,
+                p.cedula_usuario_creacion, p.contrato, p.tipo_proyecto, p.subproyecto,
                 COALESCE(
                     (SELECT SUM(cantidad_ejecutada) / NULLIF(SUM(cantidad_presupuestada), 0) * 100 
                      FROM control_avance_items 
@@ -281,7 +301,11 @@ router.get('/proyectos/:id', validarToken, async (req, res) => {
     try {
         // Detalle del proyecto
         const [projects] = await dbRailway.query(`
-            SELECT p.*,
+            SELECT p.id, p.nombre_proyecto, p.ot, p.fecha_arranque, p.fecha_cierre_proyectada, p.estado,
+                DATE_FORMAT(p.fecha_creacion, '%Y-%m-%d %H:%i:%s') as fecha_creacion,
+                p.usuario_creacion,
+                DATE_FORMAT(p.fecha_registro, '%Y-%m-%d %H:%i:%s') as fecha_registro,
+                p.cedula_usuario_creacion, p.contrato, p.tipo_proyecto, p.subproyecto,
                 COALESCE(
                     (SELECT SUM(cantidad_ejecutada) / NULLIF(SUM(cantidad_presupuestada), 0) * 100 
                      FROM control_avance_items 
@@ -306,12 +330,22 @@ router.get('/proyectos/:id', validarToken, async (req, res) => {
             item.materiales = materiales;
         }
 
-        // Historial de estados
-        const [historial] = await dbRailway.query('SELECT * FROM control_avance_historico_estados WHERE proyecto_id = ? ORDER BY fecha_cambio DESC', [id]);
+        // Historial de estados (proyecto y sus items)
+        const [historial] = await dbRailway.query(`
+            SELECT h.id, h.proyecto_id, h.item_id, h.estado_anterior, h.estado_nuevo, h.observacion,
+                   DATE_FORMAT(h.fecha_cambio, '%Y-%m-%d %H:%i:%s') as fecha_cambio,
+                   h.usuario_cambio, i.codigo as item_codigo, i.descripcion as item_descripcion
+            FROM control_avance_historico_estados h
+            LEFT JOIN control_avance_items i ON h.item_id = i.id
+            WHERE h.proyecto_id = ?
+            ORDER BY h.fecha_cambio DESC
+        `, [id]);
 
         // Avances de obra
         const [avances] = await dbRailway.query(`
-            SELECT a.*, i.codigo, i.descripcion, i.unidad_medida, i.tipo
+            SELECT a.id, a.proyecto_id, a.item_id, a.nombre_tecnico, a.cedula_tecnico, a.cantidad_avance, a.observacion,
+                   DATE_FORMAT(a.fecha_avance, '%Y-%m-%d %H:%i:%s') as fecha_avance,
+                   a.usuario_registro, a.cedula_usuario_registro, i.codigo, i.descripcion, i.unidad_medida
             FROM control_avance_avances a
             JOIN control_avance_items i ON a.item_id = i.id
             WHERE a.proyecto_id = ?
@@ -393,6 +427,17 @@ router.post('/crearProyecto', validarToken, async (req, res) => {
         }
 
         // Insertar proyecto
+        let fechaRegistroUTC = null;
+        if (fecha_registro) {
+            let dateVal = new Date(fecha_registro.replace('T', ' ').substring(0, 19) + " -05:00");
+            if (!isNaN(dateVal.getTime())) {
+                fechaRegistroUTC = dateVal.toISOString().replace('T', ' ').substring(0, 19);
+            }
+        }
+        if (!fechaRegistroUTC) {
+            fechaRegistroUTC = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        }
+
         const [projectResult] = await connection.query(`
             INSERT INTO control_avance_proyectos (
                 nombre_proyecto, ot, fecha_arranque, fecha_cierre_proyectada, estado, 
@@ -408,7 +453,7 @@ router.post('/crearProyecto', validarToken, async (req, res) => {
             contrato,
             tipo_proyecto,
             subproyecto || null,
-            fecha_registro || new Date()
+            fechaRegistroUTC
         ]);
 
         const proyectoId = projectResult.insertId;
@@ -421,19 +466,17 @@ router.post('/crearProyecto', validarToken, async (req, res) => {
             const valorUnidad = parseFloat(item.valor_unidad) || 0;
             const valorTotal = parseFloat(item.valor_total) || (parseFloat(item.cantidad_presupuestada) * valorUnidad);
             const itemEstado = item.estado || 'Creado';
-            const itemTipo = item.tipo || 'Mano de obra';
             const itemCategoria = item.categoria || null;
             const itemSubcategoria = item.subcategoria || null;
 
             const [itemResult] = await connection.query(`
                 INSERT INTO control_avance_items (
-                    proyecto_id, tipo, codigo, descripcion, unidad_medida, 
+                    proyecto_id, codigo, descripcion, unidad_medida, 
                     cantidad_presupuestada, valor_unidad, valor_total, estado,
                     categoria, subcategoria
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 proyectoId,
-                itemTipo,
                 item.codigo,
                 item.descripcion,
                 item.unidad_medida,
@@ -598,6 +641,201 @@ router.put('/proyectos/:id/estado', validarToken, async (req, res) => {
     }
 });
 
+// Helper para calcular y actualizar automáticamente el estado del proyecto según las categorías y el estado de sus ítems
+async function calcularYActualizarEstadoProyecto(proyectoId, usuarioCambio) {
+    try {
+        // 1. Obtener todos los ítems del proyecto
+        const [items] = await dbRailway.query('SELECT * FROM control_avance_items WHERE proyecto_id = ?', [proyectoId]);
+        if (items.length === 0) return;
+
+        // 2. Obtener todas las subcategorías distintas del proyecto
+        const subcategoriasUnicas = [...new Set(items.map(i => i.subcategoria).filter(Boolean))];
+        if (subcategoriasUnicas.length === 0) return;
+
+        // Verificar si todas las subcategorías tienen fecha_inicio y fecha_fin asignadas
+        const todasTienenFechas = subcategoriasUnicas.every(subName => {
+            const itemsSub = items.filter(i => i.subcategoria === subName);
+            return itemsSub.every(i => i.fecha_inicio && i.fecha_fin);
+        });
+
+        if (!todasTienenFechas) {
+            // No todas las subcategorías tienen fechas, por ende no se auto-calcula el estado
+            return;
+        }
+
+        // 3. Obtener categorías ordenadas por orden ASC, nombre ASC
+        const [categorias] = await dbRailway.query('SELECT * FROM control_avance_categorias ORDER BY COALESCE(orden, 999999) ASC, nombre ASC');
+
+        // 4. Calcular el estado del proyecto
+        let nuevoEstadoProyecto = null;
+
+        for (const cat of categorias) {
+            // Filtrar ítems de este proyecto que corresponden a esta categoría
+            const itemsDeCat = items.filter(i => i.categoria && i.categoria.trim().toLowerCase() === cat.nombre.trim().toLowerCase());
+            if (itemsDeCat.length > 0) {
+                // Verificar si todos los ítems están en estado 'Realizado'
+                const todosRealizados = itemsDeCat.every(i => i.estado === 'Realizado');
+                if (!todosRealizados) {
+                    // Esta categoría tiene algún ítem no 'Realizado', por lo tanto el estado se queda aquí
+                    nuevoEstadoProyecto = cat.nombre;
+                    break;
+                }
+            }
+        }
+
+        // Si se recorrieron todas las categorías y todos sus ítems están en 'Realizado'
+        if (nuevoEstadoProyecto === null) {
+            nuevoEstadoProyecto = "Finalizado / Cerrado";
+        }
+
+        // 5. Obtener el estado actual del proyecto
+        const [proyectos] = await dbRailway.query('SELECT estado FROM control_avance_proyectos WHERE id = ?', [proyectoId]);
+        if (proyectos.length === 0) return;
+
+        const estadoAnteriorProyecto = proyectos[0].estado;
+
+        // 6. Si hay cambio, actualizar y guardar histórico
+        if (estadoAnteriorProyecto !== nuevoEstadoProyecto) {
+            await dbRailway.query('UPDATE control_avance_proyectos SET estado = ? WHERE id = ?', [nuevoEstadoProyecto, proyectoId]);
+            
+            await dbRailway.query(`
+                INSERT INTO control_avance_historico_estados (proyecto_id, estado_anterior, estado_nuevo, observacion, usuario_cambio)
+                VALUES (?, ?, ?, ?, ?)
+            `, [
+                proyectoId,
+                estadoAnteriorProyecto,
+                nuevoEstadoProyecto,
+                'Cambio automático basado en el estado de los ítems',
+                usuarioCambio || 'Sistema'
+            ]);
+            console.log(`Proyecto ${proyectoId} actualizado automáticamente de ${estadoAnteriorProyecto} a ${nuevoEstadoProyecto}`);
+        }
+    } catch (error) {
+        console.error("Error al calcular y actualizar el estado del proyecto:", error);
+    }
+}
+
+// 4b. Asignar fechas de inicio y fin a una subcategoría
+router.put('/proyectos/:id/subcategorias/fechas', validarToken, async (req, res) => {
+    const { id } = req.params;
+    const { subcategoria, fecha_inicio, fecha_fin } = req.body;
+    const usuarioToken = req.validarToken.usuario;
+
+    if (!subcategoria) {
+        return sendError(res, 400, "El nombre de la subcategoría es obligatorio.");
+    }
+
+    try {
+        // Formatear fechas para MySQL (si están vacías o null, pasamos null)
+        const fInicio = fecha_inicio ? fecha_inicio.split('T')[0] : null;
+        const fFin = fecha_fin ? fecha_fin.split('T')[0] : null;
+
+        await dbRailway.query(`
+            UPDATE control_avance_items 
+            SET fecha_inicio = ?, fecha_fin = ? 
+            WHERE proyecto_id = ? AND subcategoria = ?
+        `, [fInicio, fFin, id, subcategoria]);
+
+        // Intentar calcular y actualizar automáticamente el estado del proyecto
+        await calcularYActualizarEstadoProyecto(id, usuarioToken.nombre);
+
+        // Registrar en logs del sistema
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'put',
+            endPoint: 'proyectos/:id/subcategorias/fechas',
+            accion: 'Actualizar fechas de subcategoría',
+            detalle: `Se actualizaron las fechas de la subcategoría '${subcategoria}' a [${fInicio} - ${fFin}]`,
+            datos: { proyectoId: id, subcategoria, fInicio, fFin },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(res, 200, "Fechas actualizadas", "Las fechas de la subcategoría han sido actualizadas con éxito.");
+    } catch (err) {
+        console.error("Error actualizando fechas de subcategoría:", err);
+        return sendError(res, 500, "Error al actualizar fechas de subcategoría", err);
+    }
+});
+
+// 4c. Cambiar estado de un ítem individual manualmente (con observación obligatoria)
+router.put('/items/:id/estado', validarToken, async (req, res) => {
+    const { id } = req.params;
+    const { estado_nuevo, observacion } = req.body;
+    const usuarioToken = req.validarToken.usuario;
+
+    if (!estado_nuevo || !observacion || observacion.trim() === '') {
+        return sendError(res, 400, "El nuevo estado del ítem y la observación son campos obligatorios.");
+    }
+
+    const connection = await dbRailway.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // Obtener el ítem actual y su proyecto_id
+        const [items] = await connection.query('SELECT * FROM control_avance_items WHERE id = ?', [id]);
+        if (items.length === 0) {
+            await connection.rollback();
+            return sendError(res, 404, "Ítem no encontrado.");
+        }
+
+        const item = items[0];
+        const estadoAnterior = item.estado || 'Creado';
+
+        // Actualizar el estado del ítem y su cantidad ejecutada según corresponda
+        let queryUpdate = 'UPDATE control_avance_items SET estado = ? WHERE id = ?';
+        if (estado_nuevo === 'Realizado') {
+            queryUpdate = 'UPDATE control_avance_items SET estado = ?, cantidad_ejecutada = cantidad_presupuestada WHERE id = ?';
+        } else if (estadoAnterior === 'Realizado') {
+            queryUpdate = 'UPDATE control_avance_items SET estado = ?, cantidad_ejecutada = 0.00 WHERE id = ?';
+        }
+        await connection.query(queryUpdate, [estado_nuevo, id]);
+
+        // Registrar en histórico vinculando al ítem
+        await connection.query(`
+            INSERT INTO control_avance_historico_estados (proyecto_id, item_id, estado_anterior, estado_nuevo, observacion, usuario_cambio)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `, [item.proyecto_id, id, estadoAnterior, estado_nuevo, observacion, usuarioToken.nombre]);
+
+        await connection.commit();
+
+        // Intentar calcular y actualizar automáticamente el estado del proyecto
+        await calcularYActualizarEstadoProyecto(item.proyecto_id, usuarioToken.nombre);
+
+        // Registrar en logs del sistema
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'controlAvance',
+            metodo: 'put',
+            endPoint: 'items/:id/estado',
+            accion: 'Cambiar estado de ítem presupuestado',
+            detalle: `Se cambió el estado del ítem '${item.codigo}' de '${estadoAnterior}' a '${estado_nuevo}'`,
+            datos: { itemId: id, proyectoId: item.proyecto_id, estadoAnterior, estado_nuevo, observacion },
+            tablasIdsAfectados: [id],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(res, 200, "Estado de ítem actualizado", `El estado del ítem cambió a '${estado_nuevo}' con éxito.`);
+    } catch (err) {
+        await connection.rollback();
+        console.error("Error al cambiar estado de ítem:", err);
+        return sendError(res, 500, "Error al cambiar estado de ítem", err);
+    } finally {
+        connection.release();
+    }
+});
+
 // 5. Registrar avance de obra (solo cuando está en ejecución)
 router.post('/proyectos/:id/avances', validarToken, async (req, res) => {
     const { id } = req.params;
@@ -658,6 +896,17 @@ router.post('/proyectos/:id/avances', validarToken, async (req, res) => {
             await connection.query('UPDATE control_avance_items SET cantidad_ejecutada = ? WHERE id = ?', [nuevaCantidadEjecutada, item_id]);
 
             // Insertar en la tabla de avances
+            let fechaAvanceUTC = null;
+            if (fecha_registro) {
+                let dateVal = new Date(fecha_registro.replace('T', ' ').substring(0, 19) + " -05:00");
+                if (!isNaN(dateVal.getTime())) {
+                    fechaAvanceUTC = dateVal.toISOString().replace('T', ' ').substring(0, 19);
+                }
+            }
+            if (!fechaAvanceUTC) {
+                fechaAvanceUTC = new Date().toISOString().replace('T', ' ').substring(0, 19);
+            }
+
             await connection.query(`
                 INSERT INTO control_avance_avances (
                     proyecto_id, item_id, nombre_tecnico, cedula_tecnico, cantidad_avance, 
@@ -672,7 +921,7 @@ router.post('/proyectos/:id/avances', validarToken, async (req, res) => {
                 observacion || '',
                 usuarioToken.nombre,
                 usuarioToken.cedula,
-                fecha_registro || new Date()
+                fechaAvanceUTC
             ]);
         }
 
@@ -868,7 +1117,7 @@ router.get('/baremos', validarToken, async (req, res) => {
 router.get('/categorias', validarToken, async (req, res) => {
     const usuarioToken = req.validarToken.usuario;
     try {
-        const [categorias] = await dbRailway.query('SELECT * FROM control_avance_categorias ORDER BY nombre ASC');
+        const [categorias] = await dbRailway.query('SELECT * FROM control_avance_categorias ORDER BY COALESCE(orden, 999999) ASC, nombre ASC');
         for (const cat of categorias) {
             const [subcategorias] = await dbRailway.query('SELECT * FROM control_avance_subcategorias WHERE categoria_id = ? ORDER BY nombre ASC', [cat.id]);
             cat.subcategorias = subcategorias;
