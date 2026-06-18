@@ -30,7 +30,7 @@ function formatDateToStandard(d, includeTime = true) {
     if (!d || isNaN(d.getTime())) return null;
     const pad = n => String(n).padStart(2, "0");
     const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    
+
     if (includeTime && (d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0)) {
         return `${dateStr} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     }
@@ -1510,6 +1510,139 @@ router.get('/movimientoDetalle/:consecutivo', validarToken, async (req, res) => 
             userAgent: req.headers['user-agent'] || ''
         });
         return sendError(res, 500, "Error al obtener detalle de movimiento", err);
+    }
+});
+
+// 9. POST /desasignarPorTurno: Desasignar todas las órdenes de un turno de forma masiva
+router.post('/desasignarPorTurno', validarToken, async (req, res) => {
+    const { turno, tipo_proceso } = req.body;
+    const usuarioToken = req.validarToken?.usuario || {};
+    const nombreUsuario = usuarioToken.nombre || 'Usuario CCOT';
+
+    if (!turno) {
+        return sendError(res, 400, "Falta campo requerido: turno");
+    }
+    if (!tipo_proceso) {
+        return sendError(res, 400, "Falta campo requerido: tipo_proceso");
+    }
+
+    try {
+        const table = getTableName(tipo_proceso);
+        const fechaLocal = fechaHoraLocalBogota();
+        const consecutivo = await getSiguienteConsecutivo();
+
+        // Buscar todas las órdenes asignadas (con cuadrilla) del turno indicado que no estén atendidas
+        const [ordenes] = await dbRailway.query(
+            `SELECT id, nro_orden, cuadrilla, historico, lotes 
+             FROM ${table} 
+             WHERE (atendida IS NULL OR atendida != 'OK')
+               AND (cuadrilla IS NOT NULL AND cuadrilla != '')
+               AND (turnoAsignado = ?)`,
+            [turno]
+        );
+
+        if (ordenes.length === 0) {
+            return sendResponse(res, 200, "Sin órdenes para desasignar",
+                `No se encontraron órdenes asignadas en el turno "${turno}".`,
+                { consecutivo: null, totalDesasignados: 0 }
+            );
+        }
+
+        let desasignadasCount = 0;
+        const idsAfectados = [];
+
+        for (const record of ordenes) {
+            let historicoArr = [];
+            try {
+                historicoArr = JSON.parse(record.historico || '[]');
+                if (!Array.isArray(historicoArr)) historicoArr = [];
+            } catch {
+                historicoArr = [];
+            }
+
+            let lotesArr = [];
+            try {
+                lotesArr = JSON.parse(record.lotes || '[]');
+                if (!Array.isArray(lotesArr)) lotesArr = [];
+            } catch {
+                lotesArr = [];
+            }
+
+            historicoArr.push({
+                fecha: fechaLocal,
+                usuario: nombreUsuario,
+                lote: consecutivo,
+                detalle: `Desasignación masiva por turno "${turno}". La actividad queda disponible (sin móvil asignado).`
+            });
+            lotesArr.push(consecutivo);
+
+            await dbRailway.query(
+                `UPDATE ${table} 
+                 SET cuadrilla = NULL, cedula_cuadrilla = NULL, nombre_cuadrilla = NULL,
+                     tipoMovil = NULL, turnoAsignado = NULL, fecha_programacion = NULL,
+                     historico = ?, lotes = ?
+                 WHERE id = ?`,
+                [JSON.stringify(historicoArr), JSON.stringify(lotesArr), record.id]
+            );
+
+            idsAfectados.push(record.id);
+            desasignadasCount++;
+        }
+
+        // Registrar movimiento global
+        await dbRailway.query(
+            `INSERT INTO enel_gestion_ots_v2_movimientos 
+             (consecutivo, fecha, usuario, tipo_movimiento, tipo_servicio, cantidad_ordenes, detalle) 
+             VALUES (?, NOW(), ?, 'DESASIGNACION', ?, ?, ?)`,
+            [
+                consecutivo,
+                nombreUsuario,
+                tipo_proceso,
+                desasignadasCount,
+                `Desasignación masiva por turno "${turno}": ${desasignadasCount} órdenes liberadas.`
+            ]
+        );
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'gestionOtsV2',
+            metodo: 'post',
+            endPoint: 'desasignarPorTurno',
+            accion: 'Desasignación masiva por turno exitosa',
+            detalle: `Se desasignaron ${desasignadasCount} órdenes del turno "${turno}" para ${tipo_proceso}. Lote consecutivo #${consecutivo}`,
+            datos: { turno, tipo_proceso, totalDesasignados: desasignadasCount },
+            tablasIdsAfectados: idsAfectados,
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(res, 200, "Desasignación Completada",
+            `Consecutivo: ${consecutivo}. Órdenes del turno "${turno}" desasignadas: ${desasignadasCount}`,
+            { consecutivo, totalDesasignados: desasignadasCount }
+        );
+    } catch (err) {
+        console.error("Error en /desasignarPorTurno:", err);
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'gestionOtsV2',
+            metodo: 'post',
+            endPoint: 'desasignarPorTurno',
+            accion: 'Error en la desasignación masiva por turno',
+            detalle: err.message,
+            datos: { turno, tipo_proceso },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+        return sendError(res, 500, "Error al desasignar órdenes por turno", err);
     }
 });
 
