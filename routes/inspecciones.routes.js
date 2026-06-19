@@ -6,13 +6,115 @@ const validarToken = require('../middlewares/validarToken');
 const { sendResponse, sendError } = require('../utils/responseHandler');
 const { validateRequiredFields } = require('../utils/validate');
 const { registrarHistorial, getClientIp, determinarPlataforma } = require('../utils/historial');
-const { uploadFileToDrive } = require('../services/googleDriveService');
+const { uploadFileToDrive, getFileFromDrive } = require('../services/googleDriveService');
 const { getFechaHoraColombia } = require('../utils/formatdate');
 const path = require('path');
 const multer = require('multer');
 const upload = multer();
 
 const folderId = '1ZJcZf8P3VH7ktLQI2Sq9j6EOjORipOXy';
+
+// Asynchronous DB initialization
+async function initDatabase() {
+    try {
+        console.log("Inicializando base de datos para Inspecciones de Botiquín...");
+        await dbRailway.query("SET SESSION innodb_strict_mode=OFF");
+        await dbRailway.query(`
+            CREATE TABLE IF NOT EXISTS inspecciones_botiquin (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                gen_fechaRegistro VARCHAR(45) DEFAULT NULL,
+                gen_fechaInspeccion VARCHAR(45) DEFAULT NULL,
+                gen_cedulaUsuario VARCHAR(200) DEFAULT NULL,
+                gen_nombreUsuario VARCHAR(200) DEFAULT NULL,
+                gen_responsableCedula VARCHAR(200) DEFAULT NULL,
+                gen_responsableNombre VARCHAR(200) DEFAULT NULL,
+                gen_supervisorCedula VARCHAR(200) DEFAULT NULL,
+                gen_supervisorNombre VARCHAR(200) DEFAULT NULL,
+                gen_proyecto VARCHAR(200) DEFAULT NULL,
+                gen_nombreProyecto VARCHAR(200) DEFAULT NULL,
+                gen_tipoInspeccion VARCHAR(45) DEFAULT NULL,
+                gen_direccion VARCHAR(200) DEFAULT NULL,
+                gen_ciudad VARCHAR(100) DEFAULT NULL,
+                gen_proceso VARCHAR(45) DEFAULT NULL,
+                gen_numeroContrato VARCHAR(45) DEFAULT NULL,
+                gen_ubicacion VARCHAR(45) DEFAULT NULL,
+                gen_tipoBotiquin VARCHAR(45) DEFAULT NULL,
+                gen_precinto VARCHAR(45) DEFAULT NULL,
+                gen_observaciones TEXT DEFAULT NULL,
+                cap1Guantes VARCHAR(45) DEFAULT NULL,
+                cap1GuantesFecha VARCHAR(45) DEFAULT NULL,
+                cap1Tapabocas VARCHAR(45) DEFAULT NULL,
+                cap1Monogafas VARCHAR(45) DEFAULT NULL,
+                cap1Mascara VARCHAR(45) DEFAULT NULL,
+                cap1Bolsa VARCHAR(45) DEFAULT NULL,
+                cap1Evidencia JSON DEFAULT NULL,
+                cap2CompresaGasa VARCHAR(45) DEFAULT NULL,
+                cap2CompresaGasaFecha VARCHAR(45) DEFAULT NULL,
+                cap2Bajalenguas VARCHAR(45) DEFAULT NULL,
+                cap2BajalenguasFecha VARCHAR(45) DEFAULT NULL,
+                cap2Curitas VARCHAR(45) DEFAULT NULL,
+                cap2GasasEsteriles VARCHAR(45) DEFAULT NULL,
+                cap2GasasEsterilesFecha VARCHAR(45) DEFAULT NULL,
+                cap2Esparadrapo VARCHAR(45) DEFAULT NULL,
+                cap2EsparadrapoFecha VARCHAR(45) DEFAULT NULL,
+                cap2Microporo VARCHAR(45) DEFAULT NULL,
+                cap2MicroporoFecha VARCHAR(45) DEFAULT NULL,
+                cap2VendajesElasticos2x5 VARCHAR(45) DEFAULT NULL,
+                cap2VendajesElasticos2x5Fecha VARCHAR(45) DEFAULT NULL,
+                cap2VendajesElasticos3x5 VARCHAR(45) DEFAULT NULL,
+                cap2VendajesElasticos3x5Fecha VARCHAR(45) DEFAULT NULL,
+                cap2VendajesElasticos5x5 VARCHAR(45) DEFAULT NULL,
+                cap2VendaAlgodon VARCHAR(45) DEFAULT NULL,
+                cap2VendaAlgodonFecha VARCHAR(45) DEFAULT NULL,
+                cap2OclusoresOculares VARCHAR(45) DEFAULT NULL,
+                cap2Evidencia JSON DEFAULT NULL,
+                cap3KitInmovilizadores VARCHAR(45) DEFAULT NULL,
+                cap3InmovilizadorCervical VARCHAR(45) DEFAULT NULL,
+                cap3VendajeTriangular VARCHAR(45) DEFAULT NULL,
+                cap3Evidencia JSON DEFAULT NULL,
+                cap4SolucionSalina VARCHAR(45) DEFAULT NULL,
+                cap4SolucionSalinaFecha VARCHAR(45) DEFAULT NULL,
+                cap4Evidencia JSON DEFAULT NULL,
+                cap5TijerasTrauma VARCHAR(45) DEFAULT NULL,
+                cap5BolsaHermetica VARCHAR(45) DEFAULT NULL,
+                cap5Linterna VARCHAR(45) DEFAULT NULL,
+                cap5Cuadernillo VARCHAR(45) DEFAULT NULL,
+                cap5Esfero VARCHAR(45) DEFAULT NULL,
+                cap5Pito VARCHAR(45) DEFAULT NULL,
+                cap5BotiquinFijo VARCHAR(45) DEFAULT NULL,
+                cap5Evidencia JSON DEFAULT NULL,
+                no_cumplimientos JSON DEFAULT NULL,
+                resultado_inicial VARCHAR(45) DEFAULT NULL,
+                resultado_final VARCHAR(45) DEFAULT NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=DYNAMIC;
+        `);
+
+        // Check and alter table for missing columns dynamically
+        const [cols] = await dbRailway.query('SHOW COLUMNS FROM inspecciones_botiquin');
+        const colNames = cols.map(col => col.Field);
+
+        if (!colNames.includes('no_cumplimientos')) {
+            await dbRailway.query('ALTER TABLE inspecciones_botiquin ADD COLUMN no_cumplimientos JSON DEFAULT NULL');
+            console.log("Columna 'no_cumplimientos' agregada a inspecciones_botiquin.");
+        }
+        if (!colNames.includes('resultado_inicial')) {
+            await dbRailway.query('ALTER TABLE inspecciones_botiquin ADD COLUMN resultado_inicial VARCHAR(45) DEFAULT NULL');
+            console.log("Columna 'resultado_inicial' agregada a inspecciones_botiquin.");
+        }
+        if (!colNames.includes('resultado_final')) {
+            await dbRailway.query('ALTER TABLE inspecciones_botiquin ADD COLUMN resultado_final VARCHAR(45) DEFAULT NULL');
+            console.log("Columna 'resultado_final' agregada a inspecciones_botiquin.");
+        }
+
+        console.log("Base de datos para Inspecciones de Botiquín inicializada correctamente.");
+    } catch (err) {
+        console.error("Error inicializando base de datos para Inspecciones de Botiquín:", err);
+    }
+}
+
+// Run DB init
+initDatabase();
+
 
 
 router.get('/ciudades', validarToken, async (req, res) => {
@@ -150,7 +252,7 @@ router.get('/registros', validarToken, async (req, res) => {
     const usuarioToken = req.validarToken.usuario
 
     try {
-        const [rows] = await dbRailway.query('SELECT * FROM registros_inspecciones_botiquin ORDER BY gen_fechaRegistro DESC');
+        const [rows] = await dbRailway.query('SELECT * FROM inspecciones_botiquin ORDER BY gen_fechaRegistro DESC');
 
         await registrarHistorial({
             nombreUsuario: usuarioToken.nombre || 'No registrado',
@@ -317,6 +419,7 @@ router.post('/crearRegistroBotiquin', validarToken, upload.any(), async (req, re
 
         const archivos = req.files;
         const mappedEvidencias = {};
+        const mappedNoCumplimientos = {};
         const fechaColombia = getFechaHoraColombia();
 
         if (archivos && archivos.length > 0) {
@@ -388,6 +491,33 @@ router.post('/crearRegistroBotiquin', validarToken, upload.any(), async (req, re
                             userAgent: req.headers['user-agent'] || ''
                         });
                     }
+                } else if (file.fieldname.startsWith('no_cumplimiento_')) {
+                    const fieldName = file.fieldname;
+                    const actualField = fieldName.replace('no_cumplimiento_', '');
+                    if (!mappedNoCumplimientos[actualField]) mappedNoCumplimientos[actualField] = [];
+
+                    const ext = path.extname(file.originalname);
+                    const fileName = `inspeccion_${data.gen_cedulaUsuario}_noCumplimiento_${actualField}_${fechaColombia}_${mappedNoCumplimientos[actualField].length + 1}${ext}`;
+
+                    try {
+                        const uploadResult = await uploadFileToDrive(
+                            file.buffer,
+                            fileName,
+                            folderId
+                        );
+
+                        const result = {
+                            nombre: fileName,
+                            id: uploadResult.id,
+                            url: uploadResult.url,
+                            webViewLink: uploadResult.webViewLink,
+                            size: file.size
+                        };
+
+                        mappedNoCumplimientos[actualField].push(result);
+                    } catch (uploadErr) {
+                        console.error(`Error al cargar evidencia de no cumplimiento en ${actualField}:`, uploadErr.message);
+                    }
                 }
             }
         }
@@ -395,6 +525,48 @@ router.post('/crearRegistroBotiquin', validarToken, upload.any(), async (req, re
         for (const [campo, listaArchivos] of Object.entries(mappedEvidencias)) {
             data[campo] = JSON.stringify(listaArchivos);
         }
+
+        // Merge no_cumplimientos
+        let noCumplimientosObj = {};
+        if (data.no_cumplimientos) {
+            if (typeof data.no_cumplimientos === 'string') {
+                try {
+                    noCumplimientosObj = JSON.parse(data.no_cumplimientos);
+                } catch (e) {
+                    noCumplimientosObj = {};
+                }
+            } else {
+                noCumplimientosObj = data.no_cumplimientos;
+            }
+        }
+
+        for (const [actualField, filesList] of Object.entries(mappedNoCumplimientos)) {
+            if (!noCumplimientosObj[actualField]) {
+                noCumplimientosObj[actualField] = { evidencia: [], observacion: "" };
+            }
+            const existingFiles = noCumplimientosObj[actualField].evidencia || [];
+            noCumplimientosObj[actualField].evidencia = [...existingFiles, ...filesList];
+        }
+
+        data.no_cumplimientos = JSON.stringify(noCumplimientosObj);
+
+        // Evaluate compliance results considering non-compliance support
+        let finalResult = "CUMPLE";
+        for (const [key, val] of Object.entries(data)) {
+            if (key.startsWith("cap") && !key.endsWith("Evidencia") && !key.endsWith("Fecha") && key !== "no_cumplimientos") {
+                if (val === "NO CUMPLE") {
+                    const nc = noCumplimientosObj[key];
+                    const hasSupport = nc && nc.observacion && nc.observacion.trim() !== "" && Array.isArray(nc.evidencia) && nc.evidencia.length > 0;
+                    if (!hasSupport) {
+                        finalResult = "NO CUMPLE";
+                        break;
+                    }
+                }
+            }
+        }
+        data.resultado_inicial = finalResult;
+        data.resultado_final = finalResult;
+
         const keys = Object.keys(data);
         const values = Object.values(data).map(val => {
             if (val && typeof val === 'object' && !(val instanceof Date)) {
@@ -407,7 +579,7 @@ router.post('/crearRegistroBotiquin', validarToken, upload.any(), async (req, re
         const campos = keys.join(', ');
 
         const query = `
-            INSERT INTO registros_inspecciones_botiquin (${campos})
+            INSERT INTO inspecciones_botiquin (${campos})
             VALUES (${placeholders})
         `;
 
@@ -426,7 +598,7 @@ router.post('/crearRegistroBotiquin', validarToken, upload.any(), async (req, re
             detalle: 'Inspección de botiquín creada con éxito',
             datos: { data },
             tablasIdsAfectados: [{
-                tabla: 'registros_inspecciones_botiquin',
+                tabla: 'inspecciones_botiquin',
                 id: result.insertId?.toString()
             }],
             ipAddress: getClientIp(req),
@@ -466,4 +638,337 @@ router.post('/crearRegistroBotiquin', validarToken, upload.any(), async (req, re
     }
 });
 
+router.put('/editarRegistroBotiquin/:id', validarToken, upload.any(), async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+    const { id } = req.params;
+
+    try {
+        let data = req.body;
+
+        if (data.data && typeof data.data === 'string') {
+            try {
+                data = JSON.parse(data.data);
+            } catch (e) {
+            }
+        }
+
+        if (!data || Object.keys(data).length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'inspecciones',
+                metodo: 'put',
+                endPoint: `editarRegistroBotiquin/${id}`,
+                accion: 'Editar registro fallido',
+                detalle: 'Los datos del registro son requeridos.',
+                datos: { data: req.body },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendError(res, 400, "Los datos del registro son requeridos.");
+        }
+
+        // Remove id if present in data object
+        delete data.id;
+
+        const archivos = req.files;
+        const mappedEvidencias = {};
+        const mappedNoCumplimientos = {};
+        const fechaColombia = getFechaHoraColombia();
+
+        if (archivos && archivos.length > 0) {
+            for (let i = 0; i < archivos.length; i++) {
+                const file = archivos[i];
+
+                if (file.fieldname.startsWith('cap') && file.fieldname.endsWith('Evidencia')) {
+                    const fieldName = file.fieldname;
+                    if (!mappedEvidencias[fieldName]) mappedEvidencias[fieldName] = [];
+
+                    const ext = path.extname(file.originalname);
+                    const fileName = `inspeccion_${data.gen_cedulaUsuario}_${fieldName}_${fechaColombia}_${mappedEvidencias[fieldName].length + 1}${ext}`;
+
+                    try {
+                        const uploadResult = await uploadFileToDrive(
+                            file.buffer,
+                            fileName,
+                            folderId
+                        );
+
+                        const result = {
+                            nombre: fileName,
+                            id: uploadResult.id,
+                            url: uploadResult.url,
+                            webViewLink: uploadResult.webViewLink,
+                            size: file.size
+                        };
+
+                        mappedEvidencias[fieldName].push(result);
+                    } catch (uploadErr) {
+                        console.error(`Error al cargar evidencia en ${fieldName}:`, uploadErr.message);
+                    }
+                } else if (file.fieldname.startsWith('no_cumplimiento_')) {
+                    const fieldName = file.fieldname;
+                    const actualField = fieldName.replace('no_cumplimiento_', '');
+                    if (!mappedNoCumplimientos[actualField]) mappedNoCumplimientos[actualField] = [];
+
+                    const ext = path.extname(file.originalname);
+                    const fileName = `inspeccion_${data.gen_cedulaUsuario}_noCumplimiento_${actualField}_${fechaColombia}_${mappedNoCumplimientos[actualField].length + 1}${ext}`;
+
+                    try {
+                        const uploadResult = await uploadFileToDrive(
+                            file.buffer,
+                            fileName,
+                            folderId
+                        );
+
+                        const result = {
+                            nombre: fileName,
+                            id: uploadResult.id,
+                            url: uploadResult.url,
+                            webViewLink: uploadResult.webViewLink,
+                            size: file.size
+                        };
+
+                        mappedNoCumplimientos[actualField].push(result);
+                    } catch (uploadErr) {
+                        console.error(`Error al cargar evidencia de no cumplimiento en ${actualField}:`, uploadErr.message);
+                    }
+                }
+            }
+        }
+
+        // Merge existing evidences with newly uploaded ones if necessary, or assign new ones
+        for (const [campo, listaArchivos] of Object.entries(mappedEvidencias)) {
+            data[campo] = JSON.stringify(listaArchivos);
+        }
+
+        // Merge no_cumplimientos
+        let noCumplimientosObj = {};
+        if (data.no_cumplimientos) {
+            if (typeof data.no_cumplimientos === 'string') {
+                try {
+                    noCumplimientosObj = JSON.parse(data.no_cumplimientos);
+                } catch (e) {
+                    noCumplimientosObj = {};
+                }
+            } else {
+                noCumplimientosObj = data.no_cumplimientos;
+            }
+        }
+
+        for (const [actualField, filesList] of Object.entries(mappedNoCumplimientos)) {
+            if (!noCumplimientosObj[actualField]) {
+                noCumplimientosObj[actualField] = { evidencia: [], observacion: "" };
+            }
+            const existingFiles = noCumplimientosObj[actualField].evidencia || [];
+            noCumplimientosObj[actualField].evidencia = [...existingFiles, ...filesList];
+        }
+
+        data.no_cumplimientos = JSON.stringify(noCumplimientosObj);
+
+        // Evaluate compliance results considering non-compliance support
+        let finalResult = "CUMPLE";
+        for (const [key, val] of Object.entries(data)) {
+            if (key.startsWith("cap") && !key.endsWith("Evidencia") && !key.endsWith("Fecha") && key !== "no_cumplimientos") {
+                if (val === "NO CUMPLE") {
+                    const nc = noCumplimientosObj[key];
+                    const hasSupport = nc && nc.observacion && nc.observacion.trim() !== "" && Array.isArray(nc.evidencia) && nc.evidencia.length > 0;
+                    if (!hasSupport) {
+                        finalResult = "NO CUMPLE";
+                        break;
+                    }
+                }
+            }
+        }
+        data.resultado_final = finalResult;
+
+        const keys = Object.keys(data);
+        const values = Object.values(data).map(val => {
+            if (val && typeof val === 'object' && !(val instanceof Date)) {
+                return JSON.stringify(val);
+            }
+            return val;
+        });
+
+        const setClause = keys.map(key => `${key} = ?`).join(', ');
+
+        const query = `
+            UPDATE inspecciones_botiquin
+            SET ${setClause}
+            WHERE id = ?
+        `;
+
+        const [result] = await dbRailway.query(query, [...values, id]);
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'inspecciones',
+            metodo: 'put',
+            endPoint: `editarRegistroBotiquin/${id}`,
+            accion: 'Editar registro exitoso',
+            detalle: 'Inspección de botiquín editada con éxito',
+            datos: { data },
+            tablasIdsAfectados: [{
+                tabla: 'inspecciones_botiquin',
+                id: id
+            }],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Inspección editada correctamente`,
+            `Se ha actualizado el registro con ID ${id}.`,
+            { id, ...data }
+        );
+
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'inspecciones',
+            metodo: 'put',
+            endPoint: `editarRegistroBotiquin/${id}`,
+            accion: 'Error al editar registro de inspección',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado al editar la inspección.", err);
+    }
+});
+
+router.post('/obtenerArchivosEvidencias', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken.usuario;
+    const { archivosEvidencias } = req.body;
+
+    try {
+        if (!archivosEvidencias || !Array.isArray(archivosEvidencias) || archivosEvidencias.length === 0) {
+            await registrarHistorial({
+                nombreUsuario: usuarioToken.nombre || 'No registrado',
+                cedulaUsuario: usuarioToken.cedula || 'No registrado',
+                rolUsuario: usuarioToken.rol || 'No registrado',
+                nivel: 'log',
+                plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+                app: 'inspecciones',
+                metodo: 'post',
+                endPoint: 'obtenerArchivosEvidencias',
+                accion: 'Obtener evidencias fallido',
+                detalle: 'Los nombres de los archivos son requeridos.',
+                datos: { archivosEvidencias },
+                tablasIdsAfectados: [],
+                ipAddress: getClientIp(req),
+                userAgent: req.headers['user-agent'] || ''
+            });
+
+            return sendResponse(
+                res,
+                400,
+                "Solicitud inválida",
+                "Se requiere un array de nombres de archivos en el campo 'archivosEvidencias'",
+                null
+            );
+        }
+
+        const { getMimeType } = require('../services/googleDriveService');
+
+        const resultados = {
+            archivos: [],
+            errores: []
+        };
+
+        for (const nombreArchivo of archivosEvidencias) {
+            try {
+                const buffer = await getFileFromDrive(nombreArchivo, folderId);
+                if (buffer) {
+                    const mimeType = getMimeType(nombreArchivo);
+                    resultados.archivos.push({
+                        nombre: nombreArchivo,
+                        data: buffer.toString('base64'),
+                        contentType: mimeType
+                    });
+                } else {
+                    resultados.errores.push({
+                        nombre: nombreArchivo,
+                        error: "No se pudo obtener el archivo de Drive"
+                    });
+                }
+            } catch (error) {
+                resultados.errores.push({
+                    nombre: nombreArchivo,
+                    error: error.message || "Error al obtener el archivo"
+                });
+            }
+        }
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken.cedula || 'No registrado',
+            rolUsuario: usuarioToken.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'inspecciones',
+            metodo: 'post',
+            endPoint: 'obtenerArchivosEvidencias',
+            accion: 'Consulta de evidencias exitosa',
+            detalle: `Se consultaron ${resultados.archivos.length} archivos de evidencias`,
+            datos: {},
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(
+            res,
+            200,
+            `Consulta exitosa`,
+            `Se obtuvieron los archivos de evidencias correctamente.`,
+            resultados
+        );
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken.cedula || 'Error sistema',
+            rolUsuario: usuarioToken.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'inspecciones',
+            metodo: 'post',
+            endPoint: 'obtenerArchivosEvidencias',
+            accion: 'Error al obtener evidencias',
+            detalle: 'Error interno del servidor',
+            datos: {
+                error: err.message,
+                stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado al obtener las evidencias.", err);
+    }
+});
+
 module.exports = router;
+
