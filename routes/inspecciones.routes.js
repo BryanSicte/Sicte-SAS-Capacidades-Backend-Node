@@ -20,11 +20,6 @@ async function initDatabase() {
         console.log("Inicializando base de datos para Inspecciones de Botiquín...");
         await dbRailway.query("SET SESSION innodb_strict_mode=OFF");
 
-        // Fuerza de recreación: Eliminamos la tabla para resolver el error de tamaño de registro de InnoDB
-        console.log("Eliminando tabla antigua inspecciones_botiquin si existe...");
-        await dbRailway.query("DROP TABLE IF EXISTS inspecciones_botiquin");
-        console.log("Tabla antigua eliminada con éxito.");
-
         await dbRailway.query(`
             CREATE TABLE IF NOT EXISTS inspecciones_botiquin (
                 id INT AUTO_INCREMENT PRIMARY KEY,
