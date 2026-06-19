@@ -19,6 +19,12 @@ async function initDatabase() {
     try {
         console.log("Inicializando base de datos para Inspecciones de Botiquín...");
         await dbRailway.query("SET SESSION innodb_strict_mode=OFF");
+
+        // Fuerza de recreación: Eliminamos la tabla para resolver el error de tamaño de registro de InnoDB
+        console.log("Eliminando tabla antigua inspecciones_botiquin si existe...");
+        await dbRailway.query("DROP TABLE IF EXISTS inspecciones_botiquin");
+        console.log("Tabla antigua eliminada con éxito.");
+
         await dbRailway.query(`
             CREATE TABLE IF NOT EXISTS inspecciones_botiquin (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -41,70 +47,12 @@ async function initDatabase() {
                 gen_tipoBotiquin VARCHAR(45) DEFAULT NULL,
                 gen_precinto VARCHAR(45) DEFAULT NULL,
                 gen_observaciones TEXT DEFAULT NULL,
-                cap1Guantes VARCHAR(45) DEFAULT NULL,
-                cap1GuantesFecha VARCHAR(45) DEFAULT NULL,
-                cap1Tapabocas VARCHAR(45) DEFAULT NULL,
-                cap1Monogafas VARCHAR(45) DEFAULT NULL,
-                cap1Mascara VARCHAR(45) DEFAULT NULL,
-                cap1Bolsa VARCHAR(45) DEFAULT NULL,
-                cap1Evidencia JSON DEFAULT NULL,
-                cap2CompresaGasa VARCHAR(45) DEFAULT NULL,
-                cap2CompresaGasaFecha VARCHAR(45) DEFAULT NULL,
-                cap2Bajalenguas VARCHAR(45) DEFAULT NULL,
-                cap2BajalenguasFecha VARCHAR(45) DEFAULT NULL,
-                cap2Curitas VARCHAR(45) DEFAULT NULL,
-                cap2GasasEsteriles VARCHAR(45) DEFAULT NULL,
-                cap2GasasEsterilesFecha VARCHAR(45) DEFAULT NULL,
-                cap2Esparadrapo VARCHAR(45) DEFAULT NULL,
-                cap2EsparadrapoFecha VARCHAR(45) DEFAULT NULL,
-                cap2Microporo VARCHAR(45) DEFAULT NULL,
-                cap2MicroporoFecha VARCHAR(45) DEFAULT NULL,
-                cap2VendajesElasticos2x5 VARCHAR(45) DEFAULT NULL,
-                cap2VendajesElasticos2x5Fecha VARCHAR(45) DEFAULT NULL,
-                cap2VendajesElasticos3x5 VARCHAR(45) DEFAULT NULL,
-                cap2VendajesElasticos3x5Fecha VARCHAR(45) DEFAULT NULL,
-                cap2VendajesElasticos5x5 VARCHAR(45) DEFAULT NULL,
-                cap2VendaAlgodon VARCHAR(45) DEFAULT NULL,
-                cap2VendaAlgodonFecha VARCHAR(45) DEFAULT NULL,
-                cap2OclusoresOculares VARCHAR(45) DEFAULT NULL,
-                cap2Evidencia JSON DEFAULT NULL,
-                cap3KitInmovilizadores VARCHAR(45) DEFAULT NULL,
-                cap3InmovilizadorCervical VARCHAR(45) DEFAULT NULL,
-                cap3VendajeTriangular VARCHAR(45) DEFAULT NULL,
-                cap3Evidencia JSON DEFAULT NULL,
-                cap4SolucionSalina VARCHAR(45) DEFAULT NULL,
-                cap4SolucionSalinaFecha VARCHAR(45) DEFAULT NULL,
-                cap4Evidencia JSON DEFAULT NULL,
-                cap5TijerasTrauma VARCHAR(45) DEFAULT NULL,
-                cap5BolsaHermetica VARCHAR(45) DEFAULT NULL,
-                cap5Linterna VARCHAR(45) DEFAULT NULL,
-                cap5Cuadernillo VARCHAR(45) DEFAULT NULL,
-                cap5Esfero VARCHAR(45) DEFAULT NULL,
-                cap5Pito VARCHAR(45) DEFAULT NULL,
-                cap5BotiquinFijo VARCHAR(45) DEFAULT NULL,
-                cap5Evidencia JSON DEFAULT NULL,
+                respuestas_capitulos JSON DEFAULT NULL,
                 no_cumplimientos JSON DEFAULT NULL,
                 resultado_inicial VARCHAR(45) DEFAULT NULL,
                 resultado_final VARCHAR(45) DEFAULT NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=DYNAMIC;
         `);
-
-        // Check and alter table for missing columns dynamically
-        const [cols] = await dbRailway.query('SHOW COLUMNS FROM inspecciones_botiquin');
-        const colNames = cols.map(col => col.Field);
-
-        if (!colNames.includes('no_cumplimientos')) {
-            await dbRailway.query('ALTER TABLE inspecciones_botiquin ADD COLUMN no_cumplimientos JSON DEFAULT NULL');
-            console.log("Columna 'no_cumplimientos' agregada a inspecciones_botiquin.");
-        }
-        if (!colNames.includes('resultado_inicial')) {
-            await dbRailway.query('ALTER TABLE inspecciones_botiquin ADD COLUMN resultado_inicial VARCHAR(45) DEFAULT NULL');
-            console.log("Columna 'resultado_inicial' agregada a inspecciones_botiquin.");
-        }
-        if (!colNames.includes('resultado_final')) {
-            await dbRailway.query('ALTER TABLE inspecciones_botiquin ADD COLUMN resultado_final VARCHAR(45) DEFAULT NULL');
-            console.log("Columna 'resultado_final' agregada a inspecciones_botiquin.");
-        }
 
         console.log("Base de datos para Inspecciones de Botiquín inicializada correctamente.");
     } catch (err) {
@@ -254,6 +202,22 @@ router.get('/registros', validarToken, async (req, res) => {
     try {
         const [rows] = await dbRailway.query('SELECT * FROM inspecciones_botiquin ORDER BY gen_fechaRegistro DESC');
 
+        const unpackedRows = rows.map(row => {
+            let capData = {};
+            if (row.respuestas_capitulos) {
+                try {
+                    capData = typeof row.respuestas_capitulos === 'string'
+                        ? JSON.parse(row.respuestas_capitulos)
+                        : row.respuestas_capitulos;
+                } catch (e) {
+                    console.error("Error parsing respuestas_capitulos:", e);
+                }
+            }
+            const unpackedRow = { ...row, ...capData };
+            delete unpackedRow.respuestas_capitulos;
+            return unpackedRow;
+        });
+
         await registrarHistorial({
             nombreUsuario: usuarioToken.nombre || 'No registrado',
             cedulaUsuario: usuarioToken.cedula || 'No registrado',
@@ -264,7 +228,7 @@ router.get('/registros', validarToken, async (req, res) => {
             metodo: 'get',
             endPoint: 'registros',
             accion: 'Consulta registros exitosa',
-            detalle: `Se consultó ${rows.length} registros`,
+            detalle: `Se consultó ${unpackedRows.length} registros`,
             datos: {},
             tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
@@ -275,8 +239,8 @@ router.get('/registros', validarToken, async (req, res) => {
             res,
             200,
             `Consulta exitosa`,
-            `Se obtuvieron ${rows.length} registros de inspecciones de botiquín.`,
-            rows
+            `Se obtuvieron ${unpackedRows.length} registros de inspecciones de botiquín.`,
+            unpackedRows
         );
     } catch (err) {
         await registrarHistorial({
@@ -567,6 +531,16 @@ router.post('/crearRegistroBotiquin', validarToken, upload.any(), async (req, re
         data.resultado_inicial = finalResult;
         data.resultado_final = finalResult;
 
+        // Pack all cap* fields into a single JSON object 'respuestas_capitulos'
+        const respuestasCapitulos = {};
+        for (const [key, val] of Object.entries(data)) {
+            if (key.startsWith("cap")) {
+                respuestasCapitulos[key] = val;
+                delete data[key];
+            }
+        }
+        data.respuestas_capitulos = JSON.stringify(respuestasCapitulos);
+
         const keys = Object.keys(data);
         const values = Object.values(data).map(val => {
             if (val && typeof val === 'object' && !(val instanceof Date)) {
@@ -596,7 +570,7 @@ router.post('/crearRegistroBotiquin', validarToken, upload.any(), async (req, re
             endPoint: 'crearRegistroBotiquin',
             accion: 'Crear registro exitoso',
             detalle: 'Inspección de botiquín creada con éxito',
-            datos: { data },
+            datos: { data: { ...data, ...respuestasCapitulos } },
             tablasIdsAfectados: [{
                 tabla: 'inspecciones_botiquin',
                 id: result.insertId?.toString()
@@ -610,7 +584,7 @@ router.post('/crearRegistroBotiquin', validarToken, upload.any(), async (req, re
             200,
             `Inspección guardada correctamente`,
             `Se ha guardado el registro con ID ${result.insertId}.`,
-            { id: result.insertId, ...data }
+            { id: result.insertId, ...data, ...respuestasCapitulos }
         );
 
     } catch (err) {
@@ -787,6 +761,16 @@ router.put('/editarRegistroBotiquin/:id', validarToken, upload.any(), async (req
         }
         data.resultado_final = finalResult;
 
+        // Pack all cap* fields into a single JSON object 'respuestas_capitulos'
+        const respuestasCapitulos = {};
+        for (const [key, val] of Object.entries(data)) {
+            if (key.startsWith("cap")) {
+                respuestasCapitulos[key] = val;
+                delete data[key];
+            }
+        }
+        data.respuestas_capitulos = JSON.stringify(respuestasCapitulos);
+
         const keys = Object.keys(data);
         const values = Object.values(data).map(val => {
             if (val && typeof val === 'object' && !(val instanceof Date)) {
@@ -816,7 +800,7 @@ router.put('/editarRegistroBotiquin/:id', validarToken, upload.any(), async (req
             endPoint: `editarRegistroBotiquin/${id}`,
             accion: 'Editar registro exitoso',
             detalle: 'Inspección de botiquín editada con éxito',
-            datos: { data },
+            datos: { data: { ...data, ...respuestasCapitulos } },
             tablasIdsAfectados: [{
                 tabla: 'inspecciones_botiquin',
                 id: id
@@ -830,7 +814,7 @@ router.put('/editarRegistroBotiquin/:id', validarToken, upload.any(), async (req
             200,
             `Inspección editada correctamente`,
             `Se ha actualizado el registro con ID ${id}.`,
-            { id, ...data }
+            { id, ...data, ...respuestasCapitulos }
         );
 
     } catch (err) {
