@@ -14,6 +14,8 @@ const upload = multer();
 
 const folderId = '1ZJcZf8P3VH7ktLQI2Sq9j6EOjORipOXy';
 
+const DEFAULT_INSPECTION_TYPE = "BOTIQUÍN";
+
 // Asynchronous DB initialization
 async function initDatabase() {
     try {
@@ -217,7 +219,7 @@ router.get('/registros', validarToken, async (req, res) => {
                     console.error("Error parsing datos_especificos:", e);
                 }
             }
-            const unpackedRow = { ...row, ...capData, ...specData, tipo_inspeccion: row.gen_nombreInspeccion || row.gen_tipoInspeccion || "Botiquín" };
+            const unpackedRow = { ...row, ...capData, ...specData, tipo_inspeccion: row.gen_nombreInspeccion || row.gen_tipoInspeccion || DEFAULT_INSPECTION_TYPE };
             delete unpackedRow.respuestas_capitulos;
             delete unpackedRow.datos_especificos;
             return unpackedRow;
@@ -1729,7 +1731,7 @@ router.post('/registro', validarToken, upload.any(), async (req, res) => {
         for (const [key, val] of Object.entries(data)) {
             if (key.startsWith("cap") && !key.endsWith("Evidencia") && !key.endsWith("Fecha") && key !== "no_cumplimientos") {
                 const isGuantesText = key === "cap3GuantesSerialDerecho" || key === "cap3GuantesSerialIzquierdo" || key === "cap3GuantesMarca" || key === "cap3GuantesTalla";
-                if (!isGuantesText && val === "NO CUMPLE") {
+                if (!isGuantesText && (val === "NO CUMPLE" || val === "Mal Estado" || val === "Mal Uso")) {
                     const nc = noCumplimientosObj[key];
                     const hasSupport = nc && nc.observacion && nc.observacion.trim() !== "" && Array.isArray(nc.evidencia) && nc.evidencia.length > 0;
                     if (!hasSupport) {
@@ -1989,7 +1991,7 @@ router.put('/registro/:id', validarToken, upload.any(), async (req, res) => {
         for (const [key, val] of Object.entries(data)) {
             if (key.startsWith("cap") && !key.endsWith("Evidencia") && !key.endsWith("Fecha") && key !== "no_cumplimientos") {
                 const isGuantesText = key === "cap3GuantesSerialDerecho" || key === "cap3GuantesSerialIzquierdo" || key === "cap3GuantesMarca" || key === "cap3GuantesTalla";
-                if (!isGuantesText && val === "NO CUMPLE") {
+                if (!isGuantesText && (val === "NO CUMPLE" || val === "Mal Estado" || val === "Mal Uso")) {
                     const nc = noCumplimientosObj[key];
                     const hasSupport = nc && nc.observacion && nc.observacion.trim() !== "" && Array.isArray(nc.evidencia) && nc.evidencia.length > 0;
                     if (!hasSupport) {
