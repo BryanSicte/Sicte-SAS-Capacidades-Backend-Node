@@ -1597,6 +1597,7 @@ router.post('/registro', validarToken, upload.any(), async (req, res) => {
         const archivos = req.files;
         const mappedEvidencias = {};
         const mappedNoCumplimientos = {};
+        const mappedCuadrillaEvidencias = {};
         const fechaColombia = getFechaHoraColombia();
 
         if (archivos && archivos.length > 0) {
@@ -1695,6 +1696,43 @@ router.post('/registro', validarToken, upload.any(), async (req, res) => {
                     } catch (uploadErr) {
                         console.error(`Error al cargar evidencia de no cumplimiento en ${actualField}:`, uploadErr.message);
                     }
+                } else if (file.fieldname.startsWith('cuadrilla_')) {
+                    let type = '';
+                    let memberId = '';
+                    if (file.fieldname.startsWith('cuadrilla_dot_evidencia_')) {
+                        type = 'dot_evidencia';
+                        memberId = file.fieldname.replace('cuadrilla_dot_evidencia_', '');
+                    } else if (file.fieldname.startsWith('cuadrilla_evidencia_')) {
+                        type = 'doc_evidencia';
+                        memberId = file.fieldname.replace('cuadrilla_evidencia_', '');
+                    }
+
+                    if (type && memberId) {
+                        if (!mappedCuadrillaEvidencias[memberId]) mappedCuadrillaEvidencias[memberId] = { doc_evidencia: [], dot_evidencia: [] };
+
+                        const ext = path.extname(file.originalname);
+                        const fileName = `inspeccion_${data.gen_cedulaUsuario}_cuadrilla_${memberId}_${type}_${fechaColombia}_${mappedCuadrillaEvidencias[memberId][type].length + 1}${ext}`;
+
+                        try {
+                            const uploadResult = await uploadFileToDrive(
+                                file.buffer,
+                                fileName,
+                                folderId
+                            );
+
+                            const result = {
+                                nombre: fileName,
+                                id: uploadResult.id,
+                                url: uploadResult.url,
+                                webViewLink: uploadResult.webViewLink,
+                                size: file.size
+                            };
+
+                            mappedCuadrillaEvidencias[memberId][type].push(result);
+                        } catch (uploadErr) {
+                            console.error(`Error al cargar evidencia de cuadrilla para ${memberId}:`, uploadErr.message);
+                        }
+                    }
                 }
             }
         }
@@ -1726,6 +1764,40 @@ router.post('/registro', validarToken, upload.any(), async (req, res) => {
 
         data.no_cumplimientos = JSON.stringify(noCumplimientosObj);
 
+        // Merge cuadrilla_evidencias
+        if (data.gen_cuadrilla) {
+            let cuadrillaArr = [];
+            if (typeof data.gen_cuadrilla === 'string') {
+                try { cuadrillaArr = JSON.parse(data.gen_cuadrilla); } catch (e) { }
+            } else if (Array.isArray(data.gen_cuadrilla)) {
+                cuadrillaArr = data.gen_cuadrilla;
+            }
+
+            for (let i = 0; i < cuadrillaArr.length; i++) {
+                const member = cuadrillaArr[i];
+
+                if (Array.isArray(member.doc_evidencia)) {
+                    member.doc_evidencia = member.doc_evidencia.filter(f => f.url || f.nombre || (f.uri && f.uri.startsWith('http')));
+                } else {
+                    member.doc_evidencia = [];
+                }
+                if (Array.isArray(member.dot_evidencia)) {
+                    member.dot_evidencia = member.dot_evidencia.filter(f => f.url || f.nombre || (f.uri && f.uri.startsWith('http')));
+                } else {
+                    member.dot_evidencia = [];
+                }
+
+                if (mappedCuadrillaEvidencias[member.id]) {
+                    const newDocEvidencias = mappedCuadrillaEvidencias[member.id].doc_evidencia || [];
+                    const newDotEvidencias = mappedCuadrillaEvidencias[member.id].dot_evidencia || [];
+
+                    member.doc_evidencia = [...member.doc_evidencia, ...newDocEvidencias];
+                    member.dot_evidencia = [...member.dot_evidencia, ...newDotEvidencias];
+                }
+            }
+            data.gen_cuadrilla = JSON.stringify(cuadrillaArr);
+        }
+
         // Evaluate compliance dynamically, ignoring dynamic text keys
         let finalResult = "CUMPLE";
         for (const [key, val] of Object.entries(data)) {
@@ -1738,6 +1810,33 @@ router.post('/registro', validarToken, upload.any(), async (req, res) => {
                         finalResult = "NO CUMPLE";
                         break;
                     }
+                }
+            }
+        }
+
+        // Include gen_cuadrilla in compliance calculation
+        if (finalResult === "CUMPLE" && data.gen_cuadrilla) {
+            let cuadrillaArr = [];
+            if (typeof data.gen_cuadrilla === 'string') {
+                try { cuadrillaArr = JSON.parse(data.gen_cuadrilla); } catch (e) { }
+            } else {
+                cuadrillaArr = data.gen_cuadrilla;
+            }
+
+            if (Array.isArray(cuadrillaArr)) {
+                for (const member of cuadrillaArr) {
+                    for (const [mKey, mVal] of Object.entries(member)) {
+                        if (mVal === "NO CUMPLE" || mVal === "Mal Estado" || mVal === "Mal Uso") {
+                            const ncKey = `cuadrilla_${member.id}_${mKey}`;
+                            const nc = noCumplimientosObj[ncKey];
+                            const hasSupport = nc && nc.observacion && nc.observacion.trim() !== "" && Array.isArray(nc.evidencia) && nc.evidencia.length > 0;
+                            if (!hasSupport) {
+                                finalResult = "NO CUMPLE";
+                                break;
+                            }
+                        }
+                    }
+                    if (finalResult === "NO CUMPLE") break;
                 }
             }
         }
@@ -1882,6 +1981,7 @@ router.put('/registro/:id', validarToken, upload.any(), async (req, res) => {
         const archivos = req.files;
         const mappedEvidencias = {};
         const mappedNoCumplimientos = {};
+        const mappedCuadrillaEvidencias = {};
         const fechaColombia = getFechaHoraColombia();
 
         if (archivos && archivos.length > 0) {
@@ -1941,6 +2041,43 @@ router.put('/registro/:id', validarToken, upload.any(), async (req, res) => {
                     } catch (uploadErr) {
                         console.error(`Error al cargar evidencia de no cumplimiento en ${actualField}:`, uploadErr.message);
                     }
+                } else if (file.fieldname.startsWith('cuadrilla_')) {
+                    let type = '';
+                    let memberId = '';
+                    if (file.fieldname.startsWith('cuadrilla_dot_evidencia_')) {
+                        type = 'dot_evidencia';
+                        memberId = file.fieldname.replace('cuadrilla_dot_evidencia_', '');
+                    } else if (file.fieldname.startsWith('cuadrilla_evidencia_')) {
+                        type = 'doc_evidencia';
+                        memberId = file.fieldname.replace('cuadrilla_evidencia_', '');
+                    }
+
+                    if (type && memberId) {
+                        if (!mappedCuadrillaEvidencias[memberId]) mappedCuadrillaEvidencias[memberId] = { doc_evidencia: [], dot_evidencia: [] };
+
+                        const ext = path.extname(file.originalname);
+                        const fileName = `inspeccion_${data.gen_cedulaUsuario}_cuadrilla_${memberId}_${type}_${fechaColombia}_${mappedCuadrillaEvidencias[memberId][type].length + 1}${ext}`;
+
+                        try {
+                            const uploadResult = await uploadFileToDrive(
+                                file.buffer,
+                                fileName,
+                                folderId
+                            );
+
+                            const result = {
+                                nombre: fileName,
+                                id: uploadResult.id,
+                                url: uploadResult.url,
+                                webViewLink: uploadResult.webViewLink,
+                                size: file.size
+                            };
+
+                            mappedCuadrillaEvidencias[memberId][type].push(result);
+                        } catch (uploadErr) {
+                            console.error(`Error al cargar evidencia de cuadrilla para ${memberId}:`, uploadErr.message);
+                        }
+                    }
                 }
             }
         }
@@ -1986,6 +2123,40 @@ router.put('/registro/:id', validarToken, upload.any(), async (req, res) => {
 
         data.no_cumplimientos = JSON.stringify(noCumplimientosObj);
 
+        // Merge cuadrilla_evidencias
+        if (data.gen_cuadrilla) {
+            let cuadrillaArr = [];
+            if (typeof data.gen_cuadrilla === 'string') {
+                try { cuadrillaArr = JSON.parse(data.gen_cuadrilla); } catch (e) { }
+            } else if (Array.isArray(data.gen_cuadrilla)) {
+                cuadrillaArr = data.gen_cuadrilla;
+            }
+
+            for (let i = 0; i < cuadrillaArr.length; i++) {
+                const member = cuadrillaArr[i];
+
+                if (Array.isArray(member.doc_evidencia)) {
+                    member.doc_evidencia = member.doc_evidencia.filter(f => f.url || f.nombre || (f.uri && f.uri.startsWith('http')));
+                } else {
+                    member.doc_evidencia = [];
+                }
+                if (Array.isArray(member.dot_evidencia)) {
+                    member.dot_evidencia = member.dot_evidencia.filter(f => f.url || f.nombre || (f.uri && f.uri.startsWith('http')));
+                } else {
+                    member.dot_evidencia = [];
+                }
+
+                if (mappedCuadrillaEvidencias[member.id]) {
+                    const newDocEvidencias = mappedCuadrillaEvidencias[member.id].doc_evidencia || [];
+                    const newDotEvidencias = mappedCuadrillaEvidencias[member.id].dot_evidencia || [];
+
+                    member.doc_evidencia = [...member.doc_evidencia, ...newDocEvidencias];
+                    member.dot_evidencia = [...member.dot_evidencia, ...newDotEvidencias];
+                }
+            }
+            data.gen_cuadrilla = JSON.stringify(cuadrillaArr);
+        }
+
         // Evaluate compliance dynamically, ignoring dynamic text keys
         let finalResult = "CUMPLE";
         for (const [key, val] of Object.entries(data)) {
@@ -1998,6 +2169,33 @@ router.put('/registro/:id', validarToken, upload.any(), async (req, res) => {
                         finalResult = "NO CUMPLE";
                         break;
                     }
+                }
+            }
+        }
+
+        // Include gen_cuadrilla in compliance calculation
+        if (finalResult === "CUMPLE" && data.gen_cuadrilla) {
+            let cuadrillaArr = [];
+            if (typeof data.gen_cuadrilla === 'string') {
+                try { cuadrillaArr = JSON.parse(data.gen_cuadrilla); } catch (e) { }
+            } else {
+                cuadrillaArr = data.gen_cuadrilla;
+            }
+
+            if (Array.isArray(cuadrillaArr)) {
+                for (const member of cuadrillaArr) {
+                    for (const [mKey, mVal] of Object.entries(member)) {
+                        if (mVal === "NO CUMPLE" || mVal === "Mal Estado" || mVal === "Mal Uso") {
+                            const ncKey = `cuadrilla_${member.id}_${mKey}`;
+                            const nc = noCumplimientosObj[ncKey];
+                            const hasSupport = nc && nc.observacion && nc.observacion.trim() !== "" && Array.isArray(nc.evidencia) && nc.evidencia.length > 0;
+                            if (!hasSupport) {
+                                finalResult = "NO CUMPLE";
+                                break;
+                            }
+                        }
+                    }
+                    if (finalResult === "NO CUMPLE") break;
                 }
             }
         }
