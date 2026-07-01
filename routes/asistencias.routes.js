@@ -180,7 +180,7 @@ router.post('/crearRegistro', async (req, res) => {
             const [formacionesEnCurso] = await dbRailway.query(`
                 SELECT id, nombreCapacitacion, fechaInicio, fechaFin, cedulaCapacitador, nombreCapacitador, requiereAlcoholimetria FROM formaciones_asistencias WHERE nombreCapacitacion = ? AND ? BETWEEN fechaInicio AND fechaFin LIMIT 1
             `, [nombreCapacitacion, ahoraColombia]);
- 
+
             if (formacionesEnCurso.length === 0) {
                 await registrarHistorial({
                     nombreUsuario: usuarioToken?.nombre || 'No registrado',
@@ -202,7 +202,7 @@ router.post('/crearRegistro', async (req, res) => {
                     ipAddress: getClientIp(req),
                     userAgent: req.headers['user-agent'] || ''
                 });
- 
+
                 return sendError(res, 400, `La formacion "${nombreCapacitacion}" no está en curso en este momento.`, null, { "nombreCapacitacion": `La formacion "${nombreCapacitacion}" no está en curso en este momento.` });
             }
 
@@ -1084,6 +1084,126 @@ router.post('/crearFormacion', validarToken, async (req, res) => {
                 error: err.message,
                 stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
             },
+            tablasIdsAfectados: [],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendError(res, 500, "Error inesperado.", err);
+    }
+});
+
+router.put('/editarFormacion/:id', validarToken, async (req, res) => {
+    const usuarioToken = req.validarToken?.usuario || null;
+    const { id } = req.params;
+
+    try {
+        const data = req.body;
+
+        if (!data || Object.keys(data).length === 0) {
+            return sendError(res, 400, "Los datos del registro son requeridos.");
+        }
+
+        const requiredFields = {
+            fechaRegistro: "No se pudo obtener la fecha del registro.",
+            cedulaUsuario: "No se pudo identificar la cedula del usuario.",
+            nombreUsuario: "No se pudo identificar el nombre del usuario.",
+            nombreCapacitacion: "Ingrese el nombre de la capacitacion.",
+            cedulaCapacitador: "Ingrese y seleccione la cedula del capacitador.",
+            nombreCapacitador: "Ingrese y seleccione el nombre del capacitador.",
+            numeroHoras: "Ingrese el numero de horas.",
+            fechaInicio: "Seleccione la fecha de inicio.",
+            fechaFin: "Seleccione la fecha de fin.",
+            direccion: "Ingrese la direccion.",
+            ubicacion: "Seleccione la ubicación en el mapa.",
+            requiereAlcoholimetria: "Seleccione si requiere alcoholimetría.",
+        };
+
+        if (!validateRequiredFields(data, requiredFields, res)) {
+            return;
+        }
+
+        if (data.requiereAlcoholimetria === "Si") {
+            const extraRequiredFields = {
+                marcaEquipo: "Ingrese la marca del equipo.",
+                serieEquipo: "Ingrese la serie del equipo.",
+                fechaCalibracion: "Ingrese la fecha de calibración.",
+            };
+
+            if (!validateRequiredFields(data, extraRequiredFields, res)) {
+                return;
+            }
+        }
+
+        const { cedulaCapacitador, fechaInicio, fechaFin, ...restoData } = data;
+
+        if (cedulaCapacitador) {
+            const [dataRows] = await dbRailway.query(`SELECT nit FROM plantaenlinea WHERE nit = ? and perfil <> 'RETIRADO'`, [cedulaCapacitador]);
+            if (dataRows.length === 0) {
+                return sendError(res, 400, "Registro no permitido: Cedula", null, { "cedulaCapacitador": `La cedula ${cedulaCapacitador} no se encuentra registrada en el sistema.` });
+            }
+        }
+
+        if (fechaInicio && fechaFin) {
+            const inicio = new Date(fechaInicio);
+            const fin = new Date(fechaFin);
+
+            if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) {
+                return sendError(res, 400, "Formato de fecha inválido", null, { "fechaInicio": "Las fechas proporcionadas no son válidas." });
+            }
+
+            if (inicio > fin) {
+                return sendError(res, 400, "Rango de fechas inválido", null, { "fechaInicio": "La fecha de inicio no puede ser mayor a la fecha de fin." });
+            }
+        }
+
+        const keys = Object.keys(restoData);
+        const values = Object.values(restoData);
+        const setClause = keys.map(k => `${k} = ?`).join(', ');
+        const valoresFinales = [...values, id];
+
+        const query = `UPDATE formaciones_asistencias SET ${setClause} WHERE id = ?`;
+
+        const [result] = await dbRailway.query(query, valoresFinales);
+
+        if (result.affectedRows === 0) {
+            return sendError(res, 404, "Registro no encontrado o no se pudo actualizar.");
+        }
+
+        const [registroGuardado] = await dbRailway.query('SELECT * FROM formaciones_asistencias WHERE id = ?', [id]);
+
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'No registrado',
+            cedulaUsuario: usuarioToken?.cedula || 'No registrado',
+            rolUsuario: usuarioToken?.rol || 'No registrado',
+            nivel: 'success',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'asistencias',
+            metodo: 'put',
+            endPoint: 'editarFormacion',
+            accion: 'Editar registro exitoso',
+            detalle: 'Registro actualizado con exito',
+            datos: { data },
+            tablasIdsAfectados: [{ tabla: 'formaciones_asistencias', id: id }],
+            ipAddress: getClientIp(req),
+            userAgent: req.headers['user-agent'] || ''
+        });
+
+        return sendResponse(res, 200, `Registro editado correctamente`, `Se ha actualizado el registro con ID ${id}.`, registroGuardado[0]);
+
+    } catch (err) {
+        await registrarHistorial({
+            nombreUsuario: usuarioToken?.nombre || 'Error sistema',
+            cedulaUsuario: usuarioToken?.cedula || 'Error sistema',
+            rolUsuario: usuarioToken?.rol || 'Error sistema',
+            nivel: 'error',
+            plataforma: determinarPlataforma(req.headers['user-agent'] || ''),
+            app: 'asistencias',
+            metodo: 'put',
+            endPoint: 'editarFormacion',
+            accion: 'Error al editar registro',
+            detalle: 'Error interno del servidor',
+            datos: { error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
             tablasIdsAfectados: [],
             ipAddress: getClientIp(req),
             userAgent: req.headers['user-agent'] || ''
