@@ -27,6 +27,7 @@ const proveedoresRoutes = require('./proveedores.routes');
 const firmasRoutes = require('./firmas.routes')
 const exportesRoutes = require('./exportes.routes')
 const inspeccionesRoutes = require('./inspecciones.routes')
+const InventariosV2Routes = require('./InventariosV2.routes')
 const apoyosRoutes = require('./apoyos.routes');
 const controlAvanceRoutes = require('./controlAvance.routes');
 
@@ -57,6 +58,7 @@ router.use('/proveedores', proveedoresRoutes);
 router.use('/firmas', firmasRoutes);
 router.use('/exportes', exportesRoutes);
 router.use('/inspecciones', inspeccionesRoutes);
+router.use('/InventariosV2', InventariosV2Routes);
 router.use('/apoyos', apoyosRoutes);
 router.use('/controlAvance', controlAvanceRoutes);
 

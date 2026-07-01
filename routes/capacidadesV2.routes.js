@@ -569,7 +569,7 @@ router.get('/reporteBackup', validarToken, async (req, res) => {
         let query = '';
         let params = [];
         if (fecha) {
-            query = 'SELECT * FROM capacidades_backup WHERE FECHA_REPORTE = ? ORDER BY NOMBRE_COMPLETO ASC';
+            query = 'SELECT * FROM capacidades_backup WHERE FECHA_REPORTE LIKE CONCAT(?, "%") ORDER BY NOMBRE_COMPLETO ASC';
             params = [fecha];
         } else {
             const [[latestRow]] = await dbRailway.query(
@@ -579,7 +579,7 @@ router.get('/reporteBackup', validarToken, async (req, res) => {
             if (!latestDate) {
                 return sendResponse(res, 200, 'Consulta exitosa', 'No hay registros de backup.', { fecha: null, data: [] });
             }
-            query = 'SELECT * FROM capacidades_backup WHERE FECHA_REPORTE = ? ORDER BY NOMBRE_COMPLETO ASC';
+            query = 'SELECT * FROM capacidades_backup WHERE FECHA_REPORTE LIKE CONCAT(?, "%") ORDER BY NOMBRE_COMPLETO ASC';
             params = [latestDate];
         }
 
